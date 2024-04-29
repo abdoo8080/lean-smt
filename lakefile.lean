@@ -16,6 +16,10 @@ package smt where
 @[default_target]
 lean_lib Smt
 
+lean_exe checker where
+  root := `Checker
+  supportInterpreter := true
+
 open Std
 open System
 
