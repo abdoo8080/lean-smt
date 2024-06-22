@@ -2,7 +2,6 @@ import Smt
 
 #check True
 
-set_option trace.smt.debug true in
 set_option trace.smt.reconstruct.proof true in
 theorem modus_ponens {p q : Prop} : p → (p → q) → q := by
   smt
@@ -19,17 +18,14 @@ axiom ident   : ∀ a, op e a = a
 
 theorem inverse' : ∀ a, op a (inv a) = e := by
   smt [assoc op, inverse op inv e, ident op e]
-  all_goals simp [eq_comm, Classical.not_not]
 
 theorem identity' : ∀ a, op a e = a := by
   smt [assoc op, inverse op inv e, ident op e, inverse' op inv e]
-  all_goals simp [eq_comm, Classical.not_not]
 
 theorem unique_identity e' : (∀ z, op e' z = z) → e' = e := by
   smt [assoc op, inverse op inv e, ident op e]
-  all_goals simp [eq_comm]
 
-example (e b c a v0 v1 : Int) (h1 : v0 = 5*a) (h2 : v1 = 3*b)
+example (b c a v0 v1 : Int) (h1 : v0 = 5*a) (h2 : v1 = 3*b)
     (h3 : v0 + v1 + c = 10) : v0 + 5 + (v1 - 3) + (c - 2) = 10 := by
   smt [h1, h2, h3]
 
