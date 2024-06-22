@@ -4,6 +4,7 @@ import Smt
 
 set_option trace.smt.translate.query true in
 set_option trace.smt.translate.expr true in
+set_option trace.smt true in
 set_option trace.smt.solve true in
 set_option trace.smt.reconstruct.proof true in
 theorem modus_ponens {p q : Prop} : p → (p → q) → q := by
