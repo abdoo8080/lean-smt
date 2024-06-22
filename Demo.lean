@@ -2,6 +2,9 @@ import Smt
 
 #check True
 
+set_option trace.smt.translate.query true in
+set_option trace.smt.translate.expr true in
+set_option trace.smt.solve true in
 set_option trace.smt.reconstruct.proof true in
 theorem modus_ponens {p q : Prop} : p → (p → q) → q := by
   smt
@@ -29,7 +32,7 @@ example (b c a v0 v1 : Int) (h1 : v0 = 5*a) (h2 : v1 = 3*b)
     (h3 : v0 + v1 + c = 10) : v0 + 5 + (v1 - 3) + (c - 2) = 10 := by
   smt [h1, h2, h3]
 
-example (h : (1 : ℤ) < 0) (g : ¬ (37 : ℤ) < 42) (_k : True) (l : (-7 : ℤ) < 5): (3 : ℤ) < 7 := by
+example (h : (1 : Int) < 0) (g : ¬ (37 : Int) < 42) (_k : True) (l : (-7 : Int) < 5): (3 : Int) < 7 := by
   smt [h, g, _k, l]
 
 example (u v r s t : Int) (h : 0 < u*(t*v + t*r + s)) : 0 < (t*(r + v) + s)*3*u := by
@@ -40,8 +43,6 @@ example (A B : Int) (h : 0 < 8 * A * B) : 0 < A*B := by
 
 example (A B : Int) (h : 0 < A * B) : 0 < A*8*B := by
   smt [h]
-
-set_option maxRecDepth 2000000
 
 example (u v x y A B : Int)
 (a : 0 < A)
