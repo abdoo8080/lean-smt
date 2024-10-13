@@ -8,6 +8,9 @@ require cvc5 from
 require mathlib from
   git "https://github.com/leanprover-community/mathlib4.git" @ "v4.11.0"
 
+require auto from
+  git "https://github.com/leanprover-community/lean-auto.git" @ "3fe4c17089b468490d654a135621b884848e0c05"
+
 def libcpp : String :=
   if System.Platform.isWindows then "libstdc++-6.dll"
   else if System.Platform.isOSX then "libc++.dylib"
@@ -20,6 +23,8 @@ package smt where
 
 @[default_target]
 lean_lib Smt
+
+lean_lib Checker
 
 open Std
 open System

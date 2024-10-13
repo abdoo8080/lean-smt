@@ -136,7 +136,7 @@ def addThm (type : Expr) (val : Expr) : ReconstructM Expr := do
   let name := Name.num `s (← incCount)
   let mv ← Meta.mkFreshExprMVar type .natural name
   mv.mvarId!.assign val
-  trace[smt.reconstruct.proof] "have {name} : {type} := {mv}"
+  trace[smt.reconstruct.proof] "have {name} : {type} := {val}"
   return mv
 
 def addTac (type : Expr) (tac : MVarId → MetaM Unit) : ReconstructM Expr := do
@@ -184,8 +184,12 @@ open Qq in
 partial def reconstructProof (pf : cvc5.Proof) (fvNames : HashMap String FVarId) : MetaM (Expr × Expr × List MVarId) := do
   withTraceNode `smt.reconstruct.proof traceReconstructProof do
   let Prod.mk (p : Q(Prop)) state ← (Reconstruct.reconstructTerm (pf.getResult)).run ⟨fvNames, {}, {}, 0, #[], #[]⟩
-  let Prod.mk (h : Q(True → $p)) (.mk _ _ _ _ _ mvs) ← (Reconstruct.reconstructProof pf).run state
-  return (p, q($h trivial), mvs.toList)
+  let (h, .mk _ _ _ _ _ mvs) ← (Reconstruct.reconstructProof pf).run state
+  if pf.getArguments.isEmpty then
+    let h : Q(True → $p) ← pure h
+    return (p, q($h trivial), mvs.toList)
+  else
+    return (p, h, mvs.toList)
 
 open cvc5 in
 def traceSolve (r : Except Exception (Except SolverError Proof)) : MetaM MessageData :=

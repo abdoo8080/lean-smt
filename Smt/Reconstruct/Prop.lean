@@ -246,9 +246,9 @@ def reconstructResolution (c₁ c₂ : Array cvc5.Term) (pol l : cvc5.Term) (hps
     let hij : Q($ps[$i] = ¬$qs[$j]) :=
       if pol.getBooleanValue then .app q(Prop.eq_not_not) q($ps[$i])
       else .app q(@Eq.refl Prop) q($ps[$i])
-    addThm (← rightAssocOp q(Or) (getResolutionResult c₁ c₂ pol l)) q(Prop.orN_resolution $hps $hqs $hi $hj $hij)
+    return q(Prop.orN_resolution $hps $hqs $hi $hj $hij)
   else
-    addThm (← rightAssocOp q(Or) (c₁ ++ c₂)) q(@Prop.orN_append_left $ps $qs $hps)
+    return q(@Prop.orN_append_left $ps $qs $hps)
 where
   rightAssocOp (op : Expr) (ts : Array cvc5.Term) : ReconstructM Expr := do
     if ts.isEmpty then
@@ -285,12 +285,12 @@ def reconstructChainResolution (cs as : Array cvc5.Term) (ps : Array Expr) : Rec
     let c₂ := clausify pf.getChildren[1]!.getResult l
     let hps ← reconstructProof pf.getChildren[0]!
     let hqs ← reconstructProof pf.getChildren[1]!
-    reconstructResolution c₁ c₂ p l hps hqs
+    addThm (← reconstructTerm pf.getResult) (← reconstructResolution c₁ c₂ p l hps hqs)
   | .CHAIN_RESOLUTION =>
     let cs := pf.getChildren.map (·.getResult)
     let as := pf.getArguments
     let ps ← pf.getChildren.mapM reconstructProof
-    reconstructChainResolution cs as ps
+    addThm (← reconstructTerm pf.getResult) (← reconstructChainResolution cs as ps)
   | .FACTORING =>
     let p : Q(Prop) ← reconstructTerm pf.getChildren[0]!.getResult
     let q : Q(Prop) ← reconstructTerm pf.getResult
@@ -338,6 +338,30 @@ def reconstructChainResolution (cs as : Array cvc5.Term) (ps : Array Expr) : Rec
     let hi : Q($i < «$ps».length) := .app q(@of_decide_eq_true ($i < «$ps».length) _) q(Eq.refl true)
     let hps : Q(andN $ps) ← reconstructProof pf.getChildren[0]!
     addThm (← reconstructTerm pf.getResult) q(@Prop.and_elim _ $hps $i $hi)
+  -- | .AND_ELIM =>
+  --   let n := pf.getChildren[0]!.getResult.getNumChildren
+  --   let hps : Expr ← reconstructProof pf.getChildren[0]!
+  --   if n == 1 then
+  --     return ← addThm (← reconstructTerm pf.getResult) hps
+  --   let ps ← reconstructTerm pf.getChildren[0]!.getResult
+  --   let i : Nat := pf.getArguments[0]!.getIntegerValue.toNat
+  --   if i == 0 then
+  --     let p : Q(Prop) ← pure ps.appFn!.appArg!
+  --     let q : Q(Prop) ← pure ps.appArg!
+  --     let hpq : Q($p ∧ $q) ← pure hps
+  --     return ← addThm p q(«$hpq».left)
+  --   let f := fun (⟨p, q, hpq⟩ : (p : Q(Prop)) × (q : Q(Prop)) × Q($p ∧ $q)) => Id.run do
+  --     let qp : Q(Prop) ← pure q.appFn!.appArg!
+  --     let qq : Q(Prop) ← pure q.appArg!
+  --     let hpq : Q($p ∧ $qp ∧ $qq) ← pure hpq
+  --     return ⟨qp, qq, q(«$hpq».right)⟩
+  --   let ⟨p, q, hpq⟩ := (i - 1).repeat f ⟨ps.appFn!.appArg!, ps.appArg!, hps⟩
+  --   if i == n - 1 then
+  --     return ← addThm q q(«$hpq».right)
+  --   let qp : Q(Prop) ← pure q.appFn!.appArg!
+  --   let qq : Q(Prop) ← pure q.appArg!
+  --   let hpq : Q($p ∧ $qp ∧ $qq) ← pure hpq
+  --   addThm qp q(«$hpq».right.left)
   | .AND_INTRO =>
     let cpfs := pf.getChildren
     let q : Q(Prop) ← reconstructTerm cpfs.back.getResult
@@ -345,11 +369,9 @@ def reconstructChainResolution (cs as : Array cvc5.Term) (ps : Array Expr) : Rec
     let f := fun pf ⟨q, hq⟩ => do
       let p : Q(Prop) ← reconstructTerm pf.getResult
       let hp : Q($p) ← reconstructProof pf
-      let hq ← addThm q($p ∧ $q) q(And.intro $hp $hq)
-      let q := q($p ∧ $q)
-      return ⟨q, hq⟩
-    let ⟨_, hq⟩ ← cpfs.pop.foldrM f (⟨q, hq⟩ : Σ q : Q(Prop), Q($q))
-    return hq
+      return ⟨q($p ∧ $q), q(And.intro $hp $hq)⟩
+    let ⟨q, hq⟩ ← cpfs.pop.foldrM f (⟨q, hq⟩ : Σ q : Q(Prop), Q($q))
+    addThm q hq
   | .NOT_OR_ELIM =>
     let f t ps := do
       let p : Q(Prop) ← reconstructTerm t
