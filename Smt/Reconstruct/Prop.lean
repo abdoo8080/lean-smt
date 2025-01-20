@@ -5,22 +5,23 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Abdalrhman Mohamed
 -/
 
-import Smt.Reconstruct
+import Qq
 import Smt.Reconstruct.Builtin.AC
 import Smt.Reconstruct.Prop.Core
 import Smt.Reconstruct.Prop.Lemmas
 import Smt.Reconstruct.Prop.Rewrites
 import Smt.Reconstruct.Rewrite
+import Smt.Reconstruct.State
 
 namespace Smt.Reconstruct.Prop
 
 open Lean Qq
 
-@[smt_sort_reconstruct] def reconstructPropSort : SortReconstructor := fun s => do match s.getKind with
+def reconstructPropSort : SortReconstructor := fun s => do match s.getKind with
   | .BOOLEAN_SORT => return q(Prop)
   | _             => return none
 
-@[smt_term_reconstruct] def reconstructProp : TermReconstructor := fun t => do match t.getKind with
+def reconstructProp : TermReconstructor := fun t => do match t.getKind with
   | .CONST_BOOLEAN => return if t.getBooleanValue! then q(True) else q(False)
   | .NOT =>
     let b : Q(Prop) ← reconstructTerm t[0]!
@@ -294,7 +295,7 @@ def reconstructChainResolution (cs as : Array cvc5.Term) (ps : Array Expr) : Rec
     cc := getResolutionResult cc (clausify cs[i]! l) pol l
   return cp
 
-@[smt_proof_reconstruct] def reconstructPropProof : ProofReconstructor := fun pf => do match pf.getRule with
+def reconstructPropProof : ProofReconstructor := fun pf => do match pf.getRule with
   | .DSL_REWRITE => reconstructRewrite pf
   | .ITE_EQ =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[0]![1]!.getSort

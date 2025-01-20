@@ -5,14 +5,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Tomaz Gomes Mascarenhas
 -/
 
-import Lean
-
 import Smt.Reconstruct.Prop.Core
-import Smt.Reconstruct.Util
 
 namespace Smt.Reconstruct.Prop
 
-open Lean Elab.Tactic Meta Expr Syntax
 open Nat List Classical
 
 theorem ite_eq (c : Prop) [h : Decidable c] (x y : α) : ite c ((ite c x y) = x) ((ite c x y) = y) := by

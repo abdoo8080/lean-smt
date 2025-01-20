@@ -1,6 +1,5 @@
-import Lean
-
-theorem Eq.same_root (hac : a = c) (hbc : b = c) : a = b := hac ▸ hbc ▸ rfl
+import Lean.Meta.Tactic.AC.Main
+import Smt.Reconstruct.Builtin.Lemmas
 
 namespace Lean.Meta.AC
 

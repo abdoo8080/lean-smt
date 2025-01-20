@@ -5,7 +5,6 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Abdalrhman Mohamed, Harun Khan
 -/
 
-import Batteries.Data.Rat
 import Smt.Reconstruct.Rat.Lemmas
 
 namespace Smt.Reconstruct.Rat.Rewrite

@@ -5,8 +5,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Abdalrhman Mohamed, Adrien Champion, Tomaz Gomes Mascarenhas
 -/
 
-import Batteries.Logic
-import Batteries.Data.Rat
+import Batteries.Data.Rat.Basic
 
 import Smt.Reconstruct.Int.Core
 
