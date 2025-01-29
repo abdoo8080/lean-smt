@@ -187,7 +187,7 @@ theorem denote_add {p q : Polynomial} : (p.add q).denote ctx = p.denote ctx + q.
     rw [← ih, foldl_add_insert]
 
 theorem denote_sub {p q : Polynomial} : (p.sub q).denote ctx = p.denote ctx - q.denote ctx := by
-  sorry
+  simp only [sub, denote_neg, denote_add, Rat.sub_eq_add_neg]
 
 theorem denote_mulMonomial {p : Polynomial} : (p.mulMonomial m).denote ctx = m.denote ctx * p.denote ctx := by
   simp only [denote, mulMonomial, add]
@@ -269,7 +269,23 @@ def denote (ctx : IntContext) : IntExpr → Int
   | .sub a b => a.denote ctx - b.denote ctx
   | .mul a b => a.denote ctx * b.denote ctx
 
-theorem denote_toPolynomial {rctx : RatContext} {e : IntExpr} : e.denote ictx = e.toPolynomial.denote (fun ⟨b, n⟩ => if b then rctx n else ictx n) := sorry
+theorem denote_toPolynomial {rctx : RatContext} {e : IntExpr} : e.denote ictx = e.toPolynomial.denote (fun ⟨b, n⟩ => if b then rctx n else ictx n) := by
+  induction e with
+  | val v =>
+    simp only [denote, toPolynomial]
+    split <;> rename_i hv
+    · rewrite [hv]; rfl
+    · simp [Polynomial.denote, Monomial.denote]
+  | var v =>
+    simp [denote, toPolynomial, Polynomial.denote, Monomial.denote]
+  | neg a ih =>
+    simp only [denote, toPolynomial, Polynomial.denote_neg, Rat.intCast_neg, ih]
+  | add a b ih₁ ih₂ =>
+    simp only [denote, toPolynomial, Polynomial.denote_add, Rat.intCast_add, ih₁, ih₂]
+  | sub a b ih₁ ih₂ =>
+    simp only [denote, toPolynomial, Polynomial.denote_sub, Rat.intCast_sub, ih₁, ih₂]
+  | mul a b ih₁ ih₂ =>
+    simp only [denote, toPolynomial, Polynomial.denote_mul, Rat.intCast_mul, ih₁, ih₂]
 
 end IntExpr
 
@@ -312,10 +328,9 @@ theorem denote_toPolynomial {e : RatExpr} : e.denote ictx rctx = e.toPolynomial.
     simp only [denote, toPolynomial]
     split <;> rename_i hv
     · rewrite [hv]; rfl
-    · sorry
+    · simp [Polynomial.denote, Monomial.denote]
   | var v =>
     simp [denote, toPolynomial, Polynomial.denote, Monomial.denote]
-    sorry
   | neg a ih =>
     simp only [denote, toPolynomial, Polynomial.denote_neg, ih]
   | add a b ih₁ ih₂ =>

@@ -5,11 +5,6 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Tomaz Gomes Mascarenhas, Abdalrhman Mohamed
 -/
 
-import Batteries.Data.Rat.Basic
-
-private theorem Rat.mul_zero (a : Rat) : a * 0 = 0 := sorry
-
-import Smt.Reconstruct.Int.Core
 import Smt.Reconstruct.Rat.Core
 
 namespace Rat

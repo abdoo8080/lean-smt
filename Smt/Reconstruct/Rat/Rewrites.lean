@@ -39,8 +39,6 @@ theorem elim_leq : (t ≤ s) = (s ≥ t) :=
 theorem geq_norm1 : (t ≥ s) = (t - s ≥ 0) := by
   rw [←elim_leq, ←elim_leq, Rat.le_iff_sub_nonneg _ _]
 
-#check Rat.neg_neg
-
 theorem geq_norm2 : (t ≥ s) = (-t ≤ -s) :=
   propext ⟨Rat.neg_le_neg,
           fun h => by
