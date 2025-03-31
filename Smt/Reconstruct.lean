@@ -88,6 +88,14 @@ where
         return e
     throwError "Failed to reconstruct term {t} with kind {t.getKind}"
 
+open Qq in
+@[export smt_reconstruct_terms]
+def reconstructTermsImpl (u) (α : Q(Type $u)) (ts : Array cvc5.Term) : ReconstructM Q(List $α) :=
+  let f := fun t ys => do
+    let a : Q($α) ← reconstructTerm t
+    return q($a :: $ys)
+  ts.foldrM f q([])
+
 @[export smt_reconstruct_proof]
 partial def reconstructProofImpl : cvc5.Proof → ReconstructM Expr := withProofCache fun pf => do
   let rs := proofRcons
@@ -140,7 +148,7 @@ def solve (query : String) (timeout : Option Nat) : MetaM (Except Error cvc5.Pro
     Solver.setOption "produce-proofs" "true"
     Solver.setOption "proof-elim-subtypes" "true"
     Solver.setOption "proof-granularity" "dsl-rewrite"
-    Solver.parse query
+    Solver.parseCommands query
     let r ← Solver.checkSat
     trace[smt.solve] m!"result: {r}"
     if r.isUnsat then

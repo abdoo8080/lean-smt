@@ -45,6 +45,9 @@ def reconstructSortLevelAndSort (s : cvc5.Sort) : ReconstructM (Level × Expr) :
   let .sort u ← Meta.inferType t | throwError "expected a sort, but got\n{t}"
   return ⟨u, t⟩
 
+@[extern "smt_reconstruct_terms"]
+opaque reconstructTerms (u : Level) (α : Expr) (ts : Array cvc5.Term) : ReconstructM Expr
+
 def withNewTermCache (k : ReconstructM α) : ReconstructM α := do
   let termCache := (← get).termCache
   modify fun state => { state with termCache := {} }

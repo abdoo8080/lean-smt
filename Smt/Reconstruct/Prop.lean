@@ -118,8 +118,8 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   | .BOOL_OR_AND_DISTRIB =>
     let y₁ : Q(Prop) ← reconstructTerm pf.getArguments[1]!
     let y₂ : Q(Prop) ← reconstructTerm pf.getArguments[2]!
-    let ys : Q(List Prop) ← reconstructTerms pf.getArguments[3]!.getChildren
-    let zs : Q(List Prop) ← reconstructTerms pf.getArguments[4]!.getChildren
+    let ys : Q(List Prop) ← reconstructTerms 0 q(Prop) pf.getArguments[3]!.getChildren
+    let zs : Q(List Prop) ← reconstructTerms 0 q(Prop) pf.getArguments[4]!.getChildren
     addThm (← reconstructTerm pf.getResult) q(@Prop.bool_or_and_distrib $y₁ $y₂ $ys $zs)
   | .BOOL_XOR_REFL =>
     let p : Q(Prop) ← reconstructTerm pf.getArguments[1]!
@@ -214,11 +214,6 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     addThm q((¬ite $c $p $q) = ite $c (¬$p) (¬$q)) q(@Prop.bool_not_ite_elim $c $p $q $h)
   | _ => return none
 where
-  reconstructTerms {u} {α : Q(Type $u)} (ts : Array cvc5.Term) : ReconstructM Q(List $α) :=
-    let f := fun t ys => do
-      let a : Q($α) ← reconstructTerm t
-      return q($a :: $ys)
-    ts.foldrM f q([])
   reconstructArgs (args : Array cvc5.Term) : ReconstructM (Array (Array Expr)) := do
     let mut args' := #[]
     for arg in args do
