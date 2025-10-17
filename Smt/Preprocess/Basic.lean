@@ -27,8 +27,9 @@ def getPropHyps : MetaM (Array FVarId) := do
   return result
 where
   isNonEmpty (e : Expr) : Bool :=
-  match_expr e with
-  | Nonempty _ => true
+  match e with
+  | .app (.const ``Nonempty _) _ => true
+  | .forallE _ _ b _ => isNonEmpty b
   | _ => false
 
 end Smt.Preprocess

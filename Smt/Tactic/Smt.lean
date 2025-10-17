@@ -32,6 +32,8 @@ structure Config where
   mono : Bool := false
   /-- Whether to eliminate `↔` in the Lean goal before sending it to the SMT solver. -/
   elimIff : Bool := true
+  /-- Whether to replace `ite` instances in the Lean goal before sending it to the SMT solver. -/
+  replaceIteInst : Bool := true
   /-- Whether to trust the result of the SMT solver. Closes the current goal with a `sorry` if the
       SMT solver returns `unsat`. **Warning**: use with caution, as this may lead to unsoundness.
       Additionally adds the translation from Lean to SMT to the trusted code base, which is not
@@ -71,11 +73,12 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
   let ⟨map₁, hs₁, mv₂⟩ ← (if cfg.mono then Preprocess.mono else Preprocess.pushHintsToCtx) mv₁ hs
   -- 2. Preprocess the hypotheses and goal.
   let ⟨map₂, hs₂, mv₂⟩ ← if cfg.elimIff then Preprocess.elimIff mv₂ hs₁ else pure ⟨map₁, hs₁, mv₂⟩
-  mv₂.withContext do
-  let goalType : Q(Prop) ← mv₂.getType
+  let ⟨map₃, hs₃, mv₃⟩ ← if cfg.replaceIteInst then Preprocess.replaceIteInst mv₂ hs₂ else pure ⟨map₂, hs₂, mv₂⟩
+  mv₃.withContext do
+  let goalType : Q(Prop) ← mv₃.getType
   -- 3. Generate the SMT query.
   let (fvNames₁, fvNames₂) ← genUniqueFVarNames
-  let cmds ← prepareSmtQuery hs₂.toList (← mv₂.getType) fvNames₁
+  let cmds ← prepareSmtQuery hs₃.toList (← mv₃.getType) fvNames₁
   let cmds := .setLogic "ALL" :: cmds
   if cfg.showQuery then
     logInfo m!"goal: {goalType}\n\nquery:\n{Command.cmdsAsQuery (cmds ++ [.checkSat])}"
@@ -101,9 +104,10 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
     let ctx := { userNames := fvNames₂, native := cfg.native }
     let (uc, _) ← (uc.mapM Reconstruct.reconstructTerm).run ctx {}
     trace[smt] "unsat core: {uc}"
-    let ts₂ ← hs₂.mapM Meta.inferType
-    let uc := uc.filterMap fun p => ts₂.findIdx? (· == p) >>= (hs₂[·]?)
-    let uc := uc.filterMap (map₂[·]?)
+    let ts₃ ← hs₃.mapM Meta.inferType
+    let uc := uc.filterMap fun p => ts₃.findIdx? (· == p) >>= (hs₃[·]?)
+    let uc := uc.filterMap (map₃[·]?)
+    let uc := uc.flatten.filterMap (map₂[·]?)
     let uc := uc.flatten.filterMap (map₁[·]?)
     let uc := hs.filter uc.flatten.contains
     if cfg.trust then
@@ -112,10 +116,10 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
       return .unsat [] uc
     -- 7. Reconstruct proof.
     let (_, ps, p, hp, mvs) ← reconstructProof pf ctx
-    let mv₂ ← mv₂.assert (← mkFreshId) p hp
-    let ⟨_, mv₂⟩ ← mv₂.intro1
-    let mut gs ← mv₂.apply (← Meta.mkAppOptM ``Prop.implies_of_not_and #[listExpr ps.dropLast q(Prop), goalType])
-    mv₂.withContext (gs.forM (·.assumption))
+    let mv₃ ← mv₃.assert (← mkFreshId) p hp
+    let ⟨_, mv₃⟩ ← mv₃.intro1
+    let mut gs ← mv₃.apply (← Meta.mkAppOptM ``Prop.implies_of_not_and #[listExpr ps.dropLast q(Prop), goalType])
+    mv₃.withContext (gs.forM (·.assumption))
     mv.assign (.mvar mv₁)
     return .unsat mvs uc
   | .ok (.sat model) =>
@@ -242,11 +246,29 @@ def elabHints : TSyntax ``smtHints → TacticM (Std.HashMap Expr (TSyntax ``smtH
   | `(smtHints| ) => return ({}, #[])
   | _ => throwUnsupportedSyntax
 
+/-- Returns `true` if `fv` corresponds to a proposition in the local context. -/
+def isPropHyp (fv : FVarId) : MetaM Bool := do
+  let localDecl ← fv.getDecl
+  unless localDecl.isImplementationDetail do
+    if ← pure !(isNonEmpty localDecl.type) <&&> Meta.isProp localDecl.type then
+      return true
+  return false
+where
+  isNonEmpty (e : Expr) : Bool :=
+  match e with
+  | .app (.const ``Nonempty _) _ => true
+  | .forallE _ _ b _ => isNonEmpty b
+  | _ => false
+
 def evalSmtCore (cfg : TSyntax ``Parser.Tactic.optConfig) (hs : TSyntax ``smtHints) := withMainContext do
   let cfg ← elabConfig cfg
-  let mv ← Tactic.getMainGoal
   let (map, hs) ← elabHints hs
-  let res ← Smt.smt cfg mv hs
+  let mv ← Tactic.getMainGoal
+  let (fvs, mv) ← mv.intros
+  Tactic.replaceMainGoal [mv]
+  let fvs ← liftM (mv.withContext (fvs.filterM isPropHyp))
+  let hs' := fvs.map Expr.fvar
+  let res ← Smt.smt cfg mv (hs ++ hs')
   match res with
     | .sat none =>
       throwError "unable to prove goal, either it is false or you need to provide more facts. Try adding '+model' config option to display a potential counter-example (experimental)."
@@ -260,6 +282,7 @@ def evalSmtCore (cfg : TSyntax ``Parser.Tactic.optConfig) (hs : TSyntax ``smtHin
         throwError "unable to prove goal, either it is false or you need to provide more facts. Here is a potential counter-example:\n{md}"
     | .unsat mvs uc =>
       Tactic.replaceMainGoal mvs
+      let uc := uc.filter (!hs'.contains ·)
       let uc := uc.filterMap map.get?
       let uc := uc.toList.eraseDups.toArray
       return uc
