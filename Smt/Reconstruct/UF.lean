@@ -11,6 +11,10 @@ public import Smt.Reconstruct
 public meta import Smt.Reconstruct
 public import Smt.Reconstruct.UF.Congruence
 public meta import Smt.Reconstruct.UF.Congruence
+public import Smt.Reconstruct.Bool.Lemmas
+public meta import Smt.Reconstruct.Bool.Lemmas
+public import Smt.Reconstruct.Bool.Rewrites
+public meta import Smt.Reconstruct.Bool.Rewrites
 public import Smt.Reconstruct.UF.Rewrites
 public meta import Smt.Reconstruct.UF.Rewrites
 
@@ -42,12 +46,23 @@ def getFVarOrConstExpr! (n : String) : ReconstructM Expr := do
     else
       return none
 
+/-- The proposition `p` of the Boolean atom `decide p`, and `b = true` for other Booleans `b`. Used
+to pass an SMT-LIB argument of sort `Bool` to a Lean function that takes a proposition. -/
+def ofBool (b : Expr) : MetaM Expr := do
+  if let some (p, _) := b.app2? ``Decidable.decide then return p
+  Meta.mkEq b (.const ``Bool.true [])
+
 @[smt_term_reconstruct] def reconstructUF : TermReconstructor := fun t => do match t.getKind! with
   | .APPLY_UF =>
+    -- Lean functions may take and return propositions, which SMT-LIB treats as Booleans.
     let mut curr ← reconstructTerm t[0]!
     for i in [1:t.getNumChildren] do
-      curr := .app curr (← reconstructTerm t[i]!)
-    return curr
+      let arg ← reconstructTerm t[i]!
+      let arg ← match ← Meta.whnf (← Meta.inferType curr) with
+        | .forallE _ d _ _ => if d.isProp then ofBool arg else pure arg
+        | _ => pure arg
+      curr := .app curr arg
+    if (← Meta.inferType curr).isProp then mkDecide curr else return curr
   | .UNINTERPRETED_SORT_VALUE =>
     let some n := (← read).sortCard[t.getSort!]? | throwError "unknown sort {t.getSort!}"
     let s := t.toString
@@ -74,32 +89,38 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   | .EQ_REFL =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
     let t : Q($α) ← reconstructTerm pf.getArguments[1]!
-    addThm q(($t = $t) = True) q(@UF.eq_refl $α $t)
+    let h : Q(Decidable ($t = $t)) ← mkDecidableInst q($t = $t)
+    addEqThm pf.getResult q(@Bool.eq_refl $α $t $h)
   | .EQ_SYMM =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
     let t : Q($α) ← reconstructTerm pf.getArguments[1]!
     let s : Q($α) ← reconstructTerm pf.getArguments[2]!
-    addThm q(($t = $s) = ($s = $t)) q(@UF.eq_symm $α $t $s)
+    let h₁ : Q(Decidable ($t = $s)) ← mkDecidableInst q($t = $s)
+    let h₂ : Q(Decidable ($s = $t)) ← mkDecidableInst q($s = $t)
+    addEqThm pf.getResult q(@Bool.eq_symm $α $t $s $h₁ $h₂)
   | .EQ_COND_DEQ =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
     let t : Q($α) ← reconstructTerm pf.getArguments[1]!
     let s : Q($α) ← reconstructTerm pf.getArguments[2]!
     let r : Q($α) ← reconstructTerm pf.getArguments[3]!
-    let h : Q(($s = $r) = False) ← reconstructProof pf.getChildren[0]!
-    addThm q((($t = $s) = ($t = $r)) = (¬$t = $s ∧ ¬$t = $r)) q(@UF.eq_cond_deq $α $t $s $r $h)
+    let hsr : Q(Decidable ($s = $r)) ← mkDecidableInst q($s = $r)
+    let hts : Q(Decidable ($t = $s)) ← mkDecidableInst q($t = $s)
+    let htr : Q(Decidable ($t = $r)) ← mkDecidableInst q($t = $r)
+    let h : Q(decide ($s = $r) = false) ← reconstructEqProof pf.getChildren[0]!
+    addEqThm pf.getResult q(@Bool.eq_cond_deq $α $t $s $r $hsr $hts $htr $h)
   | .EQ_ITE_LIFT =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    let hc : Q(Decidable $c) ← Meta.synthDecidableInstance q($c)
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[2]!.getSort!
     let t : Q($α) ← reconstructTerm pf.getArguments[2]!
     let s : Q($α) ← reconstructTerm pf.getArguments[3]!
     let r : Q($α) ← reconstructTerm pf.getArguments[4]!
-    addThm q((ite $c $t $s = $r) = (ite $c ($t = $r) ($s = $r))) q(@UF.eq_ite_lift $α $c $hc $t $s $r)
+    let h₁ : Q(Decidable (cond $c $t $s = $r)) ← mkDecidableInst q(cond $c $t $s = $r)
+    let h₂ : Q(Decidable ($t = $r)) ← mkDecidableInst q($t = $r)
+    let h₃ : Q(Decidable ($s = $r)) ← mkDecidableInst q($s = $r)
+    addEqThm pf.getResult q(@Bool.eq_ite_lift $α $c $t $s $r $h₁ $h₂ $h₃)
   | .DISTINCT_BINARY_ELIM =>
-    let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
-    let t : Q($α) ← reconstructTerm pf.getArguments[1]!
-    let s : Q($α) ← reconstructTerm pf.getArguments[2]!
-    addThm q(($t ≠ $s) = ¬($t = $s)) q(@UF.distinct_binary_elim $α $t $s)
+    let t : Q(Bool) ← reconstructTerm pf.getResult[0]!
+    addEqThm pf.getResult q(Eq.refl $t)
   | _ => return none
 
 @[smt_proof_reconstruct] def reconstructUFProof : ProofReconstructor := fun pf => do match pf.getRule with
@@ -107,45 +128,47 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   | .REFL =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[0]!.getSort!
     let a : Q($α) ← reconstructTerm pf.getArguments[0]!
-    addThm q($a = $a) q(Eq.refl $a)
+    addEqThm pf.getResult q(Eq.refl $a)
   | .SYMM =>
     if pf.getResult.getKind! == .EQUAL then
       let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getResult[0]!.getSort!
       let a : Q($α) ← reconstructTerm pf.getResult[1]!
       let b : Q($α) ← reconstructTerm pf.getResult[0]!
-      let h : Q($a = $b) ← reconstructProof pf.getChildren[0]!
-      addThm q($b = $a) q(Eq.symm $h)
+      let h : Q($a = $b) ← reconstructEqProof pf.getChildren[0]!
+      addEqThm pf.getResult q(Eq.symm $h)
     else
       let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getResult[0]![0]!.getSort!
       let a : Q($α) ← reconstructTerm pf.getResult[0]![1]!
       let b : Q($α) ← reconstructTerm pf.getResult[0]![0]!
-      let h : Q($a ≠ $b) ← reconstructProof pf.getChildren[0]!
-      addThm q($b ≠ $a) q(Ne.symm $h)
+      let hab : Q(Decidable ($a = $b)) ← mkDecidableInst q($a = $b)
+      let hba : Q(Decidable ($b = $a)) ← mkDecidableInst q($b = $a)
+      let h : Q((!decide ($a = $b)) = true) ← reconstructProof pf.getChildren[0]!
+      addThm (← reconstructProofType pf.getResult) q(@Bool.not_decide_eq_symm $α $a $b $hab $hba $h)
   | .TRANS =>
     let cpfs := pf.getChildren
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort cpfs[0]!.getResult[0]!.getSort!
     let a : Q($α) ← reconstructTerm cpfs[0]!.getResult[0]!
-    let mut curr ← reconstructProof cpfs[0]!
+    let mut curr ← reconstructEqProof cpfs[0]!
     for i in [1:cpfs.size] do
       let b : Q($α) ← reconstructTerm cpfs[i]!.getResult[0]!
       let c : Q($α) ← reconstructTerm cpfs[i]!.getResult[1]!
       let hab : Q($a = $b) := curr
-      let hbc : Q($b = $c) ← reconstructProof cpfs[i]!
+      let hbc : Q($b = $c) ← reconstructEqProof cpfs[i]!
       curr := q(Eq.trans $hab $hbc)
-    addThm (← reconstructTerm pf.getResult) curr
+    addEqThm pf.getResult curr
   | .CONG =>
     let k := pf.getResult[0]!.getKind!
     if k == .FORALL || k == .EXISTS || k == .WITNESS || k == .LAMBDA || k == .SET_COMPREHENSION then
       return none
-    let mut assums ← pf.getChildren.mapM reconstructProof
-    addTac (← reconstructTerm pf.getResult) (smtCongr · assums)
+    let assums ← pf.getChildren.mapM reconstructEqProof
+    addEqTac pf.getResult (smtCongr · assums)
   | .NARY_CONG =>
-    let mut assums ← pf.getChildren.mapM reconstructProof
-    addTac (← reconstructTerm pf.getResult) (smtCongr · assums)
+    let assums ← pf.getChildren.mapM reconstructEqProof
+    addEqTac pf.getResult (smtCongr · assums)
   | .HO_CONG =>
     let f ← reconstructTerm pf.getChildren[0]!.getResult[0]!
     let g ← reconstructTerm pf.getChildren[0]!.getResult[0]!
-    let hfg ← reconstructProof pf.getChildren[0]!
+    let hfg ← reconstructEqProof pf.getChildren[0]!
     let hs := pf.getChildren[1:]
     let buildProof := fun (f₁, f₂, h₁) cpf => do
       let some (α, β) := (← Meta.inferType f₁).arrow? | throwError "[ho_congr]: expected function type"
@@ -158,10 +181,10 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       let f₁ : Q($α → $β) ← pure f₁
       let f₂ : Q($α → $β) ← pure f₂
       let h₁ : Q($f₁ = $f₂) ← pure h₁
-      let h₂ : Q($a₁ = $a₂) ← reconstructProof cpf
+      let h₂ : Q($a₁ = $a₂) ← reconstructEqProof cpf
       return (q($f₁ $a₁), q($f₂ $a₂), q(congr $h₁ $h₂))
     let (_, _, h) ← hs.foldlM buildProof (f, g, hfg)
-    addThm (← reconstructTerm pf.getResult) h
+    addEqThm pf.getResult h
   | _ => return none
 
 end Smt.Reconstruct.UF

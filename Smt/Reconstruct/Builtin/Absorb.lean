@@ -28,6 +28,16 @@ instance : Absorb Or where
   zero_mul := true_or
   mul_zero := or_true
 
+instance : Absorb and where
+  zero := false
+  zero_mul := Bool.false_and
+  mul_zero := Bool.and_false
+
+instance : Absorb or where
+  zero := true
+  zero_mul := Bool.true_or
+  mul_zero := Bool.or_true
+
 instance : @Absorb Int (· * ·) where
   zero := 0
   zero_mul := Int.zero_mul

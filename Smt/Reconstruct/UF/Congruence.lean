@@ -12,6 +12,8 @@ public meta import Lean
 public import Qq
 public meta import Qq
 
+public import Smt.Reconstruct.Bool.Lemmas
+public meta import Smt.Reconstruct.Bool.Lemmas
 public import Smt.Reconstruct.Prop.Core
 public meta import Smt.Reconstruct.Prop.Core
 
@@ -70,10 +72,30 @@ def smtCongrUF (mv : MVarId) (e₁ e₂ : Expr) (hs : Array Expr) : MetaM Unit :
     let f₁ : Q($α → $β) ← pure f₁
     let f₂ : Q($α → $β) ← pure f₂
     let h₁ : Q($f₁ = $f₂) ← pure h₁
-    let h₂ : Q($a₁ = $a₂) ← pure h₂
+    let h₂ : Q($a₁ = $a₂) ← propArgEq α h₂
     return (q($f₁ $a₁), q($f₂ $a₂), q(congr $h₁ $h₂))
   let (_, _, h) ← hs.foldlM buildProof (f, f, ← Meta.mkEqRefl f)
   mv.assign h
+where
+  /-- A proposition passed to a Lean function is an SMT-LIB Boolean `b`, reconstructed as `p` if `b`
+  is `decide p` and as `b = true` otherwise. Turn the proof `h : b₁ = b₂` of the equality of the
+  Booleans into a proof of the equality of the propositions. -/
+  propArgEq (α : Expr) (h : Expr) : MetaM Expr := do
+    if !α.isProp then return h
+    let some (γ, b₁, b₂) := (← Meta.inferType h).eq? | return h
+    if !γ.isConstOf ``Bool then return h
+    let b₁ : Q(Bool) ← pure b₁
+    let b₂ : Q(Bool) ← pure b₂
+    let h : Q($b₁ = $b₂) ← pure h
+    match b₁.app2? ``Decidable.decide, b₂.app2? ``Decidable.decide with
+    | some (p, hp), some (q, hq) =>
+      let p : Q(Prop) ← pure p
+      let q : Q(Prop) ← pure q
+      let hp : Q(Decidable $p) ← pure hp
+      let hq : Q(Decidable $q) ← pure hq
+      let h : Q(@decide $p $hp = @decide $q $hq) ← pure h
+      return q(@Smt.Reconstruct.Bool.eq_of_decide_eq $p $q $hp $hq $h)
+    | _, _ => return q(congrArg (· = true) $h)
 
 def smtCongrLeftAssocOp (mv : MVarId) (op : Expr) (hs : Array Expr) : MetaM Unit := do
   let ((α : Q(Type)), _) := (← Meta.inferType op).arrow?.get!
@@ -97,15 +119,39 @@ def smtCongrRightAssocOp (mv : MVarId) (op : Expr) (hs : Array Expr) : MetaM Uni
   let (_, _, h) ← hs[:hs.size - 1].foldrM f (y₁, y₂, hs[hs.size - 1]!)
   mv.assign h
 
-def smtCongr (mv : MVarId) (hs : Array Expr) : MetaM Unit := mv.withContext do
+/-- Congruence for the Boolean atom `decide p`: prove `p = q` by congruence and lift it to
+`decide p = decide q`. -/
+partial def smtCongrDecide (mv : MVarId) (l r : Expr) (hs : Array Expr)
+    (smtCongr : MVarId → Array Expr → MetaM Unit) : MetaM Unit := do
+  let some (p, hp) := l.app2? ``Decidable.decide | throwError "[smt_congr]: expected `decide`: {l}"
+  let some (q, hq) := r.app2? ``Decidable.decide | throwError "[smt_congr]: expected `decide`: {r}"
+  let p : Q(Prop) ← pure p
+  let q : Q(Prop) ← pure q
+  let hp : Q(Decidable $p) ← pure hp
+  let hq : Q(Decidable $q) ← pure hq
+  let h : Q($p = $q) ← Meta.mkFreshExprMVar q($p = $q)
+  smtCongr h.mvarId! hs
+  mv.assign q(@Smt.Reconstruct.Bool.decide_congr $p $q $hp $hq $h)
+
+partial def smtCongr (mv : MVarId) (hs : Array Expr) : MetaM Unit := mv.withContext do
   let some (_, l, r) := (← mv.getType).eq? | throwError "[smt_congr]: target is not an equality: {← mv.getType}"
   if l.isArrow then
     smtCongrArrow mv hs
+  else if l.isAppOfArity ``Decidable.decide 2 then
+    -- SMT-LIB atoms, e.g., `(= a b)` and `(< a b)`, are reconstructed as `decide p`.
+    smtCongrDecide mv l r hs smtCongr
+  else if l.isAppOfArity ``not 1 && hs.size == 2 then
+    -- `(distinct a b)` is reconstructed as `!decide (a = b)`.
+    let b₁ : Q(Bool) ← pure l.appArg!
+    let b₂ : Q(Bool) ← pure r.appArg!
+    let h : Q($b₁ = $b₂) ← Meta.mkFreshExprMVar q($b₁ = $b₂)
+    smtCongr h.mvarId! hs
+    mv.assign q(congrArg not $h)
   else if l.isAppOf ``ite then
     smtCongrIte mv l r hs
   else if isLeftAssocOp l.getAppFn.constName then
     smtCongrLeftAssocOp mv l.appFn!.appFn! hs
-  else if isRightAssocOp l.getAppFn.constName then
+  else if isRightAssocOp l.getAppFn.constName && l.getAppNumArgs == 2 then
     smtCongrRightAssocOp mv l.appFn!.appFn! hs
   else
     smtCongrUF mv l r hs
@@ -113,7 +159,8 @@ where
   isLeftAssocOp (n : Name) : Bool :=
     n == ``HAdd.hAdd || n == ``HSub.hSub || n == ``HMul.hMul || n == ``HDiv.hDiv || n == ``HMod.hMod
   isRightAssocOp (n : Name) : Bool :=
-    n == ``And || n == ``Or || n == ``Iff || n == ``XOr
+    n == ``And || n == ``Or || n == ``Iff || n == ``XOr ||
+    n == ``and || n == ``or || n == ``xor || n == ``Bool.smtImp
 
 namespace Tactic
 

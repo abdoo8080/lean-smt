@@ -14,6 +14,8 @@ public meta import Qq
 
 public import Smt.Attribute
 public meta import Smt.Attribute
+public import Smt.Reconstruct.Bool.Bridge
+public meta import Smt.Reconstruct.Bool.Bridge
 
 public meta section
 
@@ -57,6 +59,14 @@ namespace Reconstruct
 
 def useNative : ReconstructM Bool :=
   read >>= pure ∘ (·.native)
+
+/-- Whether `e` mentions a noncomputable constant, i.e., whether the kernel may fail to evaluate it.
+The Boolean connectives `!`, `&&`, and `||` are `@[macro_inline]` and thus have no compiled code,
+but the kernel evaluates them. -/
+def usesNoncomputable (e : Expr) : MetaM Bool := do
+  let env ← getEnv
+  return e.getUsedConstants.any fun c =>
+    c != ``Bool.not && c != ``Bool.and && c != ``Bool.or && isNoncomputable env c
 
 private unsafe def getReconstructorsUnsafe (n : Name) (rcons : Type) : MetaM (List (rcons × Name)) := do
   let env ← getEnv
@@ -141,6 +151,18 @@ def reconstructTerms {u} {α : Q(Type $u)} (ts : Array cvc5.Term) : ReconstructM
     return q($a :: $ys)
   ts.foldrM f q([])
 
+/-- The type `⟦t⟧ = true` of proofs of the SMT formula `t`. SMT-LIB's `Bool` sort is reconstructed as
+Lean's `Bool`, so a proof of `t` is a proof that its reconstruction is `true`. -/
+def reconstructProofType (t : cvc5.Term) : ReconstructM Expr := do
+  return mkApp3 (.const ``Eq [1]) (.const ``Bool []) (← reconstructTerm t) (.const ``Bool.true [])
+
+/-- The proposition denoted by the SMT formula `t`, e.g., `x < y ∧ ¬p = true` for
+`(and (< x y) (not p))`. See `Smt.Reconstruct.Bool.toProp`. Theory-specific proof reconstruction
+reasons about these propositions, and converts their proofs from and to proofs of `⟦t⟧ = true`
+with `reconstructPropProof` and `addPropThm`. -/
+def reconstructProp (t : cvc5.Term) : ReconstructM Expr := do
+  return (← Bool.toProp (← reconstructTerm t)).1
+
 def withNewProofCache (k : ReconstructM α) : ReconstructM α := do
   let proofCache := (← get).proofCache
   modify fun state => { state with proofCache := {} }
@@ -221,8 +243,72 @@ where
       if let some e ← r pf then
         return e
     _ ← pf.getChildren.mapM reconstructProof
-    let type ← reconstructTerm pf.getResult
+    let type ← reconstructProofType pf.getResult
     addTrust type pf
+
+open Qq in
+/-- A proof of the proposition denoted by the conclusion of `pf` (see `reconstructProp`). -/
+def reconstructPropProof (pf : cvc5.Proof) : ReconstructM Expr := do
+  let h ← reconstructProof pf
+  let b : Q(Bool) ← reconstructTerm pf.getResult
+  let (p, e?) ← Bool.toProp b
+  let some e := e? | return h
+  let p : Q(Prop) ← pure p
+  let e : Q(($b = true) = $p) ← pure e
+  let h : Q($b = true) ← pure h
+  return q(Eq.mp $e $h)
+
+open Qq in
+/-- Add the proof `h` of the proposition denoted by the SMT formula `t` (see `reconstructProp`) as a
+proof of `⟦t⟧ = true`. -/
+def addPropThm (t : cvc5.Term) (h : Expr) : ReconstructM Expr := do
+  let b : Q(Bool) ← reconstructTerm t
+  let (p, e?) ← Bool.toProp b
+  let some e := e? | addThm q($b = true) h
+  let p : Q(Prop) ← pure p
+  let e : Q(($b = true) = $p) ← pure e
+  let h : Q($p) ← pure h
+  addThm q($b = true) q(Eq.mpr $e $h)
+
+/-- Return the proposition `p` and the `Decidable p` instance of the Boolean atom `decide p`. -/
+def getDecide! (b : Expr) : MetaM (Expr × Expr) := do
+  let some (p, inst) := b.app2? ``Decidable.decide
+    | throwError "expected a Boolean atom of the form `decide p`, got{indentExpr b}"
+  return (p, inst)
+
+open Qq in
+/-- A proof of `a = b` from the proof `pf` of the SMT formula `(= a b)`, which is a proof of
+`decide (a = b) = true`. -/
+def reconstructEqProof (pf : cvc5.Proof) : ReconstructM Expr := do
+  let h ← reconstructProof pf
+  let (p, inst) ← getDecide! (← reconstructTerm pf.getResult)
+  let p : Q(Prop) ← pure p
+  let inst : Q(Decidable $p) ← pure inst
+  let h : Q(decide $p = true) ← pure h
+  return q(@of_decide_eq_true $p $inst $h)
+
+open Qq in
+/-- Prove `a = b` with the tactic `tac` and add it as a proof of the SMT formula `t = (= a b)`, i.e.,
+of `decide (a = b) = true`. -/
+def addEqTac (t : cvc5.Term) (tac : MVarId → MetaM Unit) : ReconstructM Expr := do
+  let b : Q(Bool) ← reconstructTerm t
+  let (p, inst) ← getDecide! b
+  let p : Q(Prop) ← pure p
+  let inst : Q(Decidable $p) ← pure inst
+  let h : Q($p) ← Meta.mkFreshExprMVar p
+  tac h.mvarId!
+  addThm q($b = true) q(@decide_eq_true $p $inst $h)
+
+open Qq in
+/-- Add the proof `h` of `a = b` as a proof of the SMT formula `t = (= a b)`, i.e., of
+`decide (a = b) = true`. -/
+def addEqThm (t : cvc5.Term) (h : Expr) : ReconstructM Expr := do
+  let b : Q(Bool) ← reconstructTerm t
+  let (p, inst) ← getDecide! b
+  let p : Q(Prop) ← pure p
+  let inst : Q(Decidable $p) ← pure inst
+  let h : Q($p) ← pure h
+  addThm q($b = true) q(@decide_eq_true $p $inst $h)
 
 end Reconstruct
 
@@ -231,19 +317,19 @@ def traceReconstructProof (r : Except Exception (List Expr × List Expr × Expr 
   | .ok _ => m!"{checkEmoji}"
   | _     => m!"{bombEmoji}"
 
-open Qq in
+/-- Reconstruct cvc5's proof `pf`, whose root is a `SCOPE` over the definitions of the query whose
+child is a `SCOPE` over its assertions. Returns the reconstructed definitions `ds` and assertions
+`as` (Boolean formulas), the type `p` of the proof, and the proof `h : p`, and the goals of the steps
+that could not be reconstructed. If there are no definitions, then `p` is `(!Bool.andN as) = true`;
+otherwise it is `(Bool.andN ds).smtImp (!Bool.andN as) = true`. -/
 partial def reconstructProof (pf : cvc5.Proof) (ctx : Reconstruct.Context) :
   MetaM (List Expr × List Expr × Expr × Expr × List MVarId) :=
   withTraceNode `smt.reconstruct.proof traceReconstructProof do
   let (dfns, state) ← (pf.getArguments.toList.mapM Reconstruct.reconstructTerm).run ctx {}
   let (ps, state) ← (pf.getChildren[0]!.getArguments.toList.mapM Reconstruct.reconstructTerm).run ctx state
-  let ((p : Q(Prop)), state) ← (Reconstruct.reconstructTerm (pf.getResult)).run ctx state
+  let (p, state) ← (Reconstruct.reconstructProofType pf.getResult).run ctx state
   let (h, ⟨_, _, _, _, _, mvs⟩) ← (Reconstruct.reconstructProof pf).run ctx state
-  if dfns.isEmpty then
-    let h : Q(True → $p) ← pure h
-    return (dfns, ps, p, q($h trivial), mvs.toList)
-  else
-    return (dfns, ps, p, h, mvs.toList)
+  return (dfns, ps, p, h, mvs.toList)
 
 structure cvc5Model where
   iss : Array (cvc5.Sort × Array cvc5.Term)
@@ -380,25 +466,27 @@ open Qq in
       compiler to the trusted code base. Defaults to `false`.
 
     ### Shape of the reconstructed proof (unsat case)
-    When the call succeeds with `prove := true` and cvc5 returns unsat with a proof, the term in
-    `SolveReconstructResult.unsat`'s `hp` field has Lean type
+    SMT-LIB's `Bool` sort is reconstructed as Lean's `Bool`, and a proof of a formula `φ` is a proof
+    of `⟦φ⟧ = true`. When the call succeeds with `prove := true` and cvc5 returns unsat with a proof,
+    the term in `SolveReconstructResult.unsat`'s `hp` field has Lean type
 
     ```lean4
-    andN ds → ¬ andN as
+    (Bool.andN ds).smtImp (!Bool.andN as) = true
     ```
 
     where:
-    * `andN : List Prop → Prop` is the n-ary conjunction defined in `Smt.Reconstruct.Prop.Core`.
-      It collapses a list of conjuncts into a right-associated `∧` chain with **no trailing
-      `True`**: `andN [] = True`, `andN [p] = p`, and `andN (p :: q :: ps) = p ∧ andN (q :: ps)`.
+    * `Bool.andN : List Bool → Bool` is the n-ary conjunction defined in
+      `Smt.Reconstruct.Bool.Core`. It collapses a list of conjuncts into a right-associated `&&`
+      chain with **no trailing `true`**: `andN [] = true`, `andN [b] = b`, and
+      `andN (b :: c :: bs) = b && andN (c :: bs)`.
+    * `Bool.smtImp a b` is the Boolean implication `!a || b`.
     * `ds` is the list of user-supplied definitions from the query, in source order. Each
-      `(define-fun f (x₁ … xₙ) τ b)` contributes the conjunct `f = fun x₁ … xₙ => b`.
+      `(define-fun f (x₁ … xₙ) τ b)` contributes the conjunct `decide (f = fun x₁ … xₙ => b)`.
     * `as` is the list of assertions from the query, in the order they appear (one entry per
       `(assert φ)`).
 
-    Edge cases follow directly from the definition of `andN`: with no definitions the antecedent
-    degenerates to `True → ¬ andN as`; with a single assertion the conclusion is `¬ a₁`; with no
-    assertions at all it is `¬ True`. -/
+    With no definitions, the type is `(!Bool.andN as) = true`; with a single assertion `a₁`, the
+    conclusion is `!a₁`. -/
 def solveAndReconstructProof (query : String)
   (timeout : Option Nat := none) (prove : Bool := true)
   (options : List (String × String) := defaultSolverOptions ++ (if prove then [("produce-proofs", "true")] else []))

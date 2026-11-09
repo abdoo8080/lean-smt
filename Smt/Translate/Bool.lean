@@ -14,12 +14,17 @@ public meta import Smt.Translate
 
 public meta section
 
+/-!
+# Translation of Booleans
+
+Lean's `Bool` is SMT-LIB's `Bool`. Propositions are preprocessed into Booleans: a hypothesis `p` is
+turned into `b = true`, where `b` is a Boolean formula whose atoms are `decide q` for propositions
+`q`. So `b = true` is translated as `b`, and `decide q` as `q`.
+-/
+
 namespace Smt.Translate.Bool
 
-open Translator Term
-
-private def mkBool : Lean.Expr :=
-  .const ``Bool []
+open Lean Translator Term
 
 @[smt_translate] def translateType : Translator := fun e => match e with
   | .const ``Bool _ => return symbolT "Bool"
@@ -38,6 +43,13 @@ private def mkBool : Lean.Expr :=
     return mkApp2 (symbolT "or") (← applyTranslators! a) (← applyTranslators! b)
   else if let some (a, b) := e.app2? ``xor then
     return mkApp2 (symbolT "xor") (← applyTranslators! a) (← applyTranslators! b)
+  else if let some (a, b) := e.app2? `Bool.smtImp then
+    return mkApp2 (symbolT "=>") (← applyTranslators! a) (← applyTranslators! b)
+  else if let some (p, _) := e.app2? ``Decidable.decide then
+    return some (← applyTranslators! p)
+  else if e.isAppOfArity ``cond 4 then
+    return mkApp3 (symbolT "ite") (← applyTranslators! (e.getArg! 1)) (← applyTranslators! (e.getArg! 2))
+                  (← applyTranslators! (e.getArg! 3))
   else if let some (_, x, y) := e.beq? then
     return mkApp2 (symbolT "=") (← applyTranslators! x) (← applyTranslators! y)
   else if let some (_, x, y) := e.bne? then
@@ -47,6 +59,11 @@ private def mkBool : Lean.Expr :=
 
 @[smt_translate] def translateProp : Translator := fun e => do
   if let some (.const ``Bool _, a, b) := e.eq? then
+    -- `b = true` is the proposition that the Boolean formula `b` holds.
+    if b.isConstOf ``true then
+      return some (← applyTranslators! a)
+    if b.isConstOf ``false then
+      return appT (symbolT "not") (← applyTranslators! a)
     return mkApp2 (symbolT "=") (← applyTranslators! a) (← applyTranslators! b)
   else
     return none

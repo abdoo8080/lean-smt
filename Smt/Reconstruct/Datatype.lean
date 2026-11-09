@@ -100,12 +100,10 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       let sort := result[0]![0]!.getSort!
       if sort.getKind! == .DATATYPE_SORT && isBuiltinName sort.getDatatype!.getName!.toName then
         return none
-      let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort sort
-      let t : Q($α) ← reconstructTerm result[0]![0]!
-      let s : Q($α) ← reconstructTerm result[0]![1]!
-      addTac q(($t = $s) = False) fun mv => do
-        let proof ← mv.withContext (proveConsClash t s)
-        mv.assign proof
+      let t ← reconstructTerm result[0]![0]!
+      let s ← reconstructTerm result[0]![1]!
+      -- The proposition denoted by `(= (= t s) false)` is `(t = s) = False`.
+      addPropThm pf.getResult (← proveConsClash t s)
     else
       return none
   | _ => return none
@@ -130,12 +128,10 @@ private def proveDistinctValues (t s : Expr) : MetaM Expr := do
     let sort := pf.getArguments[0]!.getSort!
     if sort.getKind! == .DATATYPE_SORT && isBuiltinName sort.getDatatype!.getName!.toName then
       return none
-    let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort sort
-    let t : Q($α) ← reconstructTerm pf.getArguments[0]!
-    let s : Q($α) ← reconstructTerm pf.getArguments[1]!
-    addTac q($t ≠ $s) fun mv => do
-      let proof ← mv.withContext (proveDistinctValues t s)
-      mv.assign proof
+    let t ← reconstructTerm pf.getArguments[0]!
+    let s ← reconstructTerm pf.getArguments[1]!
+    -- The proposition denoted by `(not (= t s))` is `¬t = s`.
+    addPropThm pf.getResult (← proveDistinctValues t s)
   | _ => return none
 
 end Smt.Reconstruct.Datatype

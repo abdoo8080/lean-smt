@@ -13,6 +13,8 @@ public import Smt.Preprocess.Basic
 public meta import Smt.Preprocess.Basic
 public import Smt.Preprocess.Embedding.Attribute
 public meta import Smt.Preprocess.Embedding.Attribute
+public import Smt.Preprocess.Embedding.Ite
+public meta import Smt.Preprocess.Embedding.Ite
 
 public meta section
 
@@ -39,7 +41,7 @@ def embedding (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.withContext d
   let ⟨_, _, fvs⟩ := (ts.push (← mv.getType)).foldl Lean.collectFVars {}
   let fvs ← Meta.sortFVarIds fvs
   -- Check if we need to do anything.
-  let bts := if (← getEnv).contains `Real then  #[``Nat, ``Rat, ``Bool] else #[``Nat, ``Bool]
+  let bts := if (← getEnv).contains `Real then  #[``Nat, ``Rat] else #[``Nat]
   let fvts ← fvs.mapM FVarId.getType
   if !(fvts ++ ts.push (← mv.getType)).any (·.contains ((bts.map (.const · [])).contains ·)) then
     return ⟨{}, hs, mv⟩
@@ -66,7 +68,6 @@ def embedding (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.withContext d
   let ctx ← Meta.Simp.mkContext { zeta := false, singlePass := true } simpTheorems congrTheorems
   let (some mv, _) ← Meta.simpTarget mv ctx simpProcs (mayCloseGoal := false) | throwError "[embedding] simplification failed"
   -- Extend `fvs` to account for `nonneg` assumptions.
-  let bts := bts.pop -- Do not consider `Bool` for assumptions.
   let mut fvs' : Array (Option FVarId) := #[]
   for fv in fvs do
     fvs' := fvs'.push (some fv)

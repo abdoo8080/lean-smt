@@ -85,22 +85,22 @@ open Lean Qq
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!
     let y : Q(Real) ← reconstructTerm t[1]!
-    return q($x ≤ $y)
+    mkDecide q($x ≤ $y)
   | .LT =>
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!
     let y : Q(Real) ← reconstructTerm t[1]!
-    return q($x < $y)
+    mkDecide q($x < $y)
   | .GEQ =>
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!
     let y : Q(Real) ← reconstructTerm t[1]!
-    return q($x ≥ $y)
+    mkDecide q($x ≥ $y)
   | .GT =>
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!
     let y : Q(Real) ← reconstructTerm t[1]!
-    return q($x > $y)
+    mkDecide q($x > $y)
   | .TO_REAL =>
     let x : Q(Int) ← reconstructTerm t[0]!
     return q($x : Real)
@@ -109,7 +109,7 @@ open Lean Qq
     return q(⌊$x⌋)
   | .IS_INTEGER =>
     let x : Q(Real) ← reconstructTerm t[0]!
-    return q($x = ⌊$x⌋)
+    mkDecide q($x = ⌊$x⌋)
   | .EXPONENTIAL =>
     if t.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!

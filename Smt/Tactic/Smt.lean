@@ -16,8 +16,10 @@ public import Smt.Dsl.Sexp
 public meta import Smt.Dsl.Sexp
 public import Smt.Reconstruct
 public meta import Smt.Reconstruct
-public import Smt.Reconstruct.Prop.Lemmas
-public meta import Smt.Reconstruct.Prop.Lemmas
+public import Smt.Reconstruct.Bool.Lemmas
+public meta import Smt.Reconstruct.Bool.Lemmas
+public import Smt.Reconstruct.Util
+public meta import Smt.Reconstruct.Util
 public import Smt.Translate.Query
 public meta import Smt.Translate.Query
 public import Smt.Preprocess
@@ -96,6 +98,8 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
               (if cfg.intros then #[Preprocess.intros] else #[]) ++ #[Preprocess.negateGoal]
   let steps := if cfg.normalize then steps.push Preprocess.normalize else steps
   let steps := if cfg.embeddings then steps.push Preprocess.embedding else steps
+  -- Translation and reconstruction work with Boolean formulas (see `Smt.Preprocess.boolify`).
+  let steps := steps.push Preprocess.boolify
   let ⟨map, hs₁, mv₁⟩ ← Preprocess.applySteps mv₀ hs steps
   mv₁.withContext do
   -- 3. Generate the SMT query.
@@ -125,7 +129,7 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
   | .ok (.unsat pf uc) =>
     -- 5.c Reconstruct unsat core proofs.
     let ctx := { userNames := fvNames₂, native := cfg.native }
-    let (uc, _) ← (uc.mapM Reconstruct.reconstructTerm).run ctx {}
+    let (uc, _) ← (uc.mapM Reconstruct.reconstructProofType).run ctx {}
     trace[smt] "unsat core: {uc}"
     let ts₁ ← hs₁.mapM Meta.inferType
     let uc ← uc.filterMapM fun p => ts₁.findIdxM? (Meta.isDefEq p)
@@ -141,7 +145,8 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
     let (_, ps, p, hp, mvs) ← reconstructProof pf ctx
     let mv₂ ← mv₁.assert (← mkFreshId) p hp
     let ⟨_, mv₃⟩ ← mv₂.intro1
-    let gs ← mv₃.apply (← Meta.mkAppOptM ``Prop.implies_false_of_not_and #[listExpr ps q(Prop)])
+    -- `hp : (!Bool.andN ps) = true` refutes the hypotheses `pᵢ = true` of the goal.
+    let gs ← mv₃.apply (← Meta.mkAppOptM ``Reconstruct.Bool.implies_false_of_not_and #[listExpr ps q(Bool)])
     mv₃.withContext (gs.forM (·.assumption))
     mv.assign (.mvar mv₀)
     return .unsat mvs uc
@@ -161,7 +166,25 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
     let (ufs', state) ← (ufs.mapM Reconstruct.reconstructTerm).run ctx state
     let ufs' := ufs'.map fun uf => (map[uf]?.getD #[uf])[0]?.getD uf
     let (vs', _) ← (vs.mapM Reconstruct.reconstructTerm).run ctx state
-    return .sat (.some (uss'.zip cs' ++ ufs'.zip vs'))
+    -- Show the values of propositional symbols as propositions.
+    let ufvs ← (ufs'.zip vs').mapM fun (uf, v) => do
+      let uf := match uf.app2? ``Decidable.decide with
+        | some (p, _) => p
+        | none => uf
+      return (uf, ← propValue (← Meta.inferType uf) v)
+    return .sat (.some (uss'.zip cs' ++ ufvs))
+where
+  /-- Turn the value `v` of a symbol of type `ty` into a proposition if `ty` is `Prop`, and likewise
+  for the arguments and results of functions. -/
+  propValue (ty v : Expr) : MetaM Expr := do
+    if ty.isProp then return (← Reconstruct.Bool.toProp v).1
+    if !(ty.find? (·.isProp)).isSome then return v
+    let .forallE _ α β _ := ty | return v
+    if β.hasLooseBVars then return v
+    let .lam n _ _ bi := v | return v
+    Meta.withLocalDecl n bi α fun x => do
+      let arg ← if α.isProp then mkDecide x else pure x
+      Meta.mkLambdaFVars #[x] (← propValue β (v.beta #[arg]))
 
 namespace Tactic
 

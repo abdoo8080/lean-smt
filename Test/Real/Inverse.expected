@@ -3,7 +3,7 @@ goal: x ≠ 0 → ∃ y, x * y = 1
 query:
 (set-logic ALL)
 (declare-const x Real)
-(assert (distinct x 0.0))
+(assert (not (= x 0.0)))
 (assert (not (exists ((y Real)) (= (* x y) 1.0))))
 (check-sat)
 Test/Real/Inverse.lean:4:8: warning: declaration uses `sorry`

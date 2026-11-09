@@ -160,32 +160,32 @@ where
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q($x < $y)
+    mkDecide q($x < $y)
   | .BITVECTOR_ULE =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q($x ≤ $y)
+    mkDecide q($x ≤ $y)
   | .BITVECTOR_UGT =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q($x > $y)
+    mkDecide q($x > $y)
   | .BITVECTOR_UGE =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q($x ≥ $y)
+    mkDecide q($x ≥ $y)
   | .BITVECTOR_SLT =>
     let w : Nat := t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(BitVec.slt $x $y = true)
+    return q(BitVec.slt $x $y)
   | .BITVECTOR_SLE =>
     let w : Nat := t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(BitVec.sle $x $y = true)
+    return q(BitVec.sle $x $y)
   | .BITVECTOR_EXTRACT =>
     let w : Nat := t[0]!.getSort!.getBitVectorSize!.toNat
     let i : Nat := t.getOp![0]!.getIntegerValue!.toNat
@@ -229,17 +229,16 @@ where
     let w : Nat := t.getNumChildren
     let bs : Q(BitVec 0) := q(.nil)
     let f (bs : Expr) (i : Nat) : ReconstructM Expr := do
-      let p : Q(Prop) ← reconstructTerm t[i]!
+      let b : Q(Bool) ← reconstructTerm t[i]!
       let bs : Q(BitVec $i) := bs
-      let hp : Q(Decidable $p) ← synthDecidableInst t[i]!
-      return q(@BitVec.cons $i (@decide $p $hp) $bs)
+      return q(@BitVec.cons $i $b $bs)
     let bs : Q(BitVec $w) ← (List.range w).foldlM f bs
     return q($bs)
   | .BITVECTOR_BIT =>
     let w : Nat := t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let i : Nat := t.getOp![0]!.getIntegerValue!.toNat
-    return q(«$x».getLsbD $i = true)
+    return q(«$x».getLsbD $i)
   | .BITVECTOR_ITE =>
     let w : Nat ← pure t.getSort!.getBitVectorSize!.toNat
     let c : Q(BitVec 1) ← reconstructTerm t[0]!
@@ -270,12 +269,12 @@ where
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(BitVec.slt $y $x = true)
+    return q(BitVec.slt $y $x)
   | .BITVECTOR_SGE =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(BitVec.sle $y $x = true)
+    return q(BitVec.sle $y $x)
   | .BITVECTOR_REDOR =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
@@ -288,41 +287,41 @@ where
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(BitVec.uaddOverflow $x $y = true)
+    return q(BitVec.uaddOverflow $x $y)
   | .BITVECTOR_SADDO =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(BitVec.saddOverflow $x $y = true)
+    return q(BitVec.saddOverflow $x $y)
   | .BITVECTOR_UMULO =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(BitVec.umulOverflow $x $y = true)
+    return q(BitVec.umulOverflow $x $y)
   | .BITVECTOR_SMULO =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(BitVec.smulOverflow $x $y = true)
+    return q(BitVec.smulOverflow $x $y)
   | .BITVECTOR_USUBO =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(BitVec.usubOverflow $x $y = true)
+    return q(BitVec.usubOverflow $x $y)
   | .BITVECTOR_SSUBO =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(BitVec.ssubOverflow $x $y = true)
+    return q(BitVec.ssubOverflow $x $y)
   | .BITVECTOR_SDIVO =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(BitVec.sdivOverflow $x $y = true)
+    return q(BitVec.sdivOverflow $x $y)
   | .BITVECTOR_NEGO =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
-    return q(BitVec.negOverflow $x = true)
+    return q(BitVec.negOverflow $x)
   | .INTERNAL_KIND =>
     -- Instances of RARE rules contain symbolic constants `(@bv n w)` of value `n` and width `w`,
     -- which cvc5 evaluates in separate steps. Their kind is internal to cvc5, so they are
@@ -1216,7 +1215,8 @@ def rewriteTheorem? (rule : cvc5.ProofRewriteRule) (args : Array cvc5.Term) :
 def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   let some h ← rewriteTheorem? pf.getRewriteRule! pf.getArguments | return none
   let some h ← proveHypotheses? h | return none
-  addThm (← reconstructTerm pf.getResult) h
+  -- The theorems state the propositions denoted by the rewrites.
+  addPropThm pf.getResult h
 
 @[smt_proof_reconstruct] def reconstructBitVecProof : ProofReconstructor := fun pf => do match pf.getRule with
   | .DSL_REWRITE => reconstructRewrite pf

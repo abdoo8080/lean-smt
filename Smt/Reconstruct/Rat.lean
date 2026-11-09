@@ -73,22 +73,22 @@ open Lean Qq
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Rat) ← reconstructTerm t[0]!
     let y : Q(Rat) ← reconstructTerm t[1]!
-    return q($x ≤ $y)
+    mkDecide q($x ≤ $y)
   | .LT =>
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Rat) ← reconstructTerm t[0]!
     let y : Q(Rat) ← reconstructTerm t[1]!
-    return q($x < $y)
+    mkDecide q($x < $y)
   | .GEQ =>
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Rat) ← reconstructTerm t[0]!
     let y : Q(Rat) ← reconstructTerm t[1]!
-    return q($x ≥ $y)
+    mkDecide q($x ≥ $y)
   | .GT =>
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Rat) ← reconstructTerm t[0]!
     let y : Q(Rat) ← reconstructTerm t[1]!
-    return q($x > $y)
+    mkDecide q($x > $y)
   | .TO_REAL =>
     let x : Q(Int) ← reconstructTerm t[0]!
     return q($x : Rat)
@@ -97,7 +97,7 @@ open Lean Qq
     return q(«$x».floor)
   | .IS_INTEGER =>
     let x : Q(Rat) ← reconstructTerm t[0]!
-    return q($x = «$x».floor)
+    mkDecide q($x = «$x».floor)
   | _ => return none
 where
   mkRatLit (n : Nat) : Q(Rat) :=

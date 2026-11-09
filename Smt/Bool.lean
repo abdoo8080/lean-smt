@@ -7,5 +7,5 @@ Authors: Abdalrhman Mohamed
 
 module
 
-public import Smt.Preprocess.Embedding.Bool
-public meta import Smt.Preprocess.Embedding.Bool
+public import Smt.Translate.Bool
+public meta import Smt.Translate.Bool

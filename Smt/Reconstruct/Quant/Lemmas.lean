@@ -86,4 +86,29 @@ theorem var_elim_eq_or {t : α} {p : α → Prop} : (∀ x, x ≠ t ∨ p x) = p
     (fun hpx => (hpx t).resolve_left (absurd rfl ·))
     (fun hpt x => (Classical.em (x = t)).elim (Or.inr $ · ▸ hpt) (Or.inl ·))
 
+/-! Variable elimination over Boolean formulas. The `Decidable (x = t)` instances `hx` of the atoms
+`decide (x = t)` are those of the reconstructed formulas. -/
+
+theorem var_elim_eq_bool {t : α} {hx : ∀ x, Decidable (x = t)}
+    {h : Decidable (∀ x, (!@decide (x = t) (hx x)) = true)} :
+    @decide (∀ x, (!@decide (x = t) (hx x)) = true) h = false := by
+  simp only [decide_eq_false_iff_not]
+  intro h'
+  have := h' t
+  simp_all
+
+theorem var_elim_eq_or_bool {t : α} {b : α → Bool} {hx : ∀ x, Decidable (x = t)}
+    {h : Decidable (∀ x, (!@decide (x = t) (hx x) || b x) = true)} :
+    @decide (∀ x, (!@decide (x = t) (hx x) || b x) = true) h = b t := by
+  cases hbt : b t
+  · simp only [decide_eq_false_iff_not]
+    intro h'
+    have := h' t
+    simp_all
+  · simp only [decide_eq_true_eq]
+    intro x
+    by_cases hxt : x = t
+    · subst hxt; simp [hbt]
+    · simp [hxt]
+
 end Smt.Reconstruct.Quant
