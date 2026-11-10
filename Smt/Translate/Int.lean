@@ -40,6 +40,15 @@ private def mkInt : Lean.Expr :=
     return mkApp2 (symbolT "div") (← applyTranslators! x) (← applyTranslators! y)
   else if let some (x, y) := e.hModOf? mkInt mkInt then
     return mkApp2 (symbolT "mod") (← applyTranslators! x) (← applyTranslators! y)
+  -- The Boolean comparisons defined in `Smt.Reconstruct.Int.Core`.
+  else if let some (x, y) := e.app2? `Int.blt then
+    return mkApp2 (symbolT "<") (← applyTranslators! x) (← applyTranslators! y)
+  else if let some (x, y) := e.app2? `Int.ble then
+    return mkApp2 (symbolT "<=") (← applyTranslators! x) (← applyTranslators! y)
+  else if let some (x, y) := e.app2? `Int.bgt then
+    return mkApp2 (symbolT ">") (← applyTranslators! x) (← applyTranslators! y)
+  else if let some (x, y) := e.app2? `Int.bge then
+    return mkApp2 (symbolT ">=") (← applyTranslators! x) (← applyTranslators! y)
   else
     return none
 

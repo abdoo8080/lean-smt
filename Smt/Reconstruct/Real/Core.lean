@@ -13,6 +13,35 @@ public import Mathlib.Basic.Real.Basic
 
 namespace Real
 
+/-! Boolean comparisons, the reconstructions of SMT-LIB's `<`, `<=`, `>`, and `>=` on reals. -/
+
+/-- Boolean `<` on reals. -/
+noncomputable def blt (a b : Real) : Bool := decide (a < b)
+
+/-- Boolean `≤` on reals. -/
+noncomputable def ble (a b : Real) : Bool := decide (a ≤ b)
+
+/-- Boolean `>` on reals. -/
+noncomputable def bgt (a b : Real) : Bool := decide (a > b)
+
+/-- Boolean `≥` on reals. -/
+noncomputable def bge (a b : Real) : Bool := decide (a ≥ b)
+
+section
+
+variable {a b : Real}
+
+@[simp] theorem blt_eq_true : (a.blt b = true) = (a < b) := decide_eq_true_eq
+@[simp] theorem ble_eq_true : (a.ble b = true) = (a ≤ b) := decide_eq_true_eq
+@[simp] theorem bgt_eq_true : (a.bgt b = true) = (a > b) := decide_eq_true_eq
+@[simp] theorem bge_eq_true : (a.bge b = true) = (a ≥ b) := decide_eq_true_eq
+@[simp] theorem blt_eq_false : (a.blt b = false) = ¬(a < b) := propext decide_eq_false_iff_not
+@[simp] theorem ble_eq_false : (a.ble b = false) = ¬(a ≤ b) := propext decide_eq_false_iff_not
+@[simp] theorem bgt_eq_false : (a.bgt b = false) = ¬(a > b) := propext decide_eq_false_iff_not
+@[simp] theorem bge_eq_false : (a.bge b = false) = ¬(a ≥ b) := propext decide_eq_false_iff_not
+
+end
+
 def addN : List Real → Real
   | []      => 0
   | [x]     => x

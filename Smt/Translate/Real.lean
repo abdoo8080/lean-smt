@@ -51,6 +51,15 @@ private def mkReal : Lean.Expr :=
     return mkApp2 (symbolT "*") (← applyTranslators! x) (← applyTranslators! y)
   else if let some (x, y) := e.hDivOf? mkReal mkReal then
     return mkApp2 (symbolT "/") (← applyTranslators! x) (← applyTranslators! y)
+  -- The Boolean comparisons defined in `Smt.Reconstruct.Real.Core`.
+  else if let some (x, y) := e.app2? `Real.blt then
+    return mkApp2 (symbolT "<") (← applyTranslators! x) (← applyTranslators! y)
+  else if let some (x, y) := e.app2? `Real.ble then
+    return mkApp2 (symbolT "<=") (← applyTranslators! x) (← applyTranslators! y)
+  else if let some (x, y) := e.app2? `Real.bgt then
+    return mkApp2 (symbolT ">") (← applyTranslators! x) (← applyTranslators! y)
+  else if let some (x, y) := e.app2? `Real.bge then
+    return mkApp2 (symbolT ">=") (← applyTranslators! x) (← applyTranslators! y)
   else
     return none
 

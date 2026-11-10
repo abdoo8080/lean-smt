@@ -81,22 +81,22 @@ open Qq
     if !t[0]!.getSort!.isInteger then return none
     let x : Q(Int) ← reconstructTerm t[0]!
     let y : Q(Int) ← reconstructTerm t[1]!
-    return q(decide ($x ≤ $y))
+    return q(Int.ble $x $y)
   | .LT =>
     if !t[0]!.getSort!.isInteger then return none
     let x : Q(Int) ← reconstructTerm t[0]!
     let y : Q(Int) ← reconstructTerm t[1]!
-    return q(decide ($x < $y))
+    return q(Int.blt $x $y)
   | .GEQ =>
     if !t[0]!.getSort!.isInteger then return none
     let x : Q(Int) ← reconstructTerm t[0]!
     let y : Q(Int) ← reconstructTerm t[1]!
-    return q(decide ($x ≥ $y))
+    return q(Int.bge $x $y)
   | .GT =>
     if !t[0]!.getSort!.isInteger then return none
     let x : Q(Int) ← reconstructTerm t[0]!
     let y : Q(Int) ← reconstructTerm t[1]!
-    return q(decide ($x > $y))
+    return q(Int.bgt $x $y)
   | _ => return none
 where
   leftAssocOp (op : Expr) (t : cvc5.Term) : ReconstructM Expr := do

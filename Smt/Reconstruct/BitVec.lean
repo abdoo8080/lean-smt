@@ -119,22 +119,22 @@ open Lean Qq
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(decide ($x < $y))
+    return q(BitVec.ult $x $y)
   | .BITVECTOR_ULE =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(decide ($x ≤ $y))
+    return q(BitVec.ule $x $y)
   | .BITVECTOR_UGT =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(decide ($x > $y))
+    return q(BitVec.ugt $x $y)
   | .BITVECTOR_UGE =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(decide ($x ≥ $y))
+    return q(BitVec.uge $x $y)
   | .BITVECTOR_SLT =>
     let w : Nat := t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
@@ -228,12 +228,12 @@ open Lean Qq
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(BitVec.slt $y $x)
+    return q(BitVec.sgt $x $y)
   | .BITVECTOR_SGE =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(BitVec.sle $y $x)
+    return q(BitVec.sge $x $y)
   | .BITVECTOR_REDOR =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!

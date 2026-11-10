@@ -7,5 +7,7 @@ Authors: Abdalrhman Mohamed
 
 module
 
+public import Smt.Preprocess.Embedding.Prop.Rat
+public meta import Smt.Preprocess.Embedding.Prop.Rat
 public import Smt.Reconstruct.Rat
 public meta import Smt.Reconstruct.Rat

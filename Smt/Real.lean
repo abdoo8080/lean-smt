@@ -9,6 +9,8 @@ module
 
 public import Smt.Preprocess.Embedding.Rat
 public meta import Smt.Preprocess.Embedding.Rat
+public import Smt.Preprocess.Embedding.Prop.Real
+public meta import Smt.Preprocess.Embedding.Prop.Real
 public import Smt.Preprocess.Normalize.Rat
 public meta import Smt.Preprocess.Normalize.Rat
 public import Smt.Preprocess.Normalize.Real

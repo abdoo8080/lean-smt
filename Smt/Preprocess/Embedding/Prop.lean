@@ -16,6 +16,8 @@ public meta import Smt.Preprocess.Embedding.Attribute
 public import Smt.Reconstruct.Bool.Core
 public meta import Smt.Reconstruct.Bool.Core
 public meta import Smt.Reconstruct.Bool.Bridge
+public import Smt.Reconstruct.BitVec.Core
+public import Smt.Reconstruct.Int.Core
 
 /-!
 # Embedding propositions into Booleans
@@ -279,6 +281,40 @@ theorem decide_forall_prop {P : Prop → Prop} {h : Decidable (∀ x, P x)} :
 theorem decide_exists_prop {P : Prop → Prop} {h : Decidable (∃ x, P x)} :
     @decide (∃ x, P x) h = @decide (∃ x : Bool, P (x = true)) (Classical.propDecidable _) := by
   apply Bool.eq_iff_iff.mpr; simp only [decide_eq_true_eq]; exact exists_prop_as_bool
+
+/-! Comparisons are decided with the Boolean comparisons that reconstruct SMT-LIB's comparisons. The
+ones on rationals and reals are in `Smt.Preprocess.Embedding.Prop.Rat` and
+`Smt.Preprocess.Embedding.Prop.Real`. -/
+
+section
+
+variable {x y : Int}
+
+@[smt_decide ↓] theorem decide_int_lt {h : Decidable (x < y)} : @decide (x < y) h = x.blt y :=
+  decide_eq_decide.mpr Iff.rfl
+@[smt_decide ↓] theorem decide_int_le {h : Decidable (x ≤ y)} : @decide (x ≤ y) h = x.ble y :=
+  decide_eq_decide.mpr Iff.rfl
+@[smt_decide ↓] theorem decide_int_gt {h : Decidable (x > y)} : @decide (x > y) h = x.bgt y :=
+  decide_eq_decide.mpr Iff.rfl
+@[smt_decide ↓] theorem decide_int_ge {h : Decidable (x ≥ y)} : @decide (x ≥ y) h = x.bge y :=
+  decide_eq_decide.mpr Iff.rfl
+
+end
+
+section
+
+variable {w : Nat} {x y : BitVec w}
+
+@[smt_decide ↓] theorem decide_bitVec_lt {h : Decidable (x < y)} : @decide (x < y) h = x.ult y := by
+  rw [BitVec.ult_eq_decide_lt]; exact decide_eq_decide.mpr Iff.rfl
+@[smt_decide ↓] theorem decide_bitVec_le {h : Decidable (x ≤ y)} : @decide (x ≤ y) h = x.ule y := by
+  rw [BitVec.ule_eq_decide_le]; exact decide_eq_decide.mpr Iff.rfl
+@[smt_decide ↓] theorem decide_bitVec_gt {h : Decidable (x > y)} : @decide (x > y) h = x.ugt y := by
+  rw [BitVec.ugt, BitVec.ult_eq_decide_lt]; exact decide_eq_decide.mpr Iff.rfl
+@[smt_decide ↓] theorem decide_bitVec_ge {h : Decidable (x ≥ y)} : @decide (x ≥ y) h = x.uge y := by
+  rw [BitVec.uge, BitVec.ule_eq_decide_le]; exact decide_eq_decide.mpr Iff.rfl
+
+end
 
 theorem decide_eq_beq {β : Type u} [inst : DecidableEq β] {a b : β} {h : Decidable (a = b)} :
     @decide (a = b) h = @BEq.beq β (@instBEqOfDecidableEq β inst) a b := by

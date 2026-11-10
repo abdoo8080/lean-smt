@@ -87,22 +87,22 @@ open Lean Qq
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!
     let y : Q(Real) ← reconstructTerm t[1]!
-    return q(decide ($x ≤ $y))
+    return q(Real.ble $x $y)
   | .LT =>
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!
     let y : Q(Real) ← reconstructTerm t[1]!
-    return q(decide ($x < $y))
+    return q(Real.blt $x $y)
   | .GEQ =>
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!
     let y : Q(Real) ← reconstructTerm t[1]!
-    return q(decide ($x ≥ $y))
+    return q(Real.bge $x $y)
   | .GT =>
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!
     let y : Q(Real) ← reconstructTerm t[1]!
-    return q(decide ($x > $y))
+    return q(Real.bgt $x $y)
   | .TO_REAL =>
     let x : Q(Int) ← reconstructTerm t[0]!
     return q($x : Real)

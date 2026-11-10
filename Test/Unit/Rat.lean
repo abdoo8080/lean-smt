@@ -55,6 +55,15 @@ private def mkRat : Lean.Expr :=
     return mkApp2 (symbolT ">=") (← applyTranslators! x) (← applyTranslators! y)
   else if let some (x, y) := e.gtOf? mkRat then
     return mkApp2 (symbolT ">") (← applyTranslators! x) (← applyTranslators! y)
+  -- The Boolean comparisons, see `Smt.Preprocess.Embedding.Prop.Rat`.
+  else if let some (x, y) := e.app2? ``Rat.blt then
+    return mkApp2 (symbolT "<") (← applyTranslators! x) (← applyTranslators! y)
+  else if let some (x, y) := e.app2? ``Rat.ble then
+    return mkApp2 (symbolT "<=") (← applyTranslators! x) (← applyTranslators! y)
+  else if let some (x, y) := e.app2? ``Rat.bgt then
+    return mkApp2 (symbolT ">") (← applyTranslators! x) (← applyTranslators! y)
+  else if let some (x, y) := e.app2? ``Rat.bge then
+    return mkApp2 (symbolT ">=") (← applyTranslators! x) (← applyTranslators! y)
   else
     return none
 

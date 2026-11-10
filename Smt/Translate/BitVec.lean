@@ -153,12 +153,31 @@ private def reduceBitVecWidth? (e : Expr) : MetaM (Option Nat) := do
     return some (.appT (.mkApp3 (.symbolT "_") (.symbolT "extract") (.literalT (toString hi))
                          (.literalT (toString lo))) (← applyTranslators! x))
   -- Lean's Boolean predicates on bit-vectors.
+  | mkApp3 (.const ``BitVec.ult []) w x y =>
+    _ ← reduceWidth w e
+    return some (.mkApp2 (.symbolT "bvult") (← applyTranslators! x) (← applyTranslators! y))
+  | mkApp3 (.const ``BitVec.ule []) w x y =>
+    _ ← reduceWidth w e
+    return some (.mkApp2 (.symbolT "bvule") (← applyTranslators! x) (← applyTranslators! y))
   | mkApp3 (.const ``BitVec.slt []) w x y =>
     _ ← reduceWidth w e
     return some (.mkApp2 (.symbolT "bvslt") (← applyTranslators! x) (← applyTranslators! y))
   | mkApp3 (.const ``BitVec.sle []) w x y =>
     _ ← reduceWidth w e
     return some (.mkApp2 (.symbolT "bvsle") (← applyTranslators! x) (← applyTranslators! y))
+  -- The comparisons below are defined in `Smt.Reconstruct.BitVec.Core`.
+  | mkApp3 (.const `BitVec.ugt []) w x y =>
+    _ ← reduceWidth w e
+    return some (.mkApp2 (.symbolT "bvugt") (← applyTranslators! x) (← applyTranslators! y))
+  | mkApp3 (.const `BitVec.uge []) w x y =>
+    _ ← reduceWidth w e
+    return some (.mkApp2 (.symbolT "bvuge") (← applyTranslators! x) (← applyTranslators! y))
+  | mkApp3 (.const `BitVec.sgt []) w x y =>
+    _ ← reduceWidth w e
+    return some (.mkApp2 (.symbolT "bvsgt") (← applyTranslators! x) (← applyTranslators! y))
+  | mkApp3 (.const `BitVec.sge []) w x y =>
+    _ ← reduceWidth w e
+    return some (.mkApp2 (.symbolT "bvsge") (← applyTranslators! x) (← applyTranslators! y))
   | mkApp3 (.const ``BitVec.uaddOverflow []) w x y =>
     _ ← reduceWidth w e
     return some (.mkApp2 (.symbolT "bvuaddo") (← applyTranslators! x) (← applyTranslators! y))

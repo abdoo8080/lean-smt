@@ -11,6 +11,35 @@ module
 
 namespace Int
 
+/-! Boolean comparisons, the reconstructions of SMT-LIB's `<`, `<=`, `>`, and `>=` on integers. -/
+
+/-- Boolean `<` on integers. -/
+def blt (a b : Int) : Bool := decide (a < b)
+
+/-- Boolean `≤` on integers. -/
+def ble (a b : Int) : Bool := decide (a ≤ b)
+
+/-- Boolean `>` on integers. -/
+def bgt (a b : Int) : Bool := decide (a > b)
+
+/-- Boolean `≥` on integers. -/
+def bge (a b : Int) : Bool := decide (a ≥ b)
+
+section
+
+variable {a b : Int}
+
+@[simp] theorem blt_eq_true : (a.blt b = true) = (a < b) := decide_eq_true_eq
+@[simp] theorem ble_eq_true : (a.ble b = true) = (a ≤ b) := decide_eq_true_eq
+@[simp] theorem bgt_eq_true : (a.bgt b = true) = (a > b) := decide_eq_true_eq
+@[simp] theorem bge_eq_true : (a.bge b = true) = (a ≥ b) := decide_eq_true_eq
+@[simp] theorem blt_eq_false : (a.blt b = false) = ¬(a < b) := propext decide_eq_false_iff_not
+@[simp] theorem ble_eq_false : (a.ble b = false) = ¬(a ≤ b) := propext decide_eq_false_iff_not
+@[simp] theorem bgt_eq_false : (a.bgt b = false) = ¬(a > b) := propext decide_eq_false_iff_not
+@[simp] theorem bge_eq_false : (a.bge b = false) = ¬(a ≥ b) := propext decide_eq_false_iff_not
+
+end
+
 protected def abs (x : Int) : Int :=
   if x < 0 then -x else x
 

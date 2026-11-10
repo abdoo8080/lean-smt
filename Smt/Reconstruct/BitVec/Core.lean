@@ -30,10 +30,10 @@ SMT-LIB operators are represented as follows (matching `Smt/Translate/BitVec.lea
 | `bvudiv`, `bvurem`            | `x.smtUDiv y`, `x % y`                 |
 | `bvsdiv`, `bvsrem`, `bvsmod`  | `x.smtSDiv y`, `x.srem y`, `x.smod y`  |
 | `bvshl`, `bvlshr`, `bvashr`   | `x <<< y`, `x >>> y`, `x.sshiftRight' y` |
-| `bvult`, `bvule`              | `x < y`, `x ≤ y`                       |
-| `bvugt`, `bvuge`              | `x > y`, `x ≥ y`                       |
-| `bvslt`, `bvsle`              | `x.slt y = true`, `x.sle y = true`     |
-| `bvsgt`, `bvsge`              | `y.slt x = true`, `y.sle x = true`     |
+| `bvult`, `bvule`              | `x.ult y`, `x.ule y`                   |
+| `bvugt`, `bvuge`              | `x.ugt y`, `x.uge y`                   |
+| `bvslt`, `bvsle`              | `x.slt y`, `x.sle y`                   |
+| `bvsgt`, `bvsge`              | `x.sgt y`, `x.sge y`                   |
 | `bvuaddo`, `bvsaddo`          | `x.uaddOverflow y = true`, ...         |
 | `bvnand`, `bvcomp`, ...       | `x.smtNand y`, `x.smtComp y`, ...      |
 | `int.pow2`, `int.log2`        | `2 ^ n`, `n.log2`                      |
@@ -69,6 +69,21 @@ def smtRedand (x : BitVec w) : BitVec 1 := if x = allOnes w then 1#1 else 0#1
 
 /-- cvc5's `bvite`: if-then-else with a bit-vector condition of width one. -/
 def smtIte (c : BitVec 1) (x y : BitVec w) : BitVec w := if c = 1#1 then x else y
+
+/-- SMT-LIB `bvugt`. -/
+def ugt (x y : BitVec w) : Bool := y.ult x
+
+/-- SMT-LIB `bvuge`. -/
+def uge (x y : BitVec w) : Bool := y.ule x
+
+/-- SMT-LIB `bvsgt`. -/
+def sgt (x y : BitVec w) : Bool := y.slt x
+
+/-- SMT-LIB `bvsge`. -/
+def sge (x y : BitVec w) : Bool := y.sle x
+
+theorem ugt_iff_gt {x y : BitVec w} : x.ugt y ↔ x > y := ult_iff_lt
+theorem uge_iff_ge {x y : BitVec w} : x.uge y ↔ x ≥ y := ule_iff_le
 
 /-! ### n-ary operators -/
 
