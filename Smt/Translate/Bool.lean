@@ -17,10 +17,11 @@ public meta section
 /-!
 # Translation of Booleans
 
-Lean's `Bool` is SMT-LIB's `Bool`. Propositions are preprocessed into Booleans: a hypothesis `p` is
+Lean's `Bool` is SMT-LIB's `Bool`. Propositions are embedded into Booleans: a hypothesis `p` is
 turned into `b = true`, where `b` is a Boolean formula built with SMT operators such as `smtEq` and
-`smtForall` (see `Smt.Reconstruct.Bool.Core`). So `b = true` is translated as `b`, and the SMT
-operators as the propositions they decide, e.g., `smtLt x y` as `x < y`.
+`smtForall` (see `Smt.Preprocess.Embedding.Prop` and `Smt.Reconstruct.Bool.Core`). So `b = true` is
+translated as `b`, and the SMT operators as the propositions they decide, e.g., `smtLt x y` as
+`x < y`.
 -/
 
 namespace Smt.Translate.Bool

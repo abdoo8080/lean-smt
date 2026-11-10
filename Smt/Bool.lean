@@ -7,5 +7,7 @@ Authors: Abdalrhman Mohamed
 
 module
 
+public import Smt.Preprocess.Normalize.Bool
+public meta import Smt.Preprocess.Normalize.Bool
 public import Smt.Translate.Bool
 public meta import Smt.Translate.Bool

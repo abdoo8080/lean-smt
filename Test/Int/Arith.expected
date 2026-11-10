@@ -1,32 +1,36 @@
 Test/Int/Arith.lean:3:47: error: unsolved goals
 n m : Int
-h : 0 < m
-a✝ : ¬n % m < m
-⊢ 0 < m →
-    ¬n % m < m →
-      ¬(m + -1 * if m = 0 then (fun x => x % 0) n else n % m) ≥ 1 →
-        n = (if m = 0 then (fun x => x % 0) n else n % m) + m * (n / m) →
-          m + -1 * n + m * (n / m) ≥ 1 → n % m = if m = 0 then (fun x => x % 0) n else n % m
+h : smtLt 0 m = true
+a✝ : (!smtLt (n % m) m) = true
+⊢ smtLt 0 m = true →
+    (!smtLt (n % m) m) = true →
+      (!smtGe (m + -1 * bif smtEq m 0 then (fun x => x % 0) n else n % m) 1) = true →
+        smtEq n ((bif smtEq m 0 then (fun x => x % 0) n else n % m) + m * (n / m)) = true →
+          smtGe (m + -1 * n + m * (n / m)) 1 = true →
+            smtEq (n % m) (bif smtEq m 0 then (fun x => x % 0) n else n % m) = true
 
 n m : Int
-h : 0 < m
-a✝ : ¬n % m < m
-⊢ 0 < m →
-    ¬n % m < m →
-      n = (if m = 0 then (fun x => x % 0) n else n % m) + m * (n / m) →
-        ¬(m + -1 * if m = 0 then (fun x => x % 0) n else n % m) ≥ 1 →
-          m + -1 * n + m * (n / m) ≥ 1 →
-            m + -1 * n + m * (n / m) ≥ 1 → n % m = if m = 0 then (fun x => x % 0) n else n % m
+h : smtLt 0 m = true
+a✝ : (!smtLt (n % m) m) = true
+⊢ smtLt 0 m = true →
+    (!smtLt (n % m) m) = true →
+      smtEq n ((bif smtEq m 0 then (fun x => x % 0) n else n % m) + m * (n / m)) = true →
+        (!smtGe (m + -1 * bif smtEq m 0 then (fun x => x % 0) n else n % m) 1) = true →
+          smtGe (m + -1 * n + m * (n / m)) 1 = true →
+            smtGe (m + -1 * n + m * (n / m)) 1 = true →
+              smtEq (n % m) (bif smtEq m 0 then (fun x => x % 0) n else n % m) = true
 
 n m : Int
-h : 0 < m
-a✝ : ¬n % m < m
-⊢ 0 < m →
-    ¬n % m < m →
-      n % m = n - m * (n / m) ∧
-        (m > 0 → m * (n / m) ≤ n ∧ n < m * (n / m + 1)) ∧ (m < 0 → m * (n / m) ≤ n ∧ n < m * (n / m + -1))
+h : smtLt 0 m = true
+a✝ : (!smtLt (n % m) m) = true
+⊢ smtLt 0 m = true →
+    (!smtLt (n % m) m) = true →
+      (smtEq (n % m) (n - m * (n / m)) &&
+          ((smtGt m 0).smtImp (smtLe (m * (n / m)) n && smtLt n (m * (n / m + 1))) &&
+            (smtLt m 0).smtImp (smtLe (m * (n / m)) n && smtLt n (m * (n / m + -1))))) =
+        true
 
 n m : Int
-h : 0 < m
-a✝ : ¬n % m < m
-⊢ 0 < m → ¬n % m < m → n % m = if m = 0 then (fun x => x % 0) n else n % m
+h : smtLt 0 m = true
+a✝ : (!smtLt (n % m) m) = true
+⊢ smtLt 0 m = true → (!smtLt (n % m) m) = true → smtEq (n % m) (bif smtEq m 0 then (fun x => x % 0) n else n % m) = true

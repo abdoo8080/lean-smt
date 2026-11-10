@@ -7,14 +7,20 @@ Authors: Abdalrhman Mohamed
 
 module
 
+public import Lean.Meta.Tactic.Rename
+public meta import Lean.Meta.Tactic.Rename
 public import Lean.Meta.Tactic.Simp
 public meta import Lean.Meta.Tactic.Simp
+public import Qq
+public meta import Qq
 public import Smt.Preprocess.Basic
 public meta import Smt.Preprocess.Basic
 public import Smt.Preprocess.Embedding.Attribute
 public meta import Smt.Preprocess.Embedding.Attribute
 public import Smt.Preprocess.Embedding.Ite
 public meta import Smt.Preprocess.Embedding.Ite
+public import Smt.Preprocess.Embedding.Prop
+public meta import Smt.Preprocess.Embedding.Prop
 
 public meta section
 
@@ -35,7 +41,10 @@ def hasReturnType (e : Expr) (p : Expr → Bool) : Bool :=
   | .forallE _ _ b _ => hasReturnType b p
   | _                => p e
 
-def embedding (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.withContext do
+/-- Embed the types that SMT-LIB lacks (e.g., `Nat` and `Prop`) into ones it has (e.g., `Int` and
+`Bool`) with the `embedding` theorems, which rewrite the goal after reverting the free variables and
+hypotheses `hs`. -/
+def embedTypes (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.withContext do
   -- Find all free vars to revert in `hs` and `mv`.
   let ts ← hs.mapM Meta.inferType
   let ⟨_, _, fvs⟩ := (ts.push (← mv.getType)).foldl Lean.collectFVars {}
@@ -43,7 +52,8 @@ def embedding (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.withContext d
   -- Check if we need to do anything.
   let bts := if (← getEnv).contains `Real then  #[``Nat, ``Rat] else #[``Nat]
   let fvts ← fvs.mapM FVarId.getType
-  if !(fvts ++ ts.push (← mv.getType)).any (·.contains ((bts.map (.const · [])).contains ·)) then
+  let isEmbedded (e : Expr) := e.isProp || (bts.map (.const · [])).contains e
+  if !(fvts ++ ts.push (← mv.getType)).any (·.contains isEmbedded) then
     return ⟨{}, hs, mv⟩
   -- Find the embedding simp theorems.
   let some thmsExt ← Meta.getSimpExtension? `embedding | throwError "embedding simp extension not found"
@@ -76,6 +86,12 @@ def embedding (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.withContext d
       fvs' := fvs'.push none
   -- Re-introduce all free vars (and their `nonneg` assumptions).
   let (fvs'', mv) ← mv.introNP fvs'.size
+  -- Keep the names of the free vars, which the embedding theorems may have changed.
+  let mut mv := mv
+  for (of, to) in fvs'.zip fvs'' do
+    if let some of := of then
+      if let some d := (← getLCtx).find? of then
+        mv ← mv.rename to d.userName
   -- Compose the final map from new free vars to old ones.
   -- We do not need to map `nonneg` assumptions. Since `nonneg` assumptions are auxiliary,
   -- We can always provide all of them to the SMT solver without affecting the unsat core.
@@ -97,5 +113,56 @@ where
   inverse (m : Std.HashMap Expr Expr) : Std.HashMap Expr Expr :=
     m.fold (init := {}) fun map k v =>
       map.insert v k
+
+open Qq in
+/-- Turn every hypothesis `h : p` in `hs` into a hypothesis `h' : b = true`, where `b` is the Boolean
+formula obtained from `p` with the `smt_decide` theorems (see `Smt.Preprocess.Embedding.Prop`).
+Hypotheses in `hs` that are not proofs (e.g., definitions) are kept as they are. -/
+def embedProps (mv : MVarId) (hs : Array Expr) : MetaM Result := do
+  let some thmsExt ← Meta.getSimpExtension? `smt_decide | throwError "smt_decide simp extension not found"
+  let some procsExt ← Meta.Simp.getSimprocExtension? `smt_decide
+    | throwError "smt_decide simproc extension not found"
+  let simprocs := #[← procsExt.getSimprocs]
+  let ctx ← mv.withContext do
+    Meta.Simp.mkContext { zeta := false, beta := true, eta := true, proj := false, iota := false }
+      (simpTheorems := #[← thmsExt.getTheorems]) (congrTheorems := ← Meta.getSimpCongrTheorems)
+  let mut mv := mv
+  let mut map : Std.HashMap Expr (Array Expr) := {}
+  let mut hs' := #[]
+  -- The propositional hypotheses that the Boolean ones replace.
+  let mut olds := #[]
+  for h in hs do
+    let (h', mv') ← mv.withContext do
+      let p ← instantiateMVars (← Meta.inferType h)
+      unless ← Meta.isProp p do return (h, mv)
+      let p : Q(Prop) ← pure p
+      let h : Q($p) ← pure h
+      let hb : Q(smtDecide $p = true) := q(Eq.mpr smtDecide_eq_true $h)
+      let (r, _) ← Meta.simp q(smtDecide $p = true) ctx simprocs
+      let hb ← match r.proof? with
+        | none => pure hb
+        | some e => Meta.mkEqMP e hb
+      let n ← if h.isFVar then h.fvarId!.getUserName else mkFreshUserName `h
+      let mv ← mv.assert n r.expr hb
+      let (fv, mv) ← mv.intro1P
+      return (.fvar fv, mv)
+    if h' != h && h.isFVar then
+      olds := olds.push h.fvarId!
+    mv := mv'
+    hs' := hs'.push h'
+    map := map.insert h' #[h]
+  mv ← mv.tryClearMany olds
+  return { map, hs := hs', mv }
+
+/-- Embed the goal `mv` and the hypotheses `hs` into SMT-LIB's logic: embed the types that SMT-LIB
+lacks into ones it has (see `embedTypes`), and turn the hypotheses into Boolean formulas (see
+`embedProps`). -/
+def embedding (mv : MVarId) (hs : Array Expr) : MetaM Result := do
+  let r₁ ← embedTypes mv hs
+  let r₂ ← embedProps r₁.mv r₁.hs
+  -- Map the final hypotheses to the original ones.
+  let map := r₂.map.fold (init := r₁.map) fun map k v =>
+    map.insert k (v.map fun x => r₁.map.getD x #[x]).flatten
+  return { r₂ with map }
 
 end Smt.Preprocess

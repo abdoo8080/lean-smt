@@ -51,11 +51,11 @@ goal: ∃ x ≥ 0, p x
 
 query:
 (set-logic ALL)
-(declare-const x Real)
-(assert (exists ((a Int)) (exists ((b Int)) (= x (/ (to_real a) (to_real b))))))
-(declare-fun f (Real) Bool)
-(assert (f x))
-(assert (not (exists ((x Real)) (and (exists ((a Int)) (exists ((b Int)) (= x (/ (to_real a) (to_real b))))) (=> (exists ((a Int)) (exists ((b Int)) (= x (/ (to_real a) (to_real b))))) (and (<= 0.0 x) (f x)))))))
+(declare-const w Real)
+(assert (exists ((a Int)) (exists ((b Int)) (= w (/ (to_real a) (to_real b))))))
+(declare-fun p (Real) Bool)
+(assert (p w))
+(assert (not (exists ((x Real)) (and (exists ((a Int)) (exists ((b Int)) (= x (/ (to_real a) (to_real b))))) (=> (exists ((a Int)) (exists ((b Int)) (= x (/ (to_real a) (to_real b))))) (and (<= 0.0 x) (p x)))))))
 (check-sat)
 Test/Unit/Embedding.lean:351:67: error: unsolved goals
 p : ℚ → Prop
@@ -91,11 +91,5 @@ Test/Unit/Embedding.lean:373:3: warning: Variable name `st_leader` is not explic
 
 Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
   [apply] _st_leader
-
-Note: This linter can be disabled with `set_option linter.unusedVariables false`
-Test/Unit/Embedding.lean:387:96: warning: Variable name `h` is not explicitly referenced.
-
-Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
-  [apply] _h
 
 Note: This linter can be disabled with `set_option linter.unusedVariables false`

@@ -7,8 +7,6 @@ Authors: Abdalrhman Mohamed, Tomaz Gomes Mascarenhas
 
 module
 
-public import Smt.Preprocess.Boolify
-public meta import Smt.Preprocess.Boolify
 public import Smt.Preprocess.Embedding
 public meta import Smt.Preprocess.Embedding
 public import Smt.Preprocess.Intros

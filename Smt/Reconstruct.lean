@@ -196,50 +196,13 @@ def findAssumWithType? (t : Expr) : ReconstructM (Option Expr) := do
       return some a
   return none
 
-open Qq in
-/-- The proposition denoted by the type `b = true` of a proof of an SMT formula, and a proof that
-they are equal (`none` if they are the same). It is shown to users, so its conditionals `cond b x y`
-are shown as `if p then x else y`, where `p` is the proposition denoted by `b`. -/
-def propOfProofType (t : Expr) : MetaM (Expr × Option Expr) := do
-  let (p, h₁?) ← match t.eq? with
-    | some (α, b, v) => if α.isConstOf ``Bool && v.isConstOf ``Bool.true then Bool.toProp b else pure (t, none)
-    | none => pure (t, none)
-  if !(p.find? (·.isAppOfArity ``cond 4)).isSome then return (p, h₁?)
-  let mut thms : Meta.SimpTheorems := {}
-  for n in [``Bool.cond_eq_ite, ``Bool.ite_eq_true_distrib, ``Bool.not_eq_true', ``Bool.and_eq_true,
-            ``Bool.or_eq_true, ``smtDecide_eq_true, ``smtDecide_eq_false, ``smtEq_eq_true,
-            ``smtEq_eq_false, ``smtLt_eq_true, ``smtLt_eq_false, ``smtLe_eq_true, ``smtLe_eq_false,
-            ``smtGt_eq_true, ``smtGt_eq_false, ``smtGe_eq_true, ``smtGe_eq_false] do
-    thms ← thms.addConst n
-  let ctx ← Meta.Simp.mkContext { beta := false, eta := false, proj := false, zeta := false } #[thms]
-    (← Meta.getSimpCongrTheorems)
-  -- Rewriting the condition `b = true` of `if b = true then x else y` to `p` needs an instance of
-  -- `Decidable p`, which need not exist (e.g., if `p` is a variable), so we decide `p` classically.
-  let (p', h₂?) ← Meta.withLocalDecl `inst .instImplicit q(∀ p : Prop, Decidable p) fun inst => do
-    let (r, _) ← Meta.simp p ctx
-    let classical e := (e.abstract #[inst]).instantiate1 (.const ``Classical.propDecidable [])
-    return (classical (← instantiateMVars r.expr), (classical <$> ·) <$> r.proof?.mapM instantiateMVars)
-  let some h₂ ← h₂? | return (p, h₁?)
-  match h₁? with
-  | none => return (p', some h₂)
-  | some h₁ => return (p', some (← Meta.mkEqTrans h₁ h₂))
-
-/-- Leave the goal `mv` for the user. The goal is stated over propositions (see `reconstructProp`),
-and abstracted over the assumptions in scope. -/
+/-- Leave the goal `mv` for the user, abstracted over the assumptions in scope. -/
 def skipStep (mv : MVarId) : ReconstructM Unit := mv.withContext do
   let state ← get
-  let (q, hq?) ← propOfProofType (← mv.getType)
-  let mut ps := #[]
-  let mut args := #[]
-  for a in state.currAssums do
-    let (p, hp?) ← propOfProofType (← Meta.inferType a)
-    ps := ps.push p
-    args := args.push (← match hp? with | some hp => Meta.mkEqMP hp a | none => pure a)
-  let t := ps.foldr (fun p t => .forallE `a p t .default) q
+  let t ← Meta.mkForallFVars state.currAssums (← mv.getType)
   let ctx := state.currAssums.foldr (fun e ctx => ctx.erase e.fvarId!) (← getLCtx)
   let mv' ← Meta.withLCtx ctx (← Meta.getLocalInstances) (Meta.mkFreshExprMVar t)
-  let e := mkAppN mv' args
-  let e ← match hq? with | some hq => Meta.mkEqMPR hq e | none => pure e
+  let e := mkAppN mv' state.currAssums
   set { state with skippedGoals := state.skippedGoals.push mv'.mvarId! }
   mv.assign e
 

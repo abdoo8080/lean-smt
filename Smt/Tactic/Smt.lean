@@ -53,7 +53,8 @@ structure Config where
       step performs unconditional rewrites to ensure that the goal is in a standard form suitable
       for SMT solving. -/
   normalize : Bool := true
-  /-- Whether to embed subtypes (e.g., `Nat`, `Bool`, `Rat`) into types understood by the SMT solver. -/
+  /-- Whether to embed types that the SMT solver does not understand (e.g., `Nat`, `Rat`, and `Prop`)
+      into ones it does (e.g., `Int`, `Real`, and `Bool`). -/
   embeddings : Bool := true
   /-- Whether to trust the result of the SMT solver. Closes the current goal with a `sorry` if the
       SMT solver returns `unsat`. **Warning**: use with caution, as this may lead to unsoundness.
@@ -99,11 +100,6 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
   let steps := if cfg.normalize then steps.push Preprocess.normalize else steps
   let steps := if cfg.embeddings then steps.push Preprocess.embedding else steps
   let ⟨map, hs₁, mv₁⟩ ← Preprocess.applySteps mv₀ hs steps
-  -- Translation and reconstruction work with Boolean formulas (see `Smt.Preprocess.boolify`).
-  let ⟨boolMap, hs₁, mv₁⟩ ← Preprocess.boolify mv₁ hs₁
-  let map := boolMap.fold (init := map) fun m k v => m.insert k (v.map fun x => map.getD x #[x]).flatten
-  -- The hypotheses introduced by `boolify`, which are hidden in the goals left to the user.
-  let boolHyps := hs₁.filter fun h => h.isFVar && boolMap[h]? != some #[h]
   mv₁.withContext do
   -- 3. Generate the SMT query.
   let (fvNames₁, fvNames₂) ← genUniqueFVarNames
@@ -152,16 +148,24 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
     let gs ← mv₃.apply (← Meta.mkAppOptM ``Reconstruct.Bool.implies_false_of_not_and #[listExpr ps q(Bool)])
     -- Close each goal with the hypothesis of the same type. `assumption` alone could pick another
     -- hypothesis, since closed Boolean formulas are definitionally equal if they evaluate to the
-    -- same value.
+    -- same value. Without the embedding (see `Config.embeddings`), the hypotheses are the
+    -- propositions that the Boolean formulas denote.
     mv₃.withContext do
-      let lctx ← getLCtx
       for g in gs do
         let t ← instantiateMVars (← g.getType)
-        match lctx.findDecl? fun d => if !d.isImplementationDetail && d.type == t then some d else none with
-        | some d => g.assign d.toExpr
-        | none => g.assumption
+        if let some h ← findHyp? t then
+          g.assign h
+          continue
+        if ← g.assumptionCore then
+          continue
+        let some (_, b, _) := t.eq? | g.assumption
+        let (p, some e) ← Reconstruct.Bool.toProp b | g.assumption
+        let hp ← Meta.mkFreshExprMVar p
+        match ← findHyp? p with
+        | some h => hp.mvarId!.assign h
+        | none => hp.mvarId!.assumption
+        g.assign (← Meta.mkEqMPR e hp)
     mv.assign (.mvar mv₀)
-    let mvs ← mvs.mapM (·.tryClearMany (boolHyps.map Expr.fvarId!))
     return .unsat mvs uc
   | .ok (.sat model) =>
     -- 5d. Return potential counter-example.
@@ -178,27 +182,13 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
     let (ufs, vs) := model.ifs.unzip
     let (ufs', state) ← (ufs.mapM Reconstruct.reconstructTerm).run ctx state
     let (vs', _) ← (vs.mapM Reconstruct.reconstructTerm).run ctx state
-    -- Show the values of propositional symbols as propositions.
-    let ufvs ← (ufs'.zip vs').mapM fun (uf, v) => do
-      let uf := match uf.app1? ``smtDecide with
-        | some p => p
-        | none => uf
-      let v ← propValue (← Meta.inferType uf) v
-      return ((map[uf]?.getD #[uf])[0]?.getD uf, v)
+    let ufvs := (ufs'.zip vs').map fun (uf, v) => ((map[uf]?.getD #[uf])[0]?.getD uf, v)
     return .sat (.some (uss'.zip cs' ++ ufvs))
 where
-  /-- Turn the value `v` of a symbol of type `ty` into a proposition if `ty` is `Prop`, and likewise
-  for the arguments and results of functions. -/
-  propValue (ty v : Expr) : MetaM Expr := do
-    if ty.isProp then
-      return (← Reconstruct.propOfProofType (← Meta.mkEq v (.const ``Bool.true []))).1
-    if !(ty.find? (·.isProp)).isSome then return v
-    let .forallE _ α β _ := ty | return v
-    if β.hasLooseBVars then return v
-    let .lam n _ _ bi := v | return v
-    Meta.withLocalDecl n bi α fun x => do
-      let arg := if α.isProp then mkApp (.const ``smtDecide []) x else x
-      Meta.mkLambdaFVars #[x] (← propValue β (v.beta #[arg]))
+  /-- A hypothesis of type `t`. -/
+  findHyp? (t : Expr) : MetaM (Option Expr) := do
+    return (← getLCtx).findDecl? fun d =>
+      if !d.isImplementationDetail && d.type == t then some d.toExpr else none
 
 namespace Tactic
 
