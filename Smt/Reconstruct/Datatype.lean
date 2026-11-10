@@ -90,22 +90,52 @@ private def proveConsClash (t s : Expr) : MetaM Expr := do
   let iff_pf ← mkAppM ``Iff.intro #[fwd, bwd]
   mkAppM ``propext #[iff_pf]
 
+/-- A proof of `smtEq t s = F` for applications `t` and `s` of constructors, where `F` is the
+conjunction of the equalities of their fields, by the injectivity of the constructors. Returns `none`
+if that fails. -/
+private def proveConsEq (l r : Expr) : MetaM (Option Expr) := do
+  let mut thms : SimpTheorems := {}
+  for n in [``smtEq_eq_true, ``Bool.and_eq_true] do
+    thms ← thms.addConst n
+  let env ← getEnv
+  for c in l.getUsedConstants do
+    if isCtor env c && env.contains (c ++ `injEq) then
+      thms ← thms.addConst (c ++ `injEq)
+  let ctx ← Simp.mkContext {} #[thms]
+  -- `(l = true) ↔ (r = true)`
+  let h ← mkFreshExprMVar (mkApp2 (.const ``Iff []) (← mkEq l (.const ``true [])) (← mkEq r (.const ``true [])))
+  try
+    if let (some mv, _) ← simpTarget h.mvarId! ctx then
+      _ ← mv.apply (.const ``Iff.rfl [])
+    return some (← mkAppM ``Iff.mpr #[← mkAppOptM ``Bool.eq_iff_iff #[l, r], ← instantiateMVars h])
+  catch _ =>
+    return none
+where
+  isCtor (env : Environment) (c : Name) : Bool :=
+    match env.find? c with
+    | some (.ctorInfo _) => true
+    | _ => false
+
 def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   match pf.getRewriteRule! with
   | .MACRO_DT_CONS_EQ
+  | .DT_CONS_EQ
   | .DT_CONS_EQ_CLASH =>
     let result := pf.getResult
-    -- Only handle the "clash" case: (t = s) = false (distinct constructors)
+    let sort := result[0]![0]!.getSort!
+    if sort.getKind! == .DATATYPE_SORT && isBuiltinName sort.getDatatype!.getName!.toName then
+      return none
     if result[1]!.getKind! == .CONST_BOOLEAN && !result[1]!.getBooleanValue! then
-      let sort := result[0]![0]!.getSort!
-      if sort.getKind! == .DATATYPE_SORT && isBuiltinName sort.getDatatype!.getName!.toName then
-        return none
+      -- Distinct constructors.
       let t ← reconstructTerm result[0]![0]!
       let s ← reconstructTerm result[0]![1]!
       -- The proposition denoted by `(= (= t s) false)` is `(t = s) = False`.
       addPropThm pf.getResult (← proveConsClash t s)
     else
-      return none
+      -- `(= (= (C t₁ … tₙ) (C s₁ … sₙ)) (and (= t₁ s₁) … (= tₙ sₙ)))`
+      let (_, l, r) ← getSmtEq! (← reconstructTerm result)
+      let some h ← proveConsEq l r | return none
+      addEqThm result h
   | _ => return none
 
 /-- Build a Lean proof of `¬(t = s)` where `t` and `s` are distinct constructors.

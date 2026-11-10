@@ -81,3 +81,20 @@ theorem mynat.add_assoc :
 --   induction n with
 --   | zero => sorry
 --   | succ n ih => sorry
+
+-- Booleans as fields of datatypes
+
+inductive Tagged where
+  | mk (flag : Bool) (val : Int)
+
+example (t : Tagged) (h : t = .mk true 1) : t ≠ .mk false 1 := by smt [h]
+example (a b : Bool) (h : Tagged.mk a 1 = Tagged.mk b 1) : a = b := by smt [h]
+
+inductive Shape where
+  | circle (filled : Bool)
+  | rect (filled : Bool) (w h : Int)
+
+example (s : Shape) (h : s = .rect true 2 3) : s ≠ .circle true := by smt [h]
+example (a b : Bool) (h : Shape.circle a = Shape.circle b) : a = b := by smt [h]
+example (a : Bool) (w : Int) (h : Shape.rect a w 1 = Shape.rect true 2 1) : a = true ∧ w = 2 := by
+  smt [h]
