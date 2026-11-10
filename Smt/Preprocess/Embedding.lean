@@ -86,6 +86,9 @@ def embedding (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.withContext d
   let inverseMap := compose inverseMap₁ inverseMap₂
   let hs' := hs' ++ hs.map fun h => inverseMap[h]?.getD h
   let map := (inverse inverseMap).fold (init := {}) fun map k v => map.insert k #[v]
+  -- The inverse may map a new hypothesis to the intermediate free var asserted for it above; map it
+  -- to the hypothesis it comes from instead.
+  let map := hs.foldl (init := map) fun map h => map.insert (inverseMap[h]?.getD h) #[h]
   return { map := map, hs := hs', mv }
 where
   compose (m₁ m₂ : Std.HashMap Expr Expr) : Std.HashMap Expr Expr :=

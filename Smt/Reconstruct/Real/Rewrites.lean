@@ -121,4 +121,22 @@ theorem arith_cotangent_elim (x : Real) : Real.cot x = Real.cos x / Real.sin x :
 
 -- TODO: Secant and cosecant. There is no definition for those in mathlib. Should we define our own?
 
+-- min/max rules, where the `ite` is reconstructed as `cond`
+
+theorem min_lt1_cond {t s : Real} {h : Decidable (t < s)} {h' : Decidable (cond (@decide (t < s) h) t s ≤ t)} :
+    @decide (cond (@decide (t < s) h) t s ≤ t) h' = true := by
+  cases h <;> simp_all <;> first | exact not_lt.mp ‹_› | exact le_of_lt ‹_› | exact le_of_lt (not_le.mp ‹_›)
+
+theorem min_lt2_cond {t s : Real} {h : Decidable (t < s)} {h' : Decidable (cond (@decide (t < s) h) t s ≤ s)} :
+    @decide (cond (@decide (t < s) h) t s ≤ s) h' = true := by
+  cases h <;> simp_all <;> first | exact not_lt.mp ‹_› | exact le_of_lt ‹_› | exact le_of_lt (not_le.mp ‹_›)
+
+theorem max_geq1_cond {t s : Real} {h : Decidable (t ≥ s)} {h' : Decidable (cond (@decide (t ≥ s) h) t s ≥ t)} :
+    @decide (cond (@decide (t ≥ s) h) t s ≥ t) h' = true := by
+  cases h <;> simp_all <;> first | exact not_lt.mp ‹_› | exact le_of_lt ‹_› | exact le_of_lt (not_le.mp ‹_›)
+
+theorem max_geq2_cond {t s : Real} {h : Decidable (t ≥ s)} {h' : Decidable (cond (@decide (t ≥ s) h) t s ≥ s)} :
+    @decide (cond (@decide (t ≥ s) h) t s ≥ s) h' = true := by
+  cases h <;> simp_all <;> first | exact not_lt.mp ‹_› | exact le_of_lt ‹_› | exact le_of_lt (not_le.mp ‹_›)
+
 end Smt.Reconstruct.Real.Rewrite

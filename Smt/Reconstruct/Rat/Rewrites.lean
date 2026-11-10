@@ -96,4 +96,22 @@ theorem max_geq1 : (ite (t ≥ s) t s ≥ t) = True := by
 theorem max_geq2 : (ite (t ≥ s) t s ≥ s) = True := by
   cases h : decide (t ≥ s) <;> simp_all
 
+-- min/max rules, where the `ite` is reconstructed as `cond`
+
+theorem min_lt1_cond {t s : Rat} {h : Decidable (t < s)} {h' : Decidable (cond (@decide (t < s) h) t s ≤ t)} :
+    @decide (cond (@decide (t < s) h) t s ≤ t) h' = true := by
+  cases h <;> simp_all <;> first | exact Rat.not_lt.mp ‹_› | exact Rat.le_of_lt ‹_› | exact Rat.le_of_lt (Rat.not_le.mp ‹_›)
+
+theorem min_lt2_cond {t s : Rat} {h : Decidable (t < s)} {h' : Decidable (cond (@decide (t < s) h) t s ≤ s)} :
+    @decide (cond (@decide (t < s) h) t s ≤ s) h' = true := by
+  cases h <;> simp_all <;> first | exact Rat.not_lt.mp ‹_› | exact Rat.le_of_lt ‹_› | exact Rat.le_of_lt (Rat.not_le.mp ‹_›)
+
+theorem max_geq1_cond {t s : Rat} {h : Decidable (t ≥ s)} {h' : Decidable (cond (@decide (t ≥ s) h) t s ≥ t)} :
+    @decide (cond (@decide (t ≥ s) h) t s ≥ t) h' = true := by
+  cases h <;> simp_all <;> first | exact Rat.not_lt.mp ‹_› | exact Rat.le_of_lt ‹_› | exact Rat.le_of_lt (Rat.not_le.mp ‹_›)
+
+theorem max_geq2_cond {t s : Rat} {h : Decidable (t ≥ s)} {h' : Decidable (cond (@decide (t ≥ s) h) t s ≥ s)} :
+    @decide (cond (@decide (t ≥ s) h) t s ≥ s) h' = true := by
+  cases h <;> simp_all <;> first | exact Rat.not_lt.mp ‹_› | exact Rat.le_of_lt ‹_› | exact Rat.le_of_lt (Rat.not_le.mp ‹_›)
+
 end Smt.Reconstruct.Rat.Rewrite

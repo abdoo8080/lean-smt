@@ -101,4 +101,22 @@ theorem max_geq1 : (ite (t ≥ s) t s ≥ t) = True := by
 theorem max_geq2 : (ite (t ≥ s) t s ≥ s) = True := by
   cases h : decide (t ≥ s) <;> simp_all [Int.not_le_of_gt]
 
+-- min/max rules, where the `ite` is reconstructed as `cond`
+
+theorem min_lt1_cond {t s : Int} {h : Decidable (t < s)} {h' : Decidable (cond (@decide (t < s) h) t s ≤ t)} :
+    @decide (cond (@decide (t < s) h) t s ≤ t) h' = true := by
+  cases h <;> simp_all <;> omega
+
+theorem min_lt2_cond {t s : Int} {h : Decidable (t < s)} {h' : Decidable (cond (@decide (t < s) h) t s ≤ s)} :
+    @decide (cond (@decide (t < s) h) t s ≤ s) h' = true := by
+  cases h <;> simp_all <;> omega
+
+theorem max_geq1_cond {t s : Int} {h : Decidable (t ≥ s)} {h' : Decidable (cond (@decide (t ≥ s) h) t s ≥ t)} :
+    @decide (cond (@decide (t ≥ s) h) t s ≥ t) h' = true := by
+  cases h <;> simp_all <;> omega
+
+theorem max_geq2_cond {t s : Int} {h : Decidable (t ≥ s)} {h' : Decidable (cond (@decide (t ≥ s) h) t s ≥ s)} :
+    @decide (cond (@decide (t ≥ s) h) t s ≥ s) h' = true := by
+  cases h <;> simp_all <;> omega
+
 end Smt.Reconstruct.Int.Rewrite

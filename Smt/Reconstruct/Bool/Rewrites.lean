@@ -158,4 +158,21 @@ theorem eq_ite_lift {c : Bool} {t s r : α} [Decidable (cond c t s = r)] [Decida
 theorem distinct_binary_elim {t s : α} [Decidable (t = s)] :
     (!decide (t = s)) = !decide (t = s) := rfl
 
+-- https://github.com/cvc5/cvc5/blob/main/src/theory/arith/rewrites
+-- `ite` lifting over arithmetic comparisons, where the `ite` is reconstructed as `cond`.
+
+private theorem decide_eq_decide_of_eq {p q : Prop} {hp : Decidable p} {hq : Decidable q}
+    (h : p = q) : @decide p hp = @decide q hq := by
+  subst h; congr
+
+theorem geq_cond_lift {α} [LE α] {c : Bool} {t s r : α} {h : Decidable (cond c t s ≥ r)}
+    {ht : Decidable (t ≥ r)} {hs : Decidable (s ≥ r)} :
+    @decide (cond c t s ≥ r) h = cond c (@decide (t ≥ r) ht) (@decide (s ≥ r) hs) := by
+  cases c <;> exact decide_eq_decide_of_eq rfl
+
+theorem leq_cond_lift {α} [LE α] {c : Bool} {t s r : α} {h : Decidable (cond c t s ≤ r)}
+    {ht : Decidable (t ≤ r)} {hs : Decidable (s ≤ r)} :
+    @decide (cond c t s ≤ r) h = cond c (@decide (t ≤ r) ht) (@decide (s ≤ r) hs) := by
+  cases c <;> exact decide_eq_decide_of_eq rfl
+
 end Smt.Reconstruct.Bool

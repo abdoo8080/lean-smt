@@ -98,9 +98,12 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
               (if cfg.intros then #[Preprocess.intros] else #[]) ++ #[Preprocess.negateGoal]
   let steps := if cfg.normalize then steps.push Preprocess.normalize else steps
   let steps := if cfg.embeddings then steps.push Preprocess.embedding else steps
-  -- Translation and reconstruction work with Boolean formulas (see `Smt.Preprocess.boolify`).
-  let steps := steps.push Preprocess.boolify
   let ⟨map, hs₁, mv₁⟩ ← Preprocess.applySteps mv₀ hs steps
+  -- Translation and reconstruction work with Boolean formulas (see `Smt.Preprocess.boolify`).
+  let ⟨boolMap, hs₁, mv₁⟩ ← Preprocess.boolify mv₁ hs₁
+  let map := boolMap.fold (init := map) fun m k v => m.insert k (v.map fun x => map.getD x #[x]).flatten
+  -- The hypotheses introduced by `boolify`, which are hidden in the goals left to the user.
+  let boolHyps := hs₁.filter fun h => h.isFVar && boolMap[h]? != some #[h]
   mv₁.withContext do
   -- 3. Generate the SMT query.
   let (fvNames₁, fvNames₂) ← genUniqueFVarNames
@@ -147,8 +150,18 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
     let ⟨_, mv₃⟩ ← mv₂.intro1
     -- `hp : (!Bool.andN ps) = true` refutes the hypotheses `pᵢ = true` of the goal.
     let gs ← mv₃.apply (← Meta.mkAppOptM ``Reconstruct.Bool.implies_false_of_not_and #[listExpr ps q(Bool)])
-    mv₃.withContext (gs.forM (·.assumption))
+    -- Close each goal with the hypothesis of the same type. `assumption` alone could pick another
+    -- hypothesis, since closed Boolean formulas are definitionally equal if they evaluate to the
+    -- same value.
+    mv₃.withContext do
+      let lctx ← getLCtx
+      for g in gs do
+        let t ← instantiateMVars (← g.getType)
+        match lctx.findDecl? fun d => if !d.isImplementationDetail && d.type == t then some d else none with
+        | some d => g.assign d.toExpr
+        | none => g.assumption
     mv.assign (.mvar mv₀)
+    let mvs ← mvs.mapM (·.tryClearMany (boolHyps.map Expr.fvarId!))
     return .unsat mvs uc
   | .ok (.sat model) =>
     -- 5d. Return potential counter-example.
@@ -164,14 +177,14 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
     let state := { sortCache := Std.HashMap.insertMany ∅ (uss.zip cs') }
     let (ufs, vs) := model.ifs.unzip
     let (ufs', state) ← (ufs.mapM Reconstruct.reconstructTerm).run ctx state
-    let ufs' := ufs'.map fun uf => (map[uf]?.getD #[uf])[0]?.getD uf
     let (vs', _) ← (vs.mapM Reconstruct.reconstructTerm).run ctx state
     -- Show the values of propositional symbols as propositions.
     let ufvs ← (ufs'.zip vs').mapM fun (uf, v) => do
       let uf := match uf.app2? ``Decidable.decide with
         | some (p, _) => p
         | none => uf
-      return (uf, ← propValue (← Meta.inferType uf) v)
+      let v ← propValue (← Meta.inferType uf) v
+      return ((map[uf]?.getD #[uf])[0]?.getD uf, v)
     return .sat (.some (uss'.zip cs' ++ ufvs))
 where
   /-- Turn the value `v` of a symbol of type `ty` into a proposition if `ty` is `Prop`, and likewise

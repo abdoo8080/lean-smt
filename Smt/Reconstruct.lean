@@ -196,12 +196,38 @@ def findAssumWithType? (t : Expr) : ReconstructM (Option Expr) := do
       return some a
   return none
 
+/-- The proposition denoted by the type `b = true` of a proof of an SMT formula, and a proof that
+they are equal (`none` if they are the same). Conditionals `cond (decide p) x y` in its terms are
+shown as `if p then x else y`. -/
+def propOfProofType (t : Expr) : MetaM (Expr × Option Expr) := do
+  let (p, h₁?) ← match t.eq? with
+    | some (α, b, v) => if α.isConstOf ``Bool && v.isConstOf ``Bool.true then Bool.toProp b else pure (t, none)
+    | none => pure (t, none)
+  if !(p.find? (·.isAppOfArity ``cond 4)).isSome then return (p, h₁?)
+  let thms ← ({} : Meta.SimpTheorems).addConst ``Bool.cond_decide
+  let ctx ← Meta.Simp.mkContext { beta := false, eta := false, proj := false, zeta := false } #[thms]
+  let (r, _) ← Meta.simp p ctx
+  let some h₂ := r.proof? | return (p, h₁?)
+  match h₁? with
+  | none => return (r.expr, some h₂)
+  | some h₁ => return (r.expr, some (← Meta.mkEqTrans h₁ h₂))
+
+/-- Leave the goal `mv` for the user. The goal is stated over propositions (see `reconstructProp`),
+and abstracted over the assumptions in scope. -/
 def skipStep (mv : MVarId) : ReconstructM Unit := mv.withContext do
   let state ← get
-  let t ← Meta.mkForallFVars state.currAssums (← mv.getType)
+  let (q, hq?) ← propOfProofType (← mv.getType)
+  let mut ps := #[]
+  let mut args := #[]
+  for a in state.currAssums do
+    let (p, hp?) ← propOfProofType (← Meta.inferType a)
+    ps := ps.push p
+    args := args.push (← match hp? with | some hp => Meta.mkEqMP hp a | none => pure a)
+  let t := ps.foldr (fun p t => .forallE `a p t .default) q
   let ctx := state.currAssums.foldr (fun e ctx => ctx.erase e.fvarId!) (← getLCtx)
   let mv' ← Meta.withLCtx ctx (← Meta.getLocalInstances) (Meta.mkFreshExprMVar t)
-  let e := mkAppN mv' state.currAssums
+  let e := mkAppN mv' args
+  let e ← match hq? with | some hq => Meta.mkEqMPR hq e | none => pure e
   set { state with skippedGoals := state.skippedGoals.push mv'.mvarId! }
   mv.assign e
 
@@ -269,6 +295,13 @@ def addPropThm (t : cvc5.Term) (h : Expr) : ReconstructM Expr := do
   let e : Q(($b = true) = $p) ← pure e
   let h : Q($p) ← pure h
   addThm q($b = true) q(Eq.mpr $e $h)
+
+/-- Prove the proposition denoted by the SMT formula `t` (see `reconstructProp`) with the tactic
+`tac`, and add it as a proof of `⟦t⟧ = true`. -/
+def addPropTac (t : cvc5.Term) (tac : MVarId → MetaM Unit) : ReconstructM Expr := do
+  let h ← Meta.mkFreshExprMVar (← reconstructProp t)
+  tac h.mvarId!
+  addPropThm t h
 
 /-- Return the proposition `p` and the `Decidable p` instance of the Boolean atom `decide p`. -/
 def getDecide! (b : Expr) : MetaM (Expr × Expr) := do

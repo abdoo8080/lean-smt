@@ -112,6 +112,9 @@ theorem trichotomy₆ (h₁ : a ≥ b) (h₂ : a ≠ b) : a > b := by
 theorem abs_elim : x.abs = if x < 0 then -x else x :=
   rfl
 
+theorem abs_elim_cond {x : Int} {h : Decidable (x < 0)} : x.abs = cond (@decide (x < 0) h) (-x) x := by
+  cases h <;> simp_all [Int.abs]
+
 theorem lt_eq_sub_lt_zero : (a < b) = (a - b < 0) := by
   apply propext
   constructor

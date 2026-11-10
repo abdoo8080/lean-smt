@@ -226,6 +226,12 @@ theorem trichotomy₅ (h₁ : a ≥ b) (h₂ : a ≤ b) : a = b := by
 theorem trichotomy₆ (h₁ : a ≥ b) (h₂ : a ≠ b) : a > b := by
   exact trichotomy₃ (Ne.symm h₂) h₁
 
+theorem abs_elim_cond {x : Rat} {h : Decidable (x < 0)} : x.abs = cond (@decide (x < 0) h) (-x) x := by
+  unfold Rat.abs
+  cases h with
+  | isTrue h => simp [h, Rat.not_le.mpr h]
+  | isFalse h => simp [h, Rat.not_lt.mp h]
+
 theorem abs_elim {x : Rat} : x.abs = if x < 0 then -x else x := by
   unfold Rat.abs
   by_cases h : x < 0

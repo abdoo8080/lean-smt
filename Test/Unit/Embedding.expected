@@ -72,7 +72,7 @@ query:
 (declare-const x Real)
 (assert (exists ((a Int)) (exists ((b Int)) (= x (/ (to_real a) (to_real b))))))
 (declare-const y Int)
-(assert (distinct (f x y) (ite (exists ((a Int)) (exists ((b Int)) (= (f (to_real y) (to_int x)) (/ (to_real a) (to_real b))))) (f (to_real y) (to_int x)) 0.0)))
+(assert (not (= (f x y) (ite (exists ((a Int)) (exists ((b Int)) (= (f (to_real y) (to_int x)) (/ (to_real a) (to_real b))))) (f (to_real y) (to_int x)) 0.0))))
 (check-sat)
 Test/Unit/Embedding.lean:357:83: error: unsolved goals
 f : ℚ → ℤ → ℚ
@@ -91,5 +91,11 @@ Test/Unit/Embedding.lean:373:3: warning: Variable name `st_leader` is not explic
 
 Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
   [apply] _st_leader
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+Test/Unit/Embedding.lean:387:96: warning: Variable name `h` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _h
 
 Note: This linter can be disabled with `set_option linter.unusedVariables false`
