@@ -104,6 +104,13 @@ attribute [smt_boolify ↓] decide_eq_smtDecide
     (x != y) = !smtEq x y := by
   apply Bool.eq_iff_iff.mpr; simp
 
+/-! The unsigned comparisons of bit-vectors are SMT-LIB's `bvult` and `bvule`. -/
+
+@[smt_boolify ↓] theorem bitVec_ult_eq_smtLt {x y : BitVec w} : x.ult y = smtLt x y := by
+  rw [BitVec.ult_eq_decide_lt, decide_eq_smtDecide]; rfl
+@[smt_boolify ↓] theorem bitVec_ule_eq_smtLe {x y : BitVec w} : x.ule y = smtLe x y := by
+  rw [BitVec.ule_eq_decide_le, decide_eq_smtDecide]; rfl
+
 theorem smtDecide_forall {P : α → Prop} : smtDecide (∀ x, P x) = smtForall fun x => smtDecide (P x) := by
   simp only [smtForall, smtDecide_eq_true]
 

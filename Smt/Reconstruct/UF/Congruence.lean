@@ -145,7 +145,8 @@ partial def smtCongr (mv : MVarId) (hs : Array Expr) : MetaM Unit := mv.withCont
     smtCongrUF mv l r hs
 where
   isLeftAssocOp (n : Name) : Bool :=
-    n == ``HAdd.hAdd || n == ``HSub.hSub || n == ``HMul.hMul || n == ``HDiv.hDiv || n == ``HMod.hMod
+    n == ``HAdd.hAdd || n == ``HSub.hSub || n == ``HMul.hMul || n == ``HDiv.hDiv || n == ``HMod.hMod ||
+    n == ``HAnd.hAnd || n == ``HOr.hOr || n == ``HXor.hXor
   isRightAssocOp (n : Name) : Bool :=
     n == ``And || n == ``Or || n == ``Iff || n == ``XOr ||
     n == ``and || n == ``or || n == ``xor || n == ``Bool.smtImp
