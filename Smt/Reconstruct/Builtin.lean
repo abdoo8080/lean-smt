@@ -52,35 +52,35 @@ def getFVarOrConstExpr! (n : String) : ReconstructM Expr := do
       let c ← getConstInfo n.toName
       return .const c.name (c.numLevelParams.repeat (.zero :: ·) [])
 
-/-- The Boolean `smtDecide p` of a proposition `p : Prop`, and `e` itself otherwise. A Lean constant
+/-- The Boolean `decide p` of a proposition `p : Prop`, and `e` itself otherwise. A Lean constant
 or free variable `p : Prop` (e.g., a propositional variable of the goal) is an SMT-LIB constant of
 sort `Bool`. -/
 def toBoolIfProp (e : Expr) : MetaM Expr := do
-  if (← Meta.inferType e).isProp then return mkApp (.const ``smtDecide []) e else return e
+  if (← Meta.inferType e).isProp then Bool.decideOf e else return e
 
-/-- The reconstruction of `(distinct x₁ … xₙ)`: the conjunction of `!smtEq xᵢ xⱼ` for `i < j`, in the
-same order as cvc5's elimination of `distinct`. -/
-def buildDistinct (u : Level) (α : Q(Sort u)) (xs : List Q($α)) : Q(Bool) :=
+/-- The reconstruction of `(distinct x₁ … xₙ)` for `xᵢ : α`: the conjunction of `!(xᵢ == xⱼ)` for
+`i < j`, in the same order as cvc5's elimination of `distinct`. -/
+def buildDistinct (α : Expr) (xs : List Expr) : MetaM Expr :=
   go xs
 where
-  go : List Q($α) → Q(Bool)
-  | [] => q(true)
-  | [_] => q(true)
-  | [x, y] => q(!smtEq $x $y)
-  | x :: ys => ys.foldr (fun y acc => q(!smtEq $x $y && $acc)) (go ys)
+  go : List Expr → MetaM Expr
+  | [] => return .const ``true []
+  | [_] => return .const ``true []
+  | [x, y] => return mkApp (.const ``not []) (← Bool.mkBEq α x y)
+  | x :: ys => do
+    ys.foldrM (fun y acc => do return mkApp2 (.const ``and []) (mkApp (.const ``not []) (← Bool.mkBEq α x y)) acc)
+      (← go ys)
 
 @[smt_term_reconstruct] def reconstructBuiltin : TermReconstructor := fun t => do match t.getKind! with
   | .VARIABLE => getFVarExpr! (getVariableName t)
   | .CONSTANT => toBoolIfProp (← getFVarOrConstExpr! t.getSymbol!)
   | .EQUAL =>
-    let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort t[0]!.getSort!
-    let x : Q($α) ← reconstructTerm t[0]!
-    let y : Q($α) ← reconstructTerm t[1]!
-    return q(smtEq $x $y)
+    let α ← reconstructSort t[0]!.getSort!
+    Bool.mkBEq α (← reconstructTerm t[0]!) (← reconstructTerm t[1]!)
   | .DISTINCT =>
-    let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort t[0]!.getSort!
+    let α ← reconstructSort t[0]!.getSort!
     let xs ← t.getChildren.mapM reconstructTerm
-    return buildDistinct u α xs.toList
+    buildDistinct α xs.toList
   | .ITE =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort t.getSort!
     let c : Q(Bool) ← reconstructTerm t[0]!
@@ -183,28 +183,17 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     else
       addThm (← reconstructProofType pf.getResult) q(Bool.scopes $h₁)
   | .EVALUATE =>
-    let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getResult[0]!.getSort!
-    let t  : Q($α) ← reconstructTerm pf.getResult[0]!
-    let t' : Q($α) ← reconstructTerm pf.getResult[1]!
     if pf.getResult[0]! == pf.getResult[1]! then
-      addEqThm pf.getResult q(Eq.refl $t)
+      let t ← reconstructTerm pf.getResult[0]!
+      addEqThm pf.getResult (← Meta.mkEqRefl t)
     else
-      -- Decide `t = t'` after replacing the SMT operators in it by the decisions of their
-      -- propositions, which is possible if their propositions are decidable.
-      let (p, hp?) ← decidableForm q($t = $t')
-      let p : Q(Prop) ← pure p
-      let some (inst : Q(Decidable $p)) ← Meta.synthInstance? q(Decidable $p) | return none
-      let b : Q(Bool) := q(@decide $p $inst)
+      -- `t == t'` evaluates to `true`, unless it involves noncomputable functions, e.g., of reals.
+      let b : Q(Bool) ← reconstructTerm pf.getResult
       if ← usesNoncomputable b then
         return none
-      -- `decide p` evaluates to `true` in the kernel.
       let hb : Q($b = true) ← if ← useNative then nativeDecide b
         else pure (mkApp2 (.const ``Eq.refl [1]) (.const ``Bool []) (.const ``Bool.true []))
-      let h : Q($p) := q(@of_decide_eq_true $p $inst $hb)
-      let h : Expr ← match hp? with
-        | some hp => Meta.mkEqMPR hp h
-        | none => pure h
-      addEqThm pf.getResult h
+      addThm q($b = true) hb
   | .ACI_NORM =>
     addEqTac pf.getResult Meta.AC.rewriteUnnormalizedTop
   | .ABSORB =>
@@ -279,16 +268,6 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     addEqThm pf.getResult q(Eq.refl $t)
   | _ => return none
 where
-  /-- Replace the SMT operators in the proposition `p` by the decisions of their propositions,
-  e.g., `smtLt x y` by `decide (x < y)`. Returns the new proposition and a proof that it is `p`. -/
-  decidableForm (p : Expr) : MetaM (Expr × Option Expr) := do
-    let mut thms : Meta.SimpTheorems := {}
-    for n in [``smtDecide_eq_decide, ``smtEq_eq_decide, ``smtLt_eq_decide, ``smtLe_eq_decide,
-              ``smtGt_eq_decide, ``smtGe_eq_decide] do
-      thms ← thms.addConst n
-    let ctx ← Meta.Simp.mkContext { beta := false, eta := false, proj := false, zeta := false } #[thms]
-    let (r, _) ← Meta.simp p ctx
-    return (r.expr, r.proof?)
   /-- A proof of `b = true` by native evaluation of `b`. -/
   nativeDecide (b : Q(Bool)) : MetaM Q($b = true) := do
     match ← Meta.nativeEqTrue `Smt.eval b with

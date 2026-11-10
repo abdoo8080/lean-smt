@@ -89,32 +89,31 @@ theorem var_elim_eq_or {t : α} {p : α → Prop} : (∀ x, x ≠ t ∨ p x) = p
 
 /-! ### Quantifiers over Boolean formulas -/
 
-theorem smtForall_elim {α : Sort u} {p : α → Bool} (h : smtForall p = true) (x : α) : p x = true :=
-  (smtForall_eq_true ▸ h) x
+theorem forall_elim {α : Sort u} {p : α → Bool} (h : Bool.forall p = true) (x : α) : p x = true :=
+  (Bool.forall_eq_true ▸ h) x
 
-theorem smtForall_skolem {α : Sort u} [h : Nonempty α] {p : α → Bool} (hp : (!smtForall p) = true) :
+theorem forall_skolem {α : Sort u} [h : Nonempty α] {p : α → Bool} (hp : (!Bool.forall p) = true) :
     (!p (@Classical.epsilon α h (fun x => ¬p x = true))) = true := by
-  have hp : ¬∀ x, p x = true := fun h' => by simp [Eq.mpr smtForall_eq_true h'] at hp
+  have hp : ¬∀ x, p x = true := fun h' => by simp [Eq.mpr Bool.forall_eq_true h'] at hp
   have hx : ∃ x, ¬p x = true := Classical.not_forall.mp hp
   simpa using Classical.epsilon_spec hx
 
-open Classical in
-theorem var_elim_eq_bool {α : Sort u} {t : α} : smtForall (fun x => !smtEq x t) = false := by
+theorem var_elim_eq_bool {α : Sort u} {t : α} {h : ∀ x, Decidable (x = t)} :
+    Bool.forall (fun x => !@decide (x = t) (h x)) = false := by
   rw [Bool.eq_false_iff]
   intro h
-  simpa [smtEq_eq_decide] using smtForall_elim h t
+  simpa using forall_elim h t
 
-open Classical in
-theorem var_elim_eq_or_bool {α : Sort u} {t : α} {b : α → Bool} :
-    smtForall (fun x => !smtEq x t || b x) = b t := by
+theorem var_elim_eq_or_bool {α : Sort u} {t : α} {h : ∀ x, Decidable (x = t)} {b : α → Bool} :
+    Bool.forall (fun x => !@decide (x = t) (h x) || b x) = b t := by
   apply Bool.eq_iff_iff.mpr
-  rw [smtForall_eq_true]
+  rw [Bool.forall_eq_true]
   constructor
   · intro h
-    simpa [smtEq_eq_decide] using h t
+    simpa using h t
   · intro h x
     by_cases hx : x = t
     · subst hx; simp [h]
-    · simp [smtEq_eq_decide, hx]
+    · simp [hx]
 
 end Smt.Reconstruct.Quant

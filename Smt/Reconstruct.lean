@@ -278,30 +278,30 @@ def addPropTac (t : cvc5.Term) (tac : MVarId → MetaM Unit) : ReconstructM Expr
   tac h.mvarId!
   addPropThm t h
 
-/-- Return the type `α` and the sides `a` and `b` of the Boolean atom `smtEq a b`. -/
-def getSmtEq! (b : Expr) : MetaM (Expr × Expr × Expr) := do
-  if !b.isAppOfArity ``smtEq 3 then
-    throwError "expected an equality `smtEq a b`, got{indentExpr b}"
-  return (b.getArg! 0, b.getArg! 1, b.getArg! 2)
+/-- Return the type `α`, the sides `a` and `b`, and the instance of `Decidable (a = b)` of the Boolean
+formula `a == b` (or `decide (a = b)`) of an equality (see `Bool.mkBEq`). -/
+def getEq! (e : Expr) : MetaM (Expr × Expr × Expr × Expr) := do
+  let some r := Bool.getEq? e | throwError "expected an equality `a == b`, got{indentExpr e}"
+  return r
 
 /-- A proof of `a = b` from the proof `pf` of the SMT formula `(= a b)`, which is a proof of
-`smtEq a b = true`. -/
+`(a == b) = true`. -/
 def reconstructEqProof (pf : cvc5.Proof) : ReconstructM Expr := do
   let h ← reconstructProof pf
-  let (α, a, b) ← getSmtEq! (← reconstructTerm pf.getResult)
-  return mkApp4 (.const ``eq_of_smtEq [← Meta.getLevel α]) α a b h
+  let (_, a, b, inst) ← getEq! (← reconstructTerm pf.getResult)
+  return mkApp3 (.const ``of_decide_eq_true []) (← Meta.mkEq a b) inst h
 
 /-- Add the proof `h` of `a = b` as a proof of the SMT formula `t = (= a b)`, i.e., of
-`smtEq a b = true`. -/
+`(a == b) = true`. -/
 def addEqThm (t : cvc5.Term) (h : Expr) : ReconstructM Expr := do
   let e ← reconstructTerm t
-  let (α, a, b) ← getSmtEq! e
-  addThm (← Meta.mkEq e (.const ``Bool.true [])) (mkApp4 (.const ``smtEq_of_eq [← Meta.getLevel α]) α a b h)
+  let (_, a, b, inst) ← getEq! e
+  addThm (← Meta.mkEq e (.const ``Bool.true [])) (mkApp3 (.const ``decide_eq_true []) (← Meta.mkEq a b) inst h)
 
 /-- Prove `a = b` with the tactic `tac` and add it as a proof of the SMT formula `t = (= a b)`, i.e.,
-of `smtEq a b = true`. -/
+of `(a == b) = true`. -/
 def addEqTac (t : cvc5.Term) (tac : MVarId → MetaM Unit) : ReconstructM Expr := do
-  let (_, a, b) ← getSmtEq! (← reconstructTerm t)
+  let (_, a, b, _) ← getEq! (← reconstructTerm t)
   let h ← Meta.mkFreshExprMVar (← Meta.mkEq a b)
   tac h.mvarId!
   addEqThm t h
@@ -317,7 +317,7 @@ def traceReconstructProof (r : Except Exception (List Expr × List Expr × Expr 
 child is a `SCOPE` over its assertions. Returns the reconstructed definitions `ds` and assertions
 `as` (Boolean formulas), the type `p` of the proof, and the proof `h : p`, and the goals of the steps
 that could not be reconstructed. If there are no definitions, then `p` is `(!Bool.andN as) = true`;
-otherwise it is `(Bool.andN ds).smtImp (!Bool.andN as) = true`. -/
+otherwise it is `(Bool.andN ds).imp (!Bool.andN as) = true`. -/
 partial def reconstructProof (pf : cvc5.Proof) (ctx : Reconstruct.Context) :
   MetaM (List Expr × List Expr × Expr × Expr × List MVarId) :=
   withTraceNode `smt.reconstruct.proof traceReconstructProof do
@@ -467,7 +467,7 @@ open Qq in
     the term in `SolveReconstructResult.unsat`'s `hp` field has Lean type
 
     ```lean4
-    (Bool.andN ds).smtImp (!Bool.andN as) = true
+    (Bool.andN ds).imp (!Bool.andN as) = true
     ```
 
     where:
@@ -475,9 +475,9 @@ open Qq in
       `Smt.Reconstruct.Bool.Core`. It collapses a list of conjuncts into a right-associated `&&`
       chain with **no trailing `true`**: `andN [] = true`, `andN [b] = b`, and
       `andN (b :: c :: bs) = b && andN (c :: bs)`.
-    * `Bool.smtImp a b` is the Boolean implication `!a || b`.
+    * `Bool.imp a b` is the Boolean implication `!a || b`.
     * `ds` is the list of user-supplied definitions from the query, in source order. Each
-      `(define-fun f (x₁ … xₙ) τ b)` contributes the conjunct `smtEq f (fun x₁ … xₙ => b)`.
+      `(define-fun f (x₁ … xₙ) τ b)` contributes the conjunct `f == fun x₁ … xₙ => b`.
     * `as` is the list of assertions from the query, in the order they appear (one entry per
       `(assert φ)`).
 

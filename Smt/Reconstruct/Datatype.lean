@@ -90,12 +90,12 @@ private def proveConsClash (t s : Expr) : MetaM Expr := do
   let iff_pf ← mkAppM ``Iff.intro #[fwd, bwd]
   mkAppM ``propext #[iff_pf]
 
-/-- A proof of `smtEq t s = F` for applications `t` and `s` of constructors, where `F` is the
+/-- A proof of `(t == s) = F` for applications `t` and `s` of constructors, where `F` is the
 conjunction of the equalities of their fields, by the injectivity of the constructors. Returns `none`
 if that fails. -/
 private def proveConsEq (l r : Expr) : MetaM (Option Expr) := do
   let mut thms : SimpTheorems := {}
-  for n in [``smtEq_eq_true, ``Bool.and_eq_true] do
+  for n in [``beq_iff_eq, ``decide_eq_true_eq, ``Bool.and_eq_true] do
     thms ← thms.addConst n
   let env ← getEnv
   for c in l.getUsedConstants do
@@ -133,7 +133,7 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       addPropThm pf.getResult (← proveConsClash t s)
     else
       -- `(= (= (C t₁ … tₙ) (C s₁ … sₙ)) (and (= t₁ s₁) … (= tₙ sₙ)))`
-      let (_, l, r) ← getSmtEq! (← reconstructTerm result)
+      let (_, l, r, _) ← getEq! (← reconstructTerm result)
       let some h ← proveConsEq l r | return none
       addEqThm result h
   | _ => return none

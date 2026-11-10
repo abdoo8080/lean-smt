@@ -233,8 +233,8 @@ theorem abs_elim {x : Rat} : x.abs = if x < 0 then -x else x := by
   · rw [ite_eq_left h, ite_eq_right (Rat.not_le.mpr h)]
   · rw [ite_eq_right h, ite_eq_left (Rat.not_lt.mp h)]
 
-theorem abs_elim_cond {x : Rat} : x.abs = cond (smtLt x 0) (-x) x := by
-  rw [smtLt_eq_decide, Bool.cond_decide]; exact abs_elim
+theorem abs_elim_cond {x : Rat} : x.abs = cond (decide (x < 0)) (-x) x := by
+  rw [Bool.cond_decide]; exact abs_elim
 
 theorem abs_eq {a b : Rat} (hb : 0 ≤ b) : a.abs = b ↔ a = b ∨ a = -b := by
   rewrite [abs_elim]

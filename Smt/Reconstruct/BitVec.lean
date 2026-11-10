@@ -119,22 +119,22 @@ open Lean Qq
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(smtLt $x $y)
+    return q(decide ($x < $y))
   | .BITVECTOR_ULE =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(smtLe $x $y)
+    return q(decide ($x ≤ $y))
   | .BITVECTOR_UGT =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(smtGt $x $y)
+    return q(decide ($x > $y))
   | .BITVECTOR_UGE =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    return q(smtGe $x $y)
+    return q(decide ($x ≥ $y))
   | .BITVECTOR_SLT =>
     let w : Nat := t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
@@ -1183,29 +1183,29 @@ def getCons! (x : Expr) : MetaM (Expr × Expr × Expr) := do
     | throwError "expected a bit-blasted bit-vector, got{indentExpr x}"
   return (n, a, xs)
 
-/-- A proof of `smtEq x y = (smtEq x₀ y₀ && (… && smtEq xₙ₋₁ yₙ₋₁))` for the bit-blasted bit-vectors
-`x` and `y`. -/
-partial def smtEqBits (x y : Expr) : MetaM Expr := do
+/-- A proof of `(x == y) = ((x₀ == y₀) && (… && (xₙ₋₁ == yₙ₋₁)))` for the bit-blasted bit-vectors `x`
+and `y`. -/
+partial def beqBits (x y : Expr) : MetaM Expr := do
   let (n, a, xs) ← getCons! x
   let (_, b, ys) ← getCons! y
   let a : Q(Bool) ← pure a
   let b : Q(Bool) ← pure b
-  -- `smtEq x y = (smtEq xs ys && smtEq a b)`
-  let h := mkApp5 (.const ``BitVec.smtEq_cons_cons []) n a b xs ys
-  go xs ys q(smtEq $a $b) h
+  -- `(x == y) = ((xs == ys) && (a == b))`
+  let h := mkApp5 (.const ``BitVec.beq_cons_cons []) n a b xs ys
+  go xs ys q($a == $b) h
 where
-  /-- Given a proof `h` of `smtEq x y = (smtEq xs ys && acc)`, prove the goal. -/
+  /-- Given a proof `h` of `(x == y) = ((xs == ys) && acc)`, prove the goal. -/
   go (xs ys : Expr) (acc : Q(Bool)) (h : Expr) : MetaM Expr := do
     if xs.isConstOf ``BitVec.nil then
-      -- `(smtEq nil nil && acc) = acc`
-      return ← Meta.mkEqTrans h q(BitVec.smtEq_nil_nil_and $acc)
+      -- `((nil == nil) && acc) = acc`
+      return ← Meta.mkEqTrans h q(BitVec.beq_nil_nil_and $acc)
     let (n, a, xs') ← getCons! xs
     let (_, b, ys') ← getCons! ys
     let a : Q(Bool) ← pure a
     let b : Q(Bool) ← pure b
-    -- `(smtEq xs ys && acc) = (smtEq xs' ys' && (smtEq a b && acc))`
-    let h' := mkAppN (.const ``BitVec.smtEq_cons_cons_and []) #[n, a, b, acc, xs', ys']
-    go xs' ys' q(smtEq $a $b && $acc) (← Meta.mkEqTrans h h')
+    -- `((xs == ys) && acc) = ((xs' == ys') && ((a == b) && acc))`
+    let h' := mkAppN (.const ``BitVec.beq_cons_cons_and []) #[n, a, b, acc, xs', ys']
+    go xs' ys' q(($a == $b) && $acc) (← Meta.mkEqTrans h h')
 
 /-- Prove the equation `e` by rewriting with the theorems `thms`, unfolding the definitions `defs`,
 and simplifying with the simprocs `procs`, and then by `rfl`. -/
@@ -1246,8 +1246,8 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       addEqThm pf.getResult q(Eq.trans (BitVec.self_eq_bb $x) $h)
     | .EQUAL =>
       -- `(= (= x y) (and (= x₀ y₀) … (= xₙ₋₁ yₙ₋₁)))`
-      let (_, x, y) ← getSmtEq! (← reconstructTerm pf.getResult[0]!)
-      addEqThm pf.getResult (← smtEqBits x y)
+      let (_, x, y, _) ← getEq! (← reconstructTerm pf.getResult[0]!)
+      addEqThm pf.getResult (← beqBits x y)
     | .BITVECTOR_ADD =>
       if pf.getResult[0]!.getNumChildren != 2 then return none
       let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat

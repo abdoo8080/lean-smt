@@ -87,22 +87,22 @@ open Lean Qq
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!
     let y : Q(Real) ← reconstructTerm t[1]!
-    return q(smtLe $x $y)
+    return q(decide ($x ≤ $y))
   | .LT =>
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!
     let y : Q(Real) ← reconstructTerm t[1]!
-    return q(smtLt $x $y)
+    return q(decide ($x < $y))
   | .GEQ =>
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!
     let y : Q(Real) ← reconstructTerm t[1]!
-    return q(smtGe $x $y)
+    return q(decide ($x ≥ $y))
   | .GT =>
     if t[0]!.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!
     let y : Q(Real) ← reconstructTerm t[1]!
-    return q(smtGt $x $y)
+    return q(decide ($x > $y))
   | .TO_REAL =>
     let x : Q(Int) ← reconstructTerm t[0]!
     return q($x : Real)
@@ -111,7 +111,7 @@ open Lean Qq
     return q(⌊$x⌋)
   | .IS_INTEGER =>
     let x : Q(Real) ← reconstructTerm t[0]!
-    return q(smtEq $x (⌊$x⌋ : Real))
+    return q(decide ($x = (⌊$x⌋ : Real)))
   | .EXPONENTIAL =>
     if t.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!
@@ -214,14 +214,14 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     let t : Q(Real) ← reconstructTerm pf.getArguments[2]!
     let s : Q(Real) ← reconstructTerm pf.getArguments[3]!
     let r : Q(Real) ← reconstructTerm pf.getArguments[4]!
-    addEqThm pf.getResult q(@Bool.geq_cond_lift Real _ $c $t $s $r)
+    addEqThm pf.getResult q(@Bool.geq_cond_lift Real _ $c $t $s $r _ _ _)
   | .ARITH_LEQ_ITE_LIFT =>
     if pf.getArguments[2]!.getSort!.isInteger then return none
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let t : Q(Real) ← reconstructTerm pf.getArguments[2]!
     let s : Q(Real) ← reconstructTerm pf.getArguments[3]!
     let r : Q(Real) ← reconstructTerm pf.getArguments[4]!
-    addEqThm pf.getResult q(@Bool.leq_cond_lift Real _ $c $t $s $r)
+    addEqThm pf.getResult q(@Bool.leq_cond_lift Real _ $c $t $s $r _ _ _)
   | .ARITH_MIN_LT1 =>
     if pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Real) ← reconstructTerm pf.getArguments[1]!

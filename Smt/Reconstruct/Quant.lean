@@ -43,14 +43,14 @@ def getVariableName (t : cvc5.Term) : Name :=
       t.getSymbol!.toName
   else Name.num `x t.getId!
 
-/-- `smtForall fun x₁ => ⋯ smtForall fun xₙ => b` (or with `smtExists`) over the free variables `xs`
+/-- `Bool.forall fun x₁ => ⋯ Bool.forall fun xₙ => b` (or with `Bool.exists`) over the free variables `xs`
 of the Boolean formula `b`. -/
-def mkSmtQuantFVars (op : Name) (xs : Array Expr) (b : Expr) : MetaM Expr :=
+def mkQuantFVars (op : Name) (xs : Array Expr) (b : Expr) : MetaM Expr :=
   xs.foldrM (init := b) fun x b => do
     let α ← Meta.inferType x
     return mkApp2 (.const op [← Meta.getLevel α]) α (← Meta.mkLambdaFVars #[x] b)
 
-/-- `(forall ((x₁ T₁) … (xₙ Tₙ)) F)` is reconstructed as `smtForall fun x₁ => ⋯ smtForall fun xₙ =>
+/-- `(forall ((x₁ T₁) … (xₙ Tₙ)) F)` is reconstructed as `Bool.forall fun x₁ => ⋯ Bool.forall fun xₙ =>
 ⟦F⟧`, and `exists` likewise. -/
 @[smt_term_reconstruct] def reconstructQuant : TermReconstructor := fun t => do match t.getKind! with
   | .FORALL =>
@@ -58,13 +58,13 @@ def mkSmtQuantFVars (op : Name) (xs : Array Expr) (b : Expr) : MetaM Expr :=
     for x in t[0]! do
       xs := xs.push (getVariableName x, fun _ => reconstructSort x.getSort!)
     Meta.withLocalDeclsD xs fun xs => withNewTermCache do
-      mkSmtQuantFVars ``smtForall xs (← reconstructTerm t[1]!)
+      mkQuantFVars ``Bool.forall xs (← reconstructTerm t[1]!)
   | .EXISTS =>
     let mut xs : Array (Name × (Array Expr → ReconstructM Expr)) := #[]
     for x in t[0]! do
       xs := xs.push (getVariableName x, fun _ => reconstructSort x.getSort!)
     Meta.withLocalDeclsD xs fun xs => withNewTermCache do
-      mkSmtQuantFVars ``smtExists xs (← reconstructTerm t[1]!)
+      mkQuantFVars ``Bool.exists xs (← reconstructTerm t[1]!)
   | .LAMBDA =>
     let mut xs : Array (Name × (Array Expr → ReconstructM Expr)) := #[]
     for x in t[0]! do
@@ -94,7 +94,7 @@ where
       let h : Q(Nonempty $α) ← Meta.synthInstance q(Nonempty $α)
       let e ← Meta.withLocalDeclsD xs fun xs => withNewTermCache do
         let F : Q(Bool) ← reconstructTerm F
-        let ysF : Q(Bool) ← mkSmtQuantFVars ``smtForall xs[i + 1:] F
+        let ysF : Q(Bool) ← mkQuantFVars ``Bool.forall xs[i + 1:] F
         let xysF ← Meta.mkLambdaFVars #[xs[i]!] q(¬$ysF = true)
         let xysF : Q($α → Prop) := xysF.replaceFVars xs[0:i] es
         return q(@Classical.epsilon $α $h $xysF)
@@ -227,19 +227,22 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     -- `(forall ((x T)) (not (= x t)))` is `false`.
     let lb := pf.getResult[0]![1]!
     let eq := if lb.getKind! == .OR then lb[0]![0]! else lb[0]!
-    let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort eq[0]!.getSort!
+    let α ← reconstructSort eq[0]!.getSort!
+    let v ← Meta.getLevel α
     let n : Name := getVariableName eq[0]!
-    let t : Q($α) ← reconstructTerm eq[1]!
+    let t ← reconstructTerm eq[1]!
+    -- the instances of `Decidable (x = t)` of the Boolean formulas `x == t`
+    let insts ← Meta.withLocalDeclD n α fun x => do Meta.mkLambdaFVars #[x] (← Bool.eqInst α x t)
     if lb.getKind! == .OR then
-      let b : Q($α → Bool) ← Meta.withLocalDeclD n α fun x => withNewTermCache do
+      let b ← Meta.withLocalDeclD n α fun x => withNewTermCache do
         let mut b : Q(Bool) ← reconstructTerm lb[lb.getNumChildren - 1]!
         for i in [1:lb.getNumChildren - 1] do
           let c : Q(Bool) ← reconstructTerm lb[lb.getNumChildren - i - 1]!
           b := q($c || $b)
         Meta.mkLambdaFVars #[x] b
-      addEqThm pf.getResult q(@Quant.var_elim_eq_or_bool $α $t $b)
+      addEqThm pf.getResult (mkAppN (.const ``Quant.var_elim_eq_or_bool [v]) #[α, t, insts, b])
     else
-      addEqThm pf.getResult q(@Quant.var_elim_eq_bool $α $t)
+      addEqThm pf.getResult (mkAppN (.const ``Quant.var_elim_eq_bool [v]) #[α, t, insts])
   | _ => return none
 
 @[smt_proof_reconstruct] def reconstructQuantProof : ProofReconstructor := fun pf => do match pf.getRule with
@@ -248,21 +251,21 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     let k := pf.getResult[0]!.getKind!
     -- This rule needs more care for closures.
     if k == .FORALL then
-      reconstructQuantCong ``smtForall pf
+      reconstructQuantCong ``Bool.forall pf
     else if k == .EXISTS then
-      reconstructQuantCong ``smtExists pf
+      reconstructQuantCong ``Bool.exists pf
     else
       return none
   | .SKOLEMIZE => reconstructSkolemize pf
   | .INSTANTIATE =>
-    -- Eliminate the quantifiers `smtForall fun x₁ => ⋯ smtForall fun xₙ => F` one by one.
+    -- Eliminate the quantifiers `Bool.forall fun x₁ => ⋯ Bool.forall fun xₙ => F` one by one.
     let mut h ← reconstructProof pf.getChildren[0]!
     let mut b ← reconstructTerm pf.getChildren[0]!.getResult
     for t in pf.getArguments[0]! do
       let e ← reconstructTerm t
       let α := b.getArg! 0
       let p := b.getArg! 1
-      h := mkApp4 (.const ``Quant.smtForall_elim [← Meta.getLevel α]) α p h e
+      h := mkApp4 (.const ``Quant.forall_elim [← Meta.getLevel α]) α p h e
       b := p.beta #[e]
     addThm (← reconstructProofType pf.getResult) h
   | .ALPHA_EQUIV =>
@@ -320,7 +323,7 @@ where
       let p := b.getArg! 1
       let u ← Meta.getLevel α
       let hα ← Meta.synthInstance (mkApp (.const ``Nonempty [u]) α)
-      h := mkApp4 (.const ``Quant.smtForall_skolem [u]) α hα p h
+      h := mkApp4 (.const ``Quant.forall_skolem [u]) α hα p h
       b := p.beta #[e]
     addThm (← reconstructProofType pf.getResult) h
 

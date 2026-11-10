@@ -16,6 +16,6 @@ public meta section
 and `Bool`). -/
 register_simp_attr embedding
 
-/-- Theorems that push `smtDecide p` into the proposition `p`, which turns hypotheses into Boolean
+/-- Theorems that push `decide p` into the proposition `p`, which turns hypotheses into Boolean
 formulas (see `Smt.Preprocess.Embedding.Prop`). -/
 register_simp_attr smt_decide

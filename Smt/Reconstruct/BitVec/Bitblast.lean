@@ -38,19 +38,19 @@ theorem cons_eq_cons {a b : Bool} {xs ys : BitVec w} : (cons a xs = cons b ys) =
     rw [hxy, hab]
 
 /-! cvc5 compares bit-vectors bit by bit from their least significant bits:
-`smtEq x y = (smtEq x₀ y₀ && (… && smtEq xₙ₋₁ yₙ₋₁))`. -/
+`(x == y) = ((x₀ == y₀) && (… && (xₙ₋₁ == yₙ₋₁)))`. -/
 
-theorem smtEq_cons_cons (a b : Bool) (xs ys : BitVec w) :
-    smtEq (cons a xs) (cons b ys) = (smtEq xs ys && smtEq a b) := by
+theorem beq_cons_cons (a b : Bool) (xs ys : BitVec w) :
+    (cons a xs == cons b ys) = ((xs == ys) && (a == b)) := by
   apply Bool.eq_iff_iff.mpr
-  simp only [smtEq_eq_true, Bool.and_eq_true, cons_eq_cons]
+  simp only [beq_iff_eq, Bool.and_eq_true, cons_eq_cons]
 
-theorem smtEq_cons_cons_and (a b acc : Bool) (xs ys : BitVec w) :
-    (smtEq (cons a xs) (cons b ys) && acc) = (smtEq xs ys && (smtEq a b && acc)) := by
-  rw [smtEq_cons_cons, Bool.and_assoc]
+theorem beq_cons_cons_and (a b acc : Bool) (xs ys : BitVec w) :
+    ((cons a xs == cons b ys) && acc) = ((xs == ys) && ((a == b) && acc)) := by
+  rw [beq_cons_cons, Bool.and_assoc]
 
-theorem smtEq_nil_nil_and (acc : Bool) : (smtEq nil nil && acc) = acc := by
-  rw [smtEq_of_eq rfl, Bool.true_and]
+theorem beq_nil_nil_and (acc : Bool) : ((nil == nil) && acc) = acc := by
+  rw [beq_self_eq_true, Bool.true_and]
 
 /-- Carry function for bitwise addition. -/
 def adcb' (x y c : Bool) : Bool × Bool := (x && y || Bool.xor x y && c, (Bool.xor (Bool.xor x y) c))

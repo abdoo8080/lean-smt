@@ -46,10 +46,10 @@ def getFVarOrConstExpr! (n : String) : ReconstructM Expr := do
     else
       return none
 
-/-- The proposition `p` of the Boolean atom `smtDecide p`, and `b = true` for other Booleans `b`.
+/-- The proposition `p` of the Boolean atom `decide p`, and `b = true` for other Booleans `b`.
 Used to pass an SMT-LIB argument of sort `Bool` to a Lean function that takes a proposition. -/
 def ofBool (b : Expr) : MetaM Expr := do
-  if let some p := b.app1? ``smtDecide then return p
+  if let some (p, _) := b.app2? ``Decidable.decide then return p
   Meta.mkEq b (.const ``Bool.true [])
 
 @[smt_term_reconstruct] def reconstructUF : TermReconstructor := fun t => do match t.getKind! with
@@ -62,7 +62,7 @@ def ofBool (b : Expr) : MetaM Expr := do
         | .forallE _ d _ _ => if d.isProp then ofBool arg else pure arg
         | _ => pure arg
       curr := .app curr arg
-    if (← Meta.inferType curr).isProp then return mkApp (.const ``smtDecide []) curr else return curr
+    if (← Meta.inferType curr).isProp then Bool.decideOf curr else return curr
   | .UNINTERPRETED_SORT_VALUE =>
     let some n := (← read).sortCard[t.getSort!]? | throwError "unknown sort {t.getSort!}"
     let s := t.toString
@@ -87,28 +87,35 @@ def ofBool (b : Expr) : MetaM Expr := do
 def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   match pf.getRewriteRule! with
   | .EQ_REFL =>
-    let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
-    let t : Q($α) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(@Bool.eq_refl $α $t)
+    let α ← reconstructSort pf.getArguments[1]!.getSort!
+    let t ← reconstructTerm pf.getArguments[1]!
+    addEqThm pf.getResult
+      (mkApp3 (.const ``Bool.eq_refl [← Meta.getLevel α]) α t (← Bool.eqInst α t t))
   | .EQ_SYMM =>
-    let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
-    let t : Q($α) ← reconstructTerm pf.getArguments[1]!
-    let s : Q($α) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Bool.eq_symm $α $t $s)
+    let α ← reconstructSort pf.getArguments[1]!.getSort!
+    let t ← reconstructTerm pf.getArguments[1]!
+    let s ← reconstructTerm pf.getArguments[2]!
+    addEqThm pf.getResult (mkAppN (.const ``Bool.eq_symm [← Meta.getLevel α])
+      #[α, t, s, ← Bool.eqInst α t s, ← Bool.eqInst α s t])
   | .EQ_COND_DEQ =>
-    let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
-    let t : Q($α) ← reconstructTerm pf.getArguments[1]!
-    let s : Q($α) ← reconstructTerm pf.getArguments[2]!
-    let r : Q($α) ← reconstructTerm pf.getArguments[3]!
-    let h : Q(smtEq $s $r = false) ← reconstructEqProof pf.getChildren[0]!
-    addEqThm pf.getResult q(@Bool.eq_cond_deq $α $t $s $r $h)
+    let α ← reconstructSort pf.getArguments[1]!.getSort!
+    let t ← reconstructTerm pf.getArguments[1]!
+    let s ← reconstructTerm pf.getArguments[2]!
+    let r ← reconstructTerm pf.getArguments[3]!
+    -- `(s == r) = false`
+    let h ← reconstructEqProof pf.getChildren[0]!
+    addEqThm pf.getResult (mkAppN (.const ``Bool.eq_cond_deq [← Meta.getLevel α])
+      #[α, t, s, r, ← Bool.eqInst α s r, ← Bool.eqInst α t s, ← Bool.eqInst α t r, h])
   | .EQ_ITE_LIFT =>
-    let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[2]!.getSort!
-    let t : Q($α) ← reconstructTerm pf.getArguments[2]!
-    let s : Q($α) ← reconstructTerm pf.getArguments[3]!
-    let r : Q($α) ← reconstructTerm pf.getArguments[4]!
-    addEqThm pf.getResult q(@Bool.eq_ite_lift $α $c $t $s $r)
+    let c ← reconstructTerm pf.getArguments[1]!
+    let α ← reconstructSort pf.getArguments[2]!.getSort!
+    let t ← reconstructTerm pf.getArguments[2]!
+    let s ← reconstructTerm pf.getArguments[3]!
+    let r ← reconstructTerm pf.getArguments[4]!
+    let u ← Meta.getLevel α
+    let cts := mkApp4 (.const ``cond [u]) α c t s
+    addEqThm pf.getResult (mkAppN (.const ``Bool.eq_ite_lift [u])
+      #[α, c, t, s, r, ← Bool.eqInst α cts r, ← Bool.eqInst α t r, ← Bool.eqInst α s r])
   | .DISTINCT_BINARY_ELIM =>
     let t : Q(Bool) ← reconstructTerm pf.getResult[0]!
     addEqThm pf.getResult q(Eq.refl $t)
@@ -128,11 +135,14 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       let h : Q($a = $b) ← reconstructEqProof pf.getChildren[0]!
       addEqThm pf.getResult q(Eq.symm $h)
     else
-      let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getResult[0]![0]!.getSort!
-      let a : Q($α) ← reconstructTerm pf.getResult[0]![1]!
-      let b : Q($α) ← reconstructTerm pf.getResult[0]![0]!
-      let h : Q((!smtEq $a $b) = true) ← reconstructProof pf.getChildren[0]!
-      addThm (← reconstructProofType pf.getResult) q(@Bool.not_smtEq_symm $α $a $b $h)
+      let α ← reconstructSort pf.getResult[0]![0]!.getSort!
+      let a ← reconstructTerm pf.getResult[0]![1]!
+      let b ← reconstructTerm pf.getResult[0]![0]!
+      -- `(!(a == b)) = true`
+      let h ← reconstructProof pf.getChildren[0]!
+      addThm (← reconstructProofType pf.getResult)
+        (mkAppN (.const ``Bool.not_decide_eq_symm [← Meta.getLevel α])
+          #[α, a, b, ← Bool.eqInst α a b, ← Bool.eqInst α b a, h])
   | .TRANS =>
     let cpfs := pf.getChildren
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort cpfs[0]!.getResult[0]!.getSort!

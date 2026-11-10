@@ -14,6 +14,8 @@ public import Smt.Reconstruct.Prop.Core
 
 namespace Smt.Reconstruct.Bool
 
+universe u
+
 /-! ### Proof rules of propositional logic over `Bool`
 
 The proof of an SMT formula `φ` is a proof of `⟦φ⟧ = true`. The n-ary formulas below match cvc5's
@@ -37,8 +39,8 @@ theorem andN_eq_false_iff_mem {bs : List Bool} : Bool.andN bs = false ↔ false 
 
 theorem eq_resolve' {p q : Bool} (hp : p = true) (hpq : p = q) : q = true := hpq ▸ hp
 
-theorem modus_ponens {p q : Bool} (hp : p = true) (hpq : p.smtImp q = true) : q = true := by
-  cases p <;> cases q <;> simp_all [Bool.smtImp]
+theorem modus_ponens {p q : Bool} (hp : p = true) (hpq : p.imp q = true) : q = true := by
+  cases p <;> cases q <;> simp_all [Bool.imp]
 
 theorem not_not_elim {p : Bool} (h : (!!p) = true) : p = true := by simpa using h
 
@@ -57,25 +59,25 @@ theorem not_or_elim {ps : List Bool} (hps : (!Bool.orN ps) = true) (i : Nat) (hi
   have h := orN_eq_false_iff.mp (by simpa using hps) _ (List.getElem_mem hi)
   simp [h]
 
-theorem implies_elim {p q : Bool} (h : p.smtImp q = true) : (!p || q) = true := h
+theorem implies_elim {p q : Bool} (h : p.imp q = true) : (!p || q) = true := h
 
-theorem not_implies_elim1 {p q : Bool} (h : (!p.smtImp q) = true) : p = true := by
-  cases p <;> cases q <;> simp_all [Bool.smtImp]
+theorem not_implies_elim1 {p q : Bool} (h : (!p.imp q) = true) : p = true := by
+  cases p <;> cases q <;> simp_all [Bool.imp]
 
-theorem not_implies_elim2 {p q : Bool} (h : (!p.smtImp q) = true) : (!q) = true := by
-  cases p <;> cases q <;> simp_all [Bool.smtImp]
+theorem not_implies_elim2 {p q : Bool} (h : (!p.imp q) = true) : (!q) = true := by
+  cases p <;> cases q <;> simp_all [Bool.imp]
 
-theorem equiv_elim1 {p q : Bool} (h : smtEq p q = true) : (!p || q) = true := by
-  cases eq_of_smtEq h; cases p <;> rfl
+theorem equiv_elim1 {p q : Bool} (h : (p == q) = true) : (!p || q) = true := by
+  cases p <;> cases q <;> simp_all
 
-theorem equiv_elim2 {p q : Bool} (h : smtEq p q = true) : (p || !q) = true := by
-  cases eq_of_smtEq h; cases p <;> rfl
+theorem equiv_elim2 {p q : Bool} (h : (p == q) = true) : (p || !q) = true := by
+  cases p <;> cases q <;> simp_all
 
-theorem not_equiv_elim1 {p q : Bool} (h : (!smtEq p q) = true) :
+theorem not_equiv_elim1 {p q : Bool} (h : (!(p == q)) = true) :
     (p || q) = true := by
   cases p <;> cases q <;> simp_all
 
-theorem not_equiv_elim2 {p q : Bool} (h : (!smtEq p q) = true) :
+theorem not_equiv_elim2 {p q : Bool} (h : (!(p == q)) = true) :
     (!p || !q) = true := by
   cases p <;> cases q <;> simp_all
 
@@ -128,33 +130,31 @@ theorem cnf_or_neg (ps : List Bool) (i : Nat) : (Bool.orN ps || !ps.getD i false
     · rw [List.getElem?_eq_none hi]; rfl
   · rfl
 
-theorem cnf_implies_pos (p q : Bool) : (!p.smtImp q || (!p || q)) = true := by
+theorem cnf_implies_pos (p q : Bool) : (!p.imp q || (!p || q)) = true := by
   cases p <;> cases q <;> rfl
-theorem cnf_implies_neg1 (p q : Bool) : (p.smtImp q || p) = true := by
+theorem cnf_implies_neg1 (p q : Bool) : (p.imp q || p) = true := by
   cases p <;> cases q <;> rfl
-theorem cnf_implies_neg2 (p q : Bool) : (p.smtImp q || !q) = true := by
+theorem cnf_implies_neg2 (p q : Bool) : (p.imp q || !q) = true := by
   cases p <;> cases q <;> rfl
 
-theorem cnf_equiv_pos1 (p q : Bool) : (!smtEq p q || (!p || q)) = true := by
-  cases p <;> cases q <;> simp
-theorem cnf_equiv_pos2 (p q : Bool) : (!smtEq p q || (p || !q)) = true := by
-  cases p <;> cases q <;> simp
-theorem cnf_equiv_neg1 (p q : Bool) : (smtEq p q || (p || q)) = true := by
-  cases p <;> cases q <;> simp
-theorem cnf_equiv_neg2 (p q : Bool) : (smtEq p q || (!p || !q)) = true := by
-  cases p <;> cases q <;> simp
+theorem cnf_equiv_pos1 (p q : Bool) : (!(p == q) || (!p || q)) = true := by
+  cases p <;> cases q <;> rfl
+theorem cnf_equiv_pos2 (p q : Bool) : (!(p == q) || (p || !q)) = true := by
+  cases p <;> cases q <;> rfl
+theorem cnf_equiv_neg1 (p q : Bool) : ((p == q) || (p || q)) = true := by
+  cases p <;> cases q <;> rfl
+theorem cnf_equiv_neg2 (p q : Bool) : ((p == q) || (!p || !q)) = true := by
+  cases p <;> cases q <;> rfl
 
 theorem cnf_xor_pos1 (p q : Bool) : (!xor p q || (p || q)) = true := by cases p <;> cases q <;> rfl
 theorem cnf_xor_pos2 (p q : Bool) : (!xor p q || (!p || !q)) = true := by cases p <;> cases q <;> rfl
 theorem cnf_xor_neg1 (p q : Bool) : (xor p q || (!p || q)) = true := by cases p <;> cases q <;> rfl
 theorem cnf_xor_neg2 (p q : Bool) : (xor p q || (p || !q)) = true := by cases p <;> cases q <;> rfl
 
-theorem true_intro {p : Bool} (h : p = true) : smtEq p true = true := smtEq_of_eq h
-theorem true_elim {p : Bool} (h : smtEq p true = true) : p = true := eq_of_smtEq h
-theorem false_intro {p : Bool} (h : (!p) = true) : smtEq p false = true :=
-  smtEq_of_eq (by simpa using h)
-theorem false_elim {p : Bool} (h : smtEq p false = true) : (!p) = true := by
-  simp [eq_of_smtEq h]
+theorem true_intro {p : Bool} (h : p = true) : (p == true) = true := by simp [h]
+theorem true_elim {p : Bool} (h : (p == true) = true) : p = true := by simpa using h
+theorem false_intro {p : Bool} (h : (!p) = true) : (p == false) = true := by simpa using h
+theorem false_elim {p : Bool} (h : (p == false) = true) : (!p) = true := by simpa using h
 
 theorem orN_append_left {ps qs : List Bool} (hps : Bool.orN ps = true) :
     Bool.orN (ps ++ qs) = true := by
@@ -176,18 +176,18 @@ theorem orN_resolution {ps qs : List Bool} {i j : Nat} (hps : Bool.orN ps = true
 /-! ### Scopes and the final contradiction -/
 
 theorem scopes {ps : List Bool} {q : Bool} (h : Bool.impliesN ps (q = true)) :
-    (Bool.andN ps).smtImp q = true := by
+    (Bool.andN ps).imp q = true := by
   induction ps with
   | nil => simpa [Bool.impliesN, Bool.andN] using h
   | cons p ps ih =>
     simp only [Bool.impliesN] at h
-    simp only [Bool.andN_cons_append, Bool.smtImp_eq_true, Bool.and_eq_true, and_imp]
+    simp only [Bool.andN_cons_append, Bool.imp_eq_true, Bool.and_eq_true, and_imp]
     intro hp hps
     simpa [hps] using ih (h hp)
 
 theorem scopes_false {ps : List Bool} (h : Bool.impliesN ps (false = true)) :
     (!Bool.andN ps) = true := by
-  simpa [Bool.smtImp] using scopes h
+  simpa [Bool.imp] using scopes h
 
 theorem implies_false_of_not_and {ps : List Bool} (h : (!Bool.andN ps) = true) :
     Bool.impliesN ps False := by
@@ -201,7 +201,8 @@ theorem implies_false_of_not_and {ps : List Bool} (h : (!Bool.andN ps) = true) :
 
 /-! ### `ite` over `Bool` conditions, reconstructed as `cond` -/
 
-theorem ite_eq {α} (c : Bool) (x y : α) : cond c (smtEq (cond c x y) x) (smtEq (cond c x y) y) = true := by
+theorem ite_eq {α : Sort u} (c : Bool) (x y : α) {h₁ : Decidable (cond c x y = x)}
+    {h₂ : Decidable (cond c x y = y)} : cond c (@decide (cond c x y = x) h₁) (@decide (cond c x y = y) h₂) = true := by
   cases c <;> simp
 
 theorem ite_elim1 {c p q : Bool} (h : cond c p q = true) : (!c || p) = true := by
@@ -228,12 +229,18 @@ theorem cnf_ite_neg3 (c p q : Bool) : (cond c p q || (!p || !q)) = true := by
 
 /-! ### Equality -/
 
-theorem not_smtEq_symm {α} {a b : α} (h : (!smtEq a b) = true) : (!smtEq b a) = true := by
-  simp only [Bool.not_eq_eq_eq_not, Bool.not_true, smtEq_eq_false] at h ⊢
+theorem not_decide_eq_symm {α : Sort u} {a b : α} {h₁ : Decidable (a = b)} {h₂ : Decidable (b = a)}
+    (h : (!@decide (a = b) h₁) = true) : (!@decide (b = a) h₂) = true := by
+  simp only [Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not] at h ⊢
   exact Ne.symm h
 
-theorem eq_of_smtDecide_eq {p q : Prop} (h : smtDecide p = smtDecide q) : p = q := by
-  rw [← smtDecide_eq_true (p := p), ← smtDecide_eq_true (p := q), h]
+theorem eq_of_decide_eq {p q : Prop} {hp : Decidable p} {hq : Decidable q}
+    (h : @decide p hp = @decide q hq) : p = q :=
+  propext (decide_eq_decide.mp h)
+
+theorem decide_eq_decide_of_eq {p q : Prop} {hp : Decidable p} {hq : Decidable q} (h : p = q) :
+    @decide p hp = @decide q hq :=
+  decide_eq_decide.mpr (h ▸ Iff.rfl)
 
 theorem not_eq_true_of_not {b : Bool} (h : ¬b = true) : (!b) = true := by simpa using h
 

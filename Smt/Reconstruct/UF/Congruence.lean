@@ -78,7 +78,7 @@ def smtCongrUF (mv : MVarId) (e₁ e₂ : Expr) (hs : Array Expr) : MetaM Unit :
   mv.assign h
 where
   /-- A proposition passed to a Lean function is an SMT-LIB Boolean `b`, reconstructed as `p` if `b`
-  is `smtDecide p` and as `b = true` otherwise. Turn the proof `h : b₁ = b₂` of the equality of the
+  is `decide p` and as `b = true` otherwise. Turn the proof `h : b₁ = b₂` of the equality of the
   Booleans into a proof of the equality of the propositions. -/
   propArgEq (α : Expr) (h : Expr) : MetaM Expr := do
     if !α.isProp then return h
@@ -87,12 +87,9 @@ where
     let b₁ : Q(Bool) ← pure b₁
     let b₂ : Q(Bool) ← pure b₂
     let h : Q($b₁ = $b₂) ← pure h
-    match b₁.app1? ``smtDecide, b₂.app1? ``smtDecide with
-    | some p, some q =>
-      let p : Q(Prop) ← pure p
-      let q : Q(Prop) ← pure q
-      let h : Q(smtDecide $p = smtDecide $q) ← pure h
-      return q(Smt.Reconstruct.Bool.eq_of_smtDecide_eq $h)
+    match b₁.app2? ``Decidable.decide, b₂.app2? ``Decidable.decide with
+    | some (p, hp), some (q, hq) =>
+      return mkAppN (.const ``Smt.Reconstruct.Bool.eq_of_decide_eq []) #[p, q, hp, hq, h]
     | _, _ => return q(congrArg (· = true) $h)
 
 def smtCongrLeftAssocOp (mv : MVarId) (op : Expr) (hs : Array Expr) : MetaM Unit := do
@@ -121,15 +118,13 @@ partial def smtCongr (mv : MVarId) (hs : Array Expr) : MetaM Unit := mv.withCont
   let some (_, l, r) := (← mv.getType).eq? | throwError "[smt_congr]: target is not an equality: {← mv.getType}"
   if l.isArrow then
     smtCongrArrow mv hs
-  else if l.isAppOfArity ``smtDecide 1 then
-    -- Applications of Lean predicates `p a` are reconstructed as `smtDecide (p a)`.
-    let p : Q(Prop) ← pure l.appArg!
-    let q : Q(Prop) ← pure r.appArg!
-    let h : Q($p = $q) ← Meta.mkFreshExprMVar q($p = $q)
+  else if let (some (p, hp), some (q, hq)) := (l.app2? ``Decidable.decide, r.app2? ``Decidable.decide) then
+    -- Atoms, e.g., comparisons and applications of Lean predicates, are reconstructed as `decide p`.
+    let h ← Meta.mkFreshExprMVar (← Meta.mkEq p q)
     smtCongr h.mvarId! hs
-    mv.assign q(congrArg smtDecide $h)
+    mv.assign (mkAppN (.const ``Smt.Reconstruct.Bool.decide_eq_decide_of_eq []) #[p, q, hp, hq, h])
   else if l.isAppOfArity ``not 1 && hs.size == 2 then
-    -- `(distinct a b)` is reconstructed as `!smtEq a b`.
+    -- `(distinct a b)` is reconstructed as `!(a == b)`.
     let b₁ : Q(Bool) ← pure l.appArg!
     let b₂ : Q(Bool) ← pure r.appArg!
     let h : Q($b₁ = $b₂) ← Meta.mkFreshExprMVar q($b₁ = $b₂)
@@ -148,7 +143,7 @@ where
     n == ``HAdd.hAdd || n == ``HSub.hSub || n == ``HMul.hMul || n == ``HDiv.hDiv || n == ``HMod.hMod
   isRightAssocOp (n : Name) : Bool :=
     n == ``And || n == ``Or || n == ``Iff || n == ``XOr ||
-    n == ``and || n == ``or || n == ``xor || n == ``Bool.smtImp
+    n == ``and || n == ``or || n == ``xor || n == ``Bool.imp
 
 namespace Tactic
 

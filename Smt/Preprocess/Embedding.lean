@@ -137,8 +137,9 @@ def embedProps (mv : MVarId) (hs : Array Expr) : MetaM Result := do
       unless ← Meta.isProp p do return (h, mv)
       let p : Q(Prop) ← pure p
       let h : Q($p) ← pure h
-      let hb : Q(smtDecide $p = true) := q(Eq.mpr smtDecide_eq_true $h)
-      let (r, _) ← Meta.simp q(smtDecide $p = true) ctx simprocs
+      let hb : Q(@decide $p (Classical.propDecidable $p) = true) :=
+        q(Eq.mpr (@decide_eq_true_eq $p (Classical.propDecidable $p)) $h)
+      let (r, _) ← Meta.simp q(@decide $p (Classical.propDecidable $p) = true) ctx simprocs
       let hb ← match r.proof? with
         | none => pure hb
         | some e => Meta.mkEqMP e hb

@@ -20,6 +20,55 @@ namespace Smt.Reconstruct.Bool
 
 open Lean Qq
 
+/-- The Boolean atom `decide p` of the proposition `p`, with a synthesized instance of `Decidable p`, or a
+classical one. -/
+def decideOf (p : Expr) : MetaM Expr := do
+  let inst ← match ← Meta.synthInstance? (mkApp (.const ``Decidable []) p) with
+    | some inst => pure inst
+    | none => pure (mkApp (.const ``Classical.propDecidable []) p)
+  return mkApp2 (.const ``Decidable.decide []) p inst
+
+/-- The instance of `DecidableEq α` that Boolean formulas decide `a = b` with for `a b : α`: the exact
+one for SMT-LIB's builtin sorts, and otherwise a synthesized one, or a classical one. -/
+def decEqInst (α : Expr) : MetaM Expr := do
+  if α.isConstOf ``Bool then return .const ``instDecidableEqBool []
+  if α.isConstOf ``Int then return .const ``Int.instDecidableEq []
+  if α.isConstOf ``String then return .const ``instDecidableEqString []
+  if α.isConstOf `Real then return .const `Real.decidableEq []
+  if let some w := α.app1? ``BitVec then return mkApp (.const ``instDecidableEqBitVec []) w
+  let u ← Meta.getLevel α
+  if let some inst ← Meta.synthInstance? (mkApp (.const ``DecidableEq [u]) α) then return inst
+  return mkApp (.const ``Classical.typeDecidableEq [u]) α
+
+/-- The Boolean formula of `a = b` for `a b : α`: `a == b` with the instance `instBEqOfDecidableEq`
+of `decEqInst α` if `α : Type u`, and `decide (a = b)` (see `decideOf`) otherwise, e.g., if
+`α : Sort u`. -/
+def mkBEq (α a b : Expr) : MetaM Expr := do
+  if let some u := (← Meta.getLevel α).dec then
+    return mkApp4 (.const ``BEq.beq [u]) α (mkApp2 (.const ``instBEqOfDecidableEq [u]) α (← decEqInst α)) a b
+  decideOf (← Meta.mkEq a b)
+
+/-- The instance of `Decidable (a = b)` that the Boolean formula `mkBEq α a b` decides `a = b` with.
+`a == b` is `decide (a = b)` with the instance `decEqInst α a b`. -/
+def eqInst (α a b : Expr) : MetaM Expr := do
+  if (← Meta.getLevel α).dec.isSome then
+    return mkApp2 (← decEqInst α) a b
+  let p ← Meta.mkEq a b
+  match ← Meta.synthInstance? (mkApp (.const ``Decidable []) p) with
+  | some inst => return inst
+  | none => return mkApp (.const ``Classical.propDecidable []) p
+
+/-- The type `α`, the sides `a` and `b`, and the instance of `Decidable (a = b)` of the Boolean
+formula `a == b` or `decide (a = b)` of an equality. -/
+def getEq? (e : Expr) : Option (Expr × Expr × Expr × Expr) := Id.run do
+  if let some (α, inst, a, b) := e.app4? ``BEq.beq then
+    if let some (_, d) := inst.app2? ``instBEqOfDecidableEq then
+      return some (α, a, b, mkApp2 d a b)
+  if let some (p, inst) := e.app2? ``Decidable.decide then
+    if let some (α, a, b) := p.eq? then
+      return some (α, a, b, inst)
+  return none
+
 /-- Return the proposition `p` denoted by the Boolean formula `b` (see the table in
 `Smt.Reconstruct.Bool.Core`) and a proof of `(b = true) = p`. The proof is `none` if `p` is
 `b = true`. -/
@@ -43,37 +92,19 @@ partial def toProp (b : Expr) : MetaM (Expr × Option Expr) := do
   if let some (x, y) := b.app2? ``xor then
     let ⟨_, _, p, q, hx, hy⟩ ← binary x y
     return (q(XOr $p $q), some q(xor_eq_true_eq $hx $hy))
-  if let some (x, y) := b.app2? ``Bool.smtImp then
+  if let some (x, y) := b.app2? ``Bool.imp then
     let ⟨_, _, p, q, hx, hy⟩ ← binary x y
-    return (q($p → $q), some q(smtImp_eq_true_eq $hx $hy))
-  if let some p := b.app1? ``smtDecide then
-    let p : Q(Prop) ← pure p
-    return (p, some q(@smtDecide_eq_true $p))
-  if b.isAppOfArity ``smtEq 3 then
-    let α := b.getArg! 0
-    let (x, y) := (b.getArg! 1, b.getArg! 2)
-    if α.isConstOf ``Bool then
-      let ⟨_, _, p, q, hx, hy⟩ ← binary x y
-      return (q($p = $q), some q(smtEq_bool_eq_true_eq $hx $hy))
-    let u ← Meta.getLevel α
-    return (← Meta.mkEq x y, some (mkApp3 (.const ``smtEq_eq_true [u]) α x y))
-  if b.isAppOfArity ``smtLt 4 then
-    let #[α, inst, x, y] := b.getAppArgs | unreachable!
-    let u ← Meta.getDecLevel α
-    return (mkApp4 (.const ``LT.lt [u]) α inst x y, some (mkApp4 (.const ``smtLt_eq_true [u]) α x y inst))
-  if b.isAppOfArity ``smtLe 4 then
-    let #[α, inst, x, y] := b.getAppArgs | unreachable!
-    let u ← Meta.getDecLevel α
-    return (mkApp4 (.const ``LE.le [u]) α inst x y, some (mkApp4 (.const ``smtLe_eq_true [u]) α x y inst))
-  if b.isAppOfArity ``smtGt 4 then
-    let #[α, inst, x, y] := b.getAppArgs | unreachable!
-    let u ← Meta.getDecLevel α
-    return (mkApp4 (.const ``GT.gt [u]) α inst x y, some (mkApp4 (.const ``smtGt_eq_true [u]) α x y inst))
-  if b.isAppOfArity ``smtGe 4 then
-    let #[α, inst, x, y] := b.getAppArgs | unreachable!
-    let u ← Meta.getDecLevel α
-    return (mkApp4 (.const ``GE.ge [u]) α inst x y, some (mkApp4 (.const ``smtGe_eq_true [u]) α x y inst))
-  if b.isAppOfArity ``smtForall 2 || b.isAppOfArity ``smtExists 2 then
+    return (q($p → $q), some q(imp_eq_true_eq $hx $hy))
+  if let some (p, inst) := b.app2? ``decide then
+    return (p, some (mkApp2 (.const ``decide_eq_true_eq []) p inst))
+  if let some (α, inst, x, y) := b.app4? ``BEq.beq then
+    if let some (_, d) := inst.app2? ``instBEqOfDecidableEq then
+      if α.isConstOf ``Bool then
+        let ⟨_, _, p, q, hx, hy⟩ ← binary x y
+        return (q($p = $q), some q(beq_bool_eq_true_eq $hx $hy))
+      let u ← Meta.getDecLevel α
+      return (← Meta.mkEq x y, some (mkApp4 (.const ``beq_eq_true_eq [u]) α d x y))
+  if b.isAppOfArity ``Bool.forall 2 || b.isAppOfArity ``Bool.exists 2 then
     let α := b.getArg! 0
     let u ← Meta.getLevel α
     let f := b.getArg! 1
@@ -88,12 +119,12 @@ partial def toProp (b : Expr) : MetaM (Expr × Option Expr) := do
         | none => Meta.mkEqRefl (← Meta.mkEq fx q(true))
       let lp ← Meta.mkLambdaFVars #[x] p
       let hx ← Meta.mkLambdaFVars #[x] h
-      if b.isAppOfArity ``smtForall 2 then
+      if b.isAppOfArity ``Bool.forall 2 then
         return (← Meta.mkForallFVars #[x] p,
-                some (mkAppN (.const ``smtForall_eq_true_eq [u]) #[α, f, lp, hx]))
+                some (mkAppN (.const ``forall_eq_true_eq [u]) #[α, f, lp, hx]))
       else
         return (mkApp2 (.const ``Exists [u]) α lp,
-                some (mkAppN (.const ``smtExists_eq_true_eq [u]) #[α, f, lp, hx]))
+                some (mkAppN (.const ``exists_eq_true_eq [u]) #[α, f, lp, hx]))
   return (← Meta.mkEq b q(true), none)
 where
   binary (x y : Expr) :

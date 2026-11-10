@@ -18,10 +18,9 @@ public meta section
 # Translation of Booleans
 
 Lean's `Bool` is SMT-LIB's `Bool`. Propositions are embedded into Booleans: a hypothesis `p` is
-turned into `b = true`, where `b` is a Boolean formula built with SMT operators such as `smtEq` and
-`smtForall` (see `Smt.Preprocess.Embedding.Prop` and `Smt.Reconstruct.Bool.Core`). So `b = true` is
-translated as `b`, and the SMT operators as the propositions they decide, e.g., `smtLt x y` as
-`x < y`.
+turned into `b = true`, where `b` is a Boolean formula such as `decide (x < y) && (x == y)` (see
+`Smt.Preprocess.Embedding.Prop` and `Smt.Reconstruct.Bool.Core`). So `b = true` is translated as `b`,
+and `decide p` as `p`.
 -/
 
 namespace Smt.Translate.Bool
@@ -45,24 +44,12 @@ open Lean Translator Term
     return mkApp2 (symbolT "or") (← applyTranslators! a) (← applyTranslators! b)
   else if let some (a, b) := e.app2? ``xor then
     return mkApp2 (symbolT "xor") (← applyTranslators! a) (← applyTranslators! b)
-  else if let some (a, b) := e.app2? `Bool.smtImp then
+  else if let some (a, b) := e.app2? `Bool.imp then
     return mkApp2 (symbolT "=>") (← applyTranslators! a) (← applyTranslators! b)
   else if let some (p, _) := e.app2? ``Decidable.decide then
     return some (← applyTranslators! p)
-  else if let some p := e.app1? `smtDecide then
-    return some (← applyTranslators! p)
-  else if e.isAppOfArity `smtEq 3 then
-    return mkApp2 (symbolT "=") (← applyTranslators! (e.getArg! 1)) (← applyTranslators! (e.getArg! 2))
-  else if e.isAppOfArity `smtLt 4 then
-    return some (← applyTranslators! (mkAppN (.const ``LT.lt e.getAppFn.constLevels!) e.getAppArgs))
-  else if e.isAppOfArity `smtLe 4 then
-    return some (← applyTranslators! (mkAppN (.const ``LE.le e.getAppFn.constLevels!) e.getAppArgs))
-  else if e.isAppOfArity `smtGt 4 then
-    return some (← applyTranslators! (mkAppN (.const ``GT.gt e.getAppFn.constLevels!) e.getAppArgs))
-  else if e.isAppOfArity `smtGe 4 then
-    return some (← applyTranslators! (mkAppN (.const ``GE.ge e.getAppFn.constLevels!) e.getAppArgs))
-  else if e.isAppOfArity `smtForall 2 || e.isAppOfArity `smtExists 2 then
-    -- `smtForall fun x => b` is `∀ x, b = true`, and `smtExists` likewise.
+  else if e.isAppOfArity `Bool.forall 2 || e.isAppOfArity `Bool.exists 2 then
+    -- `Bool.forall fun x => b` is `∀ x, b = true`, and `Bool.exists` likewise.
     let α := e.getArg! 0
     let (n, bi) := match e.getArg! 1 with
       | .lam n _ _ bi => (n, bi)
@@ -70,7 +57,7 @@ open Lean Translator Term
     let p ← Meta.withLocalDecl n bi α fun x => do
       let b := (e.getArg! 1).beta #[x]
       let b ← Meta.mkEq b (.const ``Bool.true [])
-      if e.isAppOfArity `smtForall 2 then Meta.mkForallFVars #[x] b
+      if e.isAppOfArity `Bool.forall 2 then Meta.mkForallFVars #[x] b
       else Meta.mkAppM ``Exists #[← Meta.mkLambdaFVars #[x] b]
     return some (← applyTranslators! p)
   else if e.isAppOfArity ``cond 4 then
