@@ -43,25 +43,28 @@ def getVariableName (t : cvc5.Term) : Name :=
       t.getSymbol!.toName
   else Name.num `x t.getId!
 
-/-- `(forall ((x₁ T₁) … (xₙ Tₙ)) F)` is reconstructed as `decide (∀ x₁ … xₙ, ⟦F⟧ = true)`, and
-`exists` likewise. -/
+/-- `smtForall fun x₁ => ⋯ smtForall fun xₙ => b` (or with `smtExists`) over the free variables `xs`
+of the Boolean formula `b`. -/
+def mkSmtQuantFVars (op : Name) (xs : Array Expr) (b : Expr) : MetaM Expr :=
+  xs.foldrM (init := b) fun x b => do
+    let α ← Meta.inferType x
+    return mkApp2 (.const op [← Meta.getLevel α]) α (← Meta.mkLambdaFVars #[x] b)
+
+/-- `(forall ((x₁ T₁) … (xₙ Tₙ)) F)` is reconstructed as `smtForall fun x₁ => ⋯ smtForall fun xₙ =>
+⟦F⟧`, and `exists` likewise. -/
 @[smt_term_reconstruct] def reconstructQuant : TermReconstructor := fun t => do match t.getKind! with
   | .FORALL =>
     let mut xs : Array (Name × (Array Expr → ReconstructM Expr)) := #[]
     for x in t[0]! do
       xs := xs.push (getVariableName x, fun _ => reconstructSort x.getSort!)
-    let p ← Meta.withLocalDeclsD xs fun xs => withNewTermCache do
-      let b : Q(Bool) ← reconstructTerm t[1]!
-      Meta.mkForallFVars xs q($b = true)
-    mkDecide p
+    Meta.withLocalDeclsD xs fun xs => withNewTermCache do
+      mkSmtQuantFVars ``smtForall xs (← reconstructTerm t[1]!)
   | .EXISTS =>
     let mut xs : Array (Name × (Array Expr → ReconstructM Expr)) := #[]
     for x in t[0]! do
       xs := xs.push (getVariableName x, fun _ => reconstructSort x.getSort!)
-    let p ← Meta.withLocalDeclsD xs fun xs => withNewTermCache do
-      let b : Q(Bool) ← reconstructTerm t[1]!
-      Meta.mkExistsFVars xs q($b = true)
-    mkDecide p
+    Meta.withLocalDeclsD xs fun xs => withNewTermCache do
+      mkSmtQuantFVars ``smtExists xs (← reconstructTerm t[1]!)
   | .LAMBDA =>
     let mut xs : Array (Name × (Array Expr → ReconstructM Expr)) := #[]
     for x in t[0]! do
@@ -91,8 +94,8 @@ where
       let h : Q(Nonempty $α) ← Meta.synthInstance q(Nonempty $α)
       let e ← Meta.withLocalDeclsD xs fun xs => withNewTermCache do
         let F : Q(Bool) ← reconstructTerm F
-        let ysF : Q(Prop) ← Meta.mkForallFVars xs[i + 1:] q($F = true)
-        let xysF ← Meta.mkLambdaFVars #[xs[i]!] q(¬$ysF)
+        let ysF : Q(Bool) ← mkSmtQuantFVars ``smtForall xs[i + 1:] F
+        let xysF ← Meta.mkLambdaFVars #[xs[i]!] q(¬$ysF = true)
         let xysF : Q($α → Prop) := xysF.replaceFVars xs[0:i] es
         return q(@Classical.epsilon $α $h $xysF)
       es := es.push e
@@ -212,28 +215,13 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       xss.foldrM fout (b, ps.dropLast, ps.getLast!, [], h)
     addPropThm pf.getResult h
   | .QUANT_MINISCOPE_ITE =>
-    let mut xs := #[]
-    for x in pf.getResult[0]![0]! do
-      xs := xs.push (getVariableName x, fun _ => reconstructSort x.getSort!)
-    let (_, _, _, h) ← Meta.withLocalDeclsD xs fun xs => withNewTermCache do
-      let c : Q(Prop) ← reconstructProp pf.getResult[0]![1]![0]!
-      let p : Q(Prop) ← reconstructProp pf.getResult[0]![1]![1]!
-      let q : Q(Prop) ← reconstructProp pf.getResult[0]![1]![2]!
-      let hc : Q(Decidable $c) ← mkDecidableInst q($c)
-      let h : Q((ite $c $p $q) = (ite $c $p $q)) := q(Eq.refl (ite $c $p $q))
-      let f := fun x (p, q, r, h) => do
-        let u ← Meta.getLevel (← Meta.inferType x)
-        let α : Q(Sort u) ← Meta.inferType x
-        let lp : Q($α → Prop) ← Meta.mkLambdaFVars #[x] p
-        let lq : Q($α → Prop) ← Meta.mkLambdaFVars #[x] q
-        let lr : Q($α → Prop) ← Meta.mkLambdaFVars #[x] r
-        let hx : Q(∀ x, $lr x = ite $c ($lp x) ($lq x)) ← Meta.mkLambdaFVars #[x] h
-        let ap ← Meta.mkForallFVars #[x] p
-        let aq ← Meta.mkForallFVars #[x] q
-        let ar ← Meta.mkForallFVars #[x] r
-        return (ap, aq, ar, q(Eq.trans (forall_congr $hx) (@miniscope_ite $α $c $hc $lp $lq)))
-      xs.foldrM f (p, q, q(ite $c $p $q), h)
-    addPropThm pf.getResult h
+    -- `(forall xs (ite c F G)) = (ite c (forall xs F) (forall xs G))`, where `c` does not depend on
+    -- `xs`, holds by cases on `c`.
+    let c : Q(Bool) ← reconstructTerm pf.getResult[1]![0]!
+    addEqTac pf.getResult fun mv => do
+      let (fvs, mv) ← mv.generalize #[{ expr := c }]
+      for g in ← mv.cases fvs[0]! do
+        g.mvarId.refl
   | .QUANT_VAR_ELIM_EQ =>
     -- `(forall ((x T)) (or (not (= x t)) F₁ … Fₙ))` is `(or F₁ … Fₙ)[t/x]`, and
     -- `(forall ((x T)) (not (= x t)))` is `false`.
@@ -242,10 +230,6 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort eq[0]!.getSort!
     let n : Name := getVariableName eq[0]!
     let t : Q($α) ← reconstructTerm eq[1]!
-    let hx : Q(∀ x : $α, Decidable (x = $t)) ← Meta.withLocalDeclD n α fun x => do
-      let x : Q($α) ← pure x
-      Meta.mkLambdaFVars #[x] (← mkDecidableInst q($x = $t))
-    let (_, h) ← getDecide! (← reconstructTerm pf.getResult[0]!)
     if lb.getKind! == .OR then
       let b : Q($α → Bool) ← Meta.withLocalDeclD n α fun x => withNewTermCache do
         let mut b : Q(Bool) ← reconstructTerm lb[lb.getNumChildren - 1]!
@@ -253,11 +237,9 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
           let c : Q(Bool) ← reconstructTerm lb[lb.getNumChildren - i - 1]!
           b := q($c || $b)
         Meta.mkLambdaFVars #[x] b
-      let h : Q(Decidable (∀ x, (!@decide (x = $t) ($hx x) || $b x) = true)) ← pure h
-      addEqThm pf.getResult q(@Quant.var_elim_eq_or_bool $α $t $b $hx $h)
+      addEqThm pf.getResult q(@Quant.var_elim_eq_or_bool $α $t $b)
     else
-      let h : Q(Decidable (∀ x, (!@decide (x = $t) ($hx x)) = true)) ← pure h
-      addEqThm pf.getResult q(@Quant.var_elim_eq_bool $α $t $hx $h)
+      addEqThm pf.getResult q(@Quant.var_elim_eq_bool $α $t)
   | _ => return none
 
 @[smt_proof_reconstruct] def reconstructQuantProof : ProofReconstructor := fun pf => do match pf.getRule with
@@ -266,24 +248,23 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     let k := pf.getResult[0]!.getKind!
     -- This rule needs more care for closures.
     if k == .FORALL then
-      reconstructQuantCong pf
+      reconstructQuantCong ``smtForall pf
     else if k == .EXISTS then
-      reconstructQuantCong pf
+      reconstructQuantCong ``smtExists pf
     else
       return none
   | .SKOLEMIZE => reconstructSkolemize pf
   | .INSTANTIATE =>
-    -- `⟦(forall xs F)⟧ = decide (∀ xs, ⟦F⟧ = true)`, so its proof yields `∀ xs, ⟦F⟧ = true`.
-    let h ← reconstructProof pf.getChildren[0]!
-    let (p, inst) ← getDecide! (← reconstructTerm pf.getChildren[0]!.getResult)
-    let p : Q(Prop) ← pure p
-    let inst : Q(Decidable $p) ← pure inst
-    let h : Q(decide $p = true) ← pure h
-    let xsF : Q($p) := q(@of_decide_eq_true $p $inst $h)
-    let mut es := #[]
+    -- Eliminate the quantifiers `smtForall fun x₁ => ⋯ smtForall fun xₙ => F` one by one.
+    let mut h ← reconstructProof pf.getChildren[0]!
+    let mut b ← reconstructTerm pf.getChildren[0]!.getResult
     for t in pf.getArguments[0]! do
-      es := es.push (← reconstructTerm t)
-    addThm (← reconstructProofType pf.getResult) (mkAppN xsF es)
+      let e ← reconstructTerm t
+      let α := b.getArg! 0
+      let p := b.getArg! 1
+      h := mkApp4 (.const ``Quant.smtForall_elim [← Meta.getLevel α]) α p h e
+      b := p.beta #[e]
+    addThm (← reconstructProofType pf.getResult) h
   | .ALPHA_EQUIV =>
     let t : Q(Bool) ← reconstructTerm pf.getResult[0]!
     addEqThm pf.getResult q(Eq.refl $t)
@@ -301,74 +282,46 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       let n := getVariableName x
       let α ← reconstructSort x.getSort!
       return .lam n α h .default
-    -- The propositions `∀ xs, ⟦F⟧ = true` and `∀ ys, ⟦F⟧ = true` of both sides.
-    let (p, hp) ← getDecide! (← reconstructTerm pf.getResult[0]!)
-    let (q, hq) ← getDecide! (← reconstructTerm pf.getResult[1]!)
-    let p : Q(Prop) ← pure p
-    let q : Q(Prop) ← pure q
-    let hp : Q(Decidable $p) ← pure hp
-    let hq : Q(Decidable $q) ← pure hq
+    -- The propositions `∀ xs, F` and `∀ ys, F` denoted by both sides.
+    let p : Q(Prop) ← reconstructProp pf.getResult[0]!
+    let q : Q(Prop) ← reconstructProp pf.getResult[1]!
     let hpq ← ys.foldrM f (mkAppN (.bvar js.size) is)
     let hpq : Q($p → $q) ← pure (.lam `hp p hpq .default)
     let hqp ← xs.foldrM f (mkAppN (.bvar is.size) js)
     let hqp : Q($q → $p) ← pure (.lam `hq q hqp .default)
-    addEqThm pf.getResult q(@Bool.decide_congr $p $q $hp $hq (propext ⟨$hpq, $hqp⟩))
+    addPropThm pf.getResult q(propext ⟨$hpq, $hqp⟩)
   | _ => return none
 where
   /-- Congruence for `(forall xs F) = (forall xs G)` (and `exists`) from a proof of `F = G` under
   the bound variables `xs`. -/
-  reconstructQuantCong (pf : cvc5.Proof) : ReconstructM Expr := do
-    let isForall := pf.getResult[0]!.getKind! == .FORALL
+  reconstructQuantCong (op : Name) (pf : cvc5.Proof) : ReconstructM Expr := do
     let mut xs := #[]
     for x in pf.getResult[0]![0]! do
       xs := xs.push (getVariableName x, fun _ => reconstructSort x.getSort!)
-    let (p, q, h) ← Meta.withLocalDeclsD xs fun xs => withNewTermCache <| withNewProofCache <| withAssums xs do
-      let b₁ : Q(Bool) ← reconstructTerm pf.getResult[0]![1]!
-      let b₂ : Q(Bool) ← reconstructTerm pf.getResult[1]![1]!
-      let h : Q($b₁ = $b₂) ← reconstructEqProof pf.getChildren[0]!
-      let h : Q(($b₁ = true) = ($b₂ = true)) := q(congrArg (· = true) $h)
-      let f := fun x (p, q, h) => do
-        let u ← Meta.getLevel (← Meta.inferType x)
-        let α : Q(Sort u) ← Meta.inferType x
-        let lp : Q($α → Prop) ← Meta.mkLambdaFVars #[x] p
-        let lq : Q($α → Prop) ← Meta.mkLambdaFVars #[x] q
-        let hx : Q(∀ x : $α, $lp x = $lq x) ← Meta.mkLambdaFVars #[x] h
-        if isForall then
-          let ap ← Meta.mkForallFVars #[x] p
-          let aq ← Meta.mkForallFVars #[x] q
-          return (ap, aq, q(forall_congr $hx))
-        else
-          let ep ← Meta.mkExistsFVars #[x] p
-          let eq ← Meta.mkExistsFVars #[x] q
-          return (ep, eq, q(Bool.exists_congr_eq $hx))
-      xs.foldrM f (q($b₁ = true), q($b₂ = true), h)
-    let p : Q(Prop) ← pure p
-    let q : Q(Prop) ← pure q
-    let h : Q($p = $q) ← pure h
-    let hp : Q(Decidable $p) ← mkDecidableInst p
-    let hq : Q(Decidable $q) ← mkDecidableInst q
-    addEqThm pf.getResult q(@Bool.decide_congr $p $q $hp $hq $h)
+    let (_, _, h) ← Meta.withLocalDeclsD xs fun xs => withNewTermCache <| withNewProofCache <| withAssums xs do
+      let b₁ ← reconstructTerm pf.getResult[0]![1]!
+      let b₂ ← reconstructTerm pf.getResult[1]![1]!
+      let h ← reconstructEqProof pf.getChildren[0]!
+      let f := fun x (b₁, b₂, h) => do
+        let α ← Meta.inferType x
+        let q := mkApp (.const op [← Meta.getLevel α]) α
+        let hq ← Meta.mkCongrArg q (← Meta.mkFunExt (← Meta.mkLambdaFVars #[x] h))
+        return (mkApp q (← Meta.mkLambdaFVars #[x] b₁), mkApp q (← Meta.mkLambdaFVars #[x] b₂), hq)
+      xs.foldrM f (b₁, b₂, h)
+    addEqThm pf.getResult h
   /-- From `(not (forall xs F))`, conclude `(not F[sk/xs])` with the skolems `sk` of `xs`. -/
   reconstructSkolemize (pf : cvc5.Proof) : ReconstructM Expr := do
     let chRes := pf.getChildren[0]!.getResult
     let es ← reconstructQuant.reconstructForallSkolems chRes[0]! (chRes[0]![0]!.getNumChildren - 1)
-    let (p, hp) ← getDecide! (← reconstructTerm chRes[0]!)
-    let p : Q(Prop) ← pure p
-    let hp : Q(Decidable $p) ← pure hp
-    let hnp : Q((!decide $p) = true) ← reconstructProof pf.getChildren[0]!
-    let hnp : Q(¬$p) := q(Eq.mp Bool.not_decide_eq_true_iff $hnp)
-    let f := fun h e => do
-      let u ← Meta.getLevel (e.getArg! 0)
-      let α : Q(Sort u) ← pure (e.getArg! 0)
-      let hα : Q(Nonempty $α) ← Meta.synthInstance q(Nonempty $α)
-      let .lam n _ (.app _ b) bi := e.getArg! 2 | throwError "[skolemize]: expected a predicate with a negated body: {e}"
-      let p : Q($α → Prop)  ← pure (.lam n α b bi)
-      let h : Q(¬∀ x, $p x) ← pure h
-      return q(@Classical.epsilon_spec_aux' $α $hα $p $h)
-    -- The last skolem gives a proof of `¬⟦F[sk/xs]⟧ = true`.
-    let h : Expr ← es.foldlM f hnp
-    let b : Q(Bool) ← reconstructTerm pf.getResult[0]!
-    let h : Q(¬$b = true) ← pure h
-    addThm (← reconstructProofType pf.getResult) q(Bool.not_eq_true_of_not $h)
+    let mut h ← reconstructProof pf.getChildren[0]!
+    let mut b ← reconstructTerm chRes[0]!
+    for e in es do
+      let α := b.getArg! 0
+      let p := b.getArg! 1
+      let u ← Meta.getLevel α
+      let hα ← Meta.synthInstance (mkApp (.const ``Nonempty [u]) α)
+      h := mkApp4 (.const ``Quant.smtForall_skolem [u]) α hα p h
+      b := p.beta #[e]
+    addThm (← reconstructProofType pf.getResult) h
 
 end Smt.Reconstruct.Quant

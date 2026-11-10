@@ -78,7 +78,7 @@ def smtCongrUF (mv : MVarId) (e₁ e₂ : Expr) (hs : Array Expr) : MetaM Unit :
   mv.assign h
 where
   /-- A proposition passed to a Lean function is an SMT-LIB Boolean `b`, reconstructed as `p` if `b`
-  is `decide p` and as `b = true` otherwise. Turn the proof `h : b₁ = b₂` of the equality of the
+  is `smtDecide p` and as `b = true` otherwise. Turn the proof `h : b₁ = b₂` of the equality of the
   Booleans into a proof of the equality of the propositions. -/
   propArgEq (α : Expr) (h : Expr) : MetaM Expr := do
     if !α.isProp then return h
@@ -87,14 +87,12 @@ where
     let b₁ : Q(Bool) ← pure b₁
     let b₂ : Q(Bool) ← pure b₂
     let h : Q($b₁ = $b₂) ← pure h
-    match b₁.app2? ``Decidable.decide, b₂.app2? ``Decidable.decide with
-    | some (p, hp), some (q, hq) =>
+    match b₁.app1? ``smtDecide, b₂.app1? ``smtDecide with
+    | some p, some q =>
       let p : Q(Prop) ← pure p
       let q : Q(Prop) ← pure q
-      let hp : Q(Decidable $p) ← pure hp
-      let hq : Q(Decidable $q) ← pure hq
-      let h : Q(@decide $p $hp = @decide $q $hq) ← pure h
-      return q(@Smt.Reconstruct.Bool.eq_of_decide_eq $p $q $hp $hq $h)
+      let h : Q(smtDecide $p = smtDecide $q) ← pure h
+      return q(Smt.Reconstruct.Bool.eq_of_smtDecide_eq $h)
     | _, _ => return q(congrArg (· = true) $h)
 
 def smtCongrLeftAssocOp (mv : MVarId) (op : Expr) (hs : Array Expr) : MetaM Unit := do
@@ -119,33 +117,23 @@ def smtCongrRightAssocOp (mv : MVarId) (op : Expr) (hs : Array Expr) : MetaM Uni
   let (_, _, h) ← hs[:hs.size - 1].foldrM f (y₁, y₂, hs[hs.size - 1]!)
   mv.assign h
 
-/-- Congruence for the Boolean atom `decide p`: prove `p = q` by congruence and lift it to
-`decide p = decide q`. -/
-partial def smtCongrDecide (mv : MVarId) (l r : Expr) (hs : Array Expr)
-    (smtCongr : MVarId → Array Expr → MetaM Unit) : MetaM Unit := do
-  let some (p, hp) := l.app2? ``Decidable.decide | throwError "[smt_congr]: expected `decide`: {l}"
-  let some (q, hq) := r.app2? ``Decidable.decide | throwError "[smt_congr]: expected `decide`: {r}"
-  let p : Q(Prop) ← pure p
-  let q : Q(Prop) ← pure q
-  let hp : Q(Decidable $p) ← pure hp
-  let hq : Q(Decidable $q) ← pure hq
-  let h : Q($p = $q) ← Meta.mkFreshExprMVar q($p = $q)
-  smtCongr h.mvarId! hs
-  mv.assign q(@Smt.Reconstruct.Bool.decide_congr $p $q $hp $hq $h)
-
 partial def smtCongr (mv : MVarId) (hs : Array Expr) : MetaM Unit := mv.withContext do
   let some (_, l, r) := (← mv.getType).eq? | throwError "[smt_congr]: target is not an equality: {← mv.getType}"
   if l.isArrow then
     smtCongrArrow mv hs
-  else if l.isAppOfArity ``Decidable.decide 2 then
-    -- SMT-LIB atoms, e.g., `(= a b)` and `(< a b)`, are reconstructed as `decide p`.
-    smtCongrDecide mv l r hs smtCongr
+  else if l.isAppOfArity ``smtDecide 1 then
+    -- Applications of Lean predicates `p a` are reconstructed as `smtDecide (p a)`.
+    let p : Q(Prop) ← pure l.appArg!
+    let q : Q(Prop) ← pure r.appArg!
+    let h : Q($p = $q) ← Meta.mkFreshExprMVar q($p = $q)
+    smtCongr h.mvarId! hs
+    mv.assign q(congrArg smtDecide $h)
   else if l.isAppOfArity ``not 1 && hs.size == 2 then
-    -- `(distinct a b)` is reconstructed as `!decide (a = b)`.
+    -- `(distinct a b)` is reconstructed as `!smtEq a b`.
     let b₁ : Q(Bool) ← pure l.appArg!
     let b₂ : Q(Bool) ← pure r.appArg!
     let h : Q($b₁ = $b₂) ← Meta.mkFreshExprMVar q($b₁ = $b₂)
-    smtCongr h.mvarId! hs
+    smtCongrUF h.mvarId! b₁ b₂ hs
     mv.assign q(congrArg not $h)
   else if l.isAppOf ``ite then
     smtCongrIte mv l r hs

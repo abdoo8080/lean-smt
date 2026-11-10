@@ -196,21 +196,33 @@ def findAssumWithType? (t : Expr) : ReconstructM (Option Expr) := do
       return some a
   return none
 
+open Qq in
 /-- The proposition denoted by the type `b = true` of a proof of an SMT formula, and a proof that
-they are equal (`none` if they are the same). Conditionals `cond (decide p) x y` in its terms are
-shown as `if p then x else y`. -/
+they are equal (`none` if they are the same). It is shown to users, so its conditionals `cond b x y`
+are shown as `if p then x else y`, where `p` is the proposition denoted by `b`. -/
 def propOfProofType (t : Expr) : MetaM (Expr × Option Expr) := do
   let (p, h₁?) ← match t.eq? with
     | some (α, b, v) => if α.isConstOf ``Bool && v.isConstOf ``Bool.true then Bool.toProp b else pure (t, none)
     | none => pure (t, none)
   if !(p.find? (·.isAppOfArity ``cond 4)).isSome then return (p, h₁?)
-  let thms ← ({} : Meta.SimpTheorems).addConst ``Bool.cond_decide
+  let mut thms : Meta.SimpTheorems := {}
+  for n in [``Bool.cond_eq_ite, ``Bool.ite_eq_true_distrib, ``Bool.not_eq_true', ``Bool.and_eq_true,
+            ``Bool.or_eq_true, ``smtDecide_eq_true, ``smtDecide_eq_false, ``smtEq_eq_true,
+            ``smtEq_eq_false, ``smtLt_eq_true, ``smtLt_eq_false, ``smtLe_eq_true, ``smtLe_eq_false,
+            ``smtGt_eq_true, ``smtGt_eq_false, ``smtGe_eq_true, ``smtGe_eq_false] do
+    thms ← thms.addConst n
   let ctx ← Meta.Simp.mkContext { beta := false, eta := false, proj := false, zeta := false } #[thms]
-  let (r, _) ← Meta.simp p ctx
-  let some h₂ := r.proof? | return (p, h₁?)
+    (← Meta.getSimpCongrTheorems)
+  -- Rewriting the condition `b = true` of `if b = true then x else y` to `p` needs an instance of
+  -- `Decidable p`, which need not exist (e.g., if `p` is a variable), so we decide `p` classically.
+  let (p', h₂?) ← Meta.withLocalDecl `inst .instImplicit q(∀ p : Prop, Decidable p) fun inst => do
+    let (r, _) ← Meta.simp p ctx
+    let classical e := (e.abstract #[inst]).instantiate1 (.const ``Classical.propDecidable [])
+    return (classical (← instantiateMVars r.expr), (classical <$> ·) <$> r.proof?.mapM instantiateMVars)
+  let some h₂ ← h₂? | return (p, h₁?)
   match h₁? with
-  | none => return (r.expr, some h₂)
-  | some h₁ => return (r.expr, some (← Meta.mkEqTrans h₁ h₂))
+  | none => return (p', some h₂)
+  | some h₁ => return (p', some (← Meta.mkEqTrans h₁ h₂))
 
 /-- Leave the goal `mv` for the user. The goal is stated over propositions (see `reconstructProp`),
 and abstracted over the assumptions in scope. -/
@@ -303,45 +315,33 @@ def addPropTac (t : cvc5.Term) (tac : MVarId → MetaM Unit) : ReconstructM Expr
   tac h.mvarId!
   addPropThm t h
 
-/-- Return the proposition `p` and the `Decidable p` instance of the Boolean atom `decide p`. -/
-def getDecide! (b : Expr) : MetaM (Expr × Expr) := do
-  let some (p, inst) := b.app2? ``Decidable.decide
-    | throwError "expected a Boolean atom of the form `decide p`, got{indentExpr b}"
-  return (p, inst)
+/-- Return the type `α` and the sides `a` and `b` of the Boolean atom `smtEq a b`. -/
+def getSmtEq! (b : Expr) : MetaM (Expr × Expr × Expr) := do
+  if !b.isAppOfArity ``smtEq 3 then
+    throwError "expected an equality `smtEq a b`, got{indentExpr b}"
+  return (b.getArg! 0, b.getArg! 1, b.getArg! 2)
 
-open Qq in
 /-- A proof of `a = b` from the proof `pf` of the SMT formula `(= a b)`, which is a proof of
-`decide (a = b) = true`. -/
+`smtEq a b = true`. -/
 def reconstructEqProof (pf : cvc5.Proof) : ReconstructM Expr := do
   let h ← reconstructProof pf
-  let (p, inst) ← getDecide! (← reconstructTerm pf.getResult)
-  let p : Q(Prop) ← pure p
-  let inst : Q(Decidable $p) ← pure inst
-  let h : Q(decide $p = true) ← pure h
-  return q(@of_decide_eq_true $p $inst $h)
+  let (α, a, b) ← getSmtEq! (← reconstructTerm pf.getResult)
+  return mkApp4 (.const ``eq_of_smtEq [← Meta.getLevel α]) α a b h
 
-open Qq in
-/-- Prove `a = b` with the tactic `tac` and add it as a proof of the SMT formula `t = (= a b)`, i.e.,
-of `decide (a = b) = true`. -/
-def addEqTac (t : cvc5.Term) (tac : MVarId → MetaM Unit) : ReconstructM Expr := do
-  let b : Q(Bool) ← reconstructTerm t
-  let (p, inst) ← getDecide! b
-  let p : Q(Prop) ← pure p
-  let inst : Q(Decidable $p) ← pure inst
-  let h : Q($p) ← Meta.mkFreshExprMVar p
-  tac h.mvarId!
-  addThm q($b = true) q(@decide_eq_true $p $inst $h)
-
-open Qq in
 /-- Add the proof `h` of `a = b` as a proof of the SMT formula `t = (= a b)`, i.e., of
-`decide (a = b) = true`. -/
+`smtEq a b = true`. -/
 def addEqThm (t : cvc5.Term) (h : Expr) : ReconstructM Expr := do
-  let b : Q(Bool) ← reconstructTerm t
-  let (p, inst) ← getDecide! b
-  let p : Q(Prop) ← pure p
-  let inst : Q(Decidable $p) ← pure inst
-  let h : Q($p) ← pure h
-  addThm q($b = true) q(@decide_eq_true $p $inst $h)
+  let e ← reconstructTerm t
+  let (α, a, b) ← getSmtEq! e
+  addThm (← Meta.mkEq e (.const ``Bool.true [])) (mkApp4 (.const ``smtEq_of_eq [← Meta.getLevel α]) α a b h)
+
+/-- Prove `a = b` with the tactic `tac` and add it as a proof of the SMT formula `t = (= a b)`, i.e.,
+of `smtEq a b = true`. -/
+def addEqTac (t : cvc5.Term) (tac : MVarId → MetaM Unit) : ReconstructM Expr := do
+  let (_, a, b) ← getSmtEq! (← reconstructTerm t)
+  let h ← Meta.mkFreshExprMVar (← Meta.mkEq a b)
+  tac h.mvarId!
+  addEqThm t h
 
 end Reconstruct
 
@@ -514,7 +514,7 @@ open Qq in
       `andN (b :: c :: bs) = b && andN (c :: bs)`.
     * `Bool.smtImp a b` is the Boolean implication `!a || b`.
     * `ds` is the list of user-supplied definitions from the query, in source order. Each
-      `(define-fun f (x₁ … xₙ) τ b)` contributes the conjunct `decide (f = fun x₁ … xₙ => b)`.
+      `(define-fun f (x₁ … xₙ) τ b)` contributes the conjunct `smtEq f (fun x₁ … xₙ => b)`.
     * `as` is the list of assertions from the query, in the order they appear (one entry per
       `(assert φ)`).
 

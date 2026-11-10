@@ -9,8 +9,6 @@ module
 
 public import Lean.Meta.Basic
 public meta import Lean.Meta.Basic
-public import Lean.Meta.SynthInstance
-public meta import Lean.Meta.SynthInstance
 public import Qq
 public meta import Qq
 public import Smt.Reconstruct.Bool.Core
@@ -18,29 +16,9 @@ public meta import Smt.Reconstruct.Bool.Core
 
 public meta section
 
-namespace Smt
+namespace Smt.Reconstruct.Bool
 
 open Lean Qq
-
-/-- The canonical Boolean reflection of the proposition `p`: `decide p` with the `Decidable`
-instance found by type class resolution, or `Classical.propDecidable p` if there is none.
-Preprocessing and reconstruction both build atoms with this function, so that the formulas
-reconstructed from cvc5's proofs are syntactically equal to the hypotheses they come from. -/
-def mkDecide (p : Expr) : MetaM Expr := do
-  return mkApp2 (mkConst ``Decidable.decide) p (← mkDecidableInst p)
-where
-  /-- The `Decidable p` instance of `mkDecide p`. -/
-  mkDecidableInst (p : Expr) : MetaM Expr := do
-    let inst? ← try Meta.synthInstance? (mkApp (mkConst ``Decidable) p) catch _ => pure none
-    return inst?.getD (mkApp (mkConst ``Classical.propDecidable) p)
-
-/-- The `Decidable p` instance of the canonical Boolean reflection `mkDecide p` of `p`. -/
-def mkDecidableInst (p : Expr) : MetaM Expr :=
-  mkDecide.mkDecidableInst p
-
-namespace Reconstruct.Bool
-
-mutual
 
 /-- Return the proposition `p` denoted by the Boolean formula `b` (see the table in
 `Smt.Reconstruct.Bool.Core`) and a proof of `(b = true) = p`. The proof is `none` if `p` is
@@ -68,26 +46,54 @@ partial def toProp (b : Expr) : MetaM (Expr × Option Expr) := do
   if let some (x, y) := b.app2? ``Bool.smtImp then
     let ⟨_, _, p, q, hx, hy⟩ ← binary x y
     return (q($p → $q), some q(smtImp_eq_true_eq $hx $hy))
-  if b.isAppOfArity ``cond 4 && (b.getArg! 0).isConstOf ``Bool then
-    let c : Q(Bool) ← pure (b.getArg! 1)
-    let ⟨x, y, q, r, hx, hy⟩ ← binary (b.getArg! 2) (b.getArg! 3)
-    let (p, hc) ← toProp c
+  if let some p := b.app1? ``smtDecide then
     let p : Q(Prop) ← pure p
-    let hc : Q(($c = true) = $p) ← pure (hc.getD q(Eq.refl ($c = true)))
-    let inst : Q(Decidable $p) ← mkDecidableInst p
-    return (q(@ite Prop $p $inst $q $r), some q(@cond_eq_true_eq $c $x $y $p $q $r $inst $hc $hx $hy))
-  if let some (p, inst) := b.app2? ``Decidable.decide then
-    if let some (α, x, y) := p.eq? then
-      if α.isConstOf ``Bool then
-        let ⟨x, y, p, q, hx, hy⟩ ← binary x y
-        let inst : Q(Decidable ($x = $y)) ← pure inst
-        return (q($p = $q), some q(@decide_eq_eq_true_eq $p $q $x $y $inst $hx $hy))
-    let p : Q(Prop) ← pure p
-    let inst : Q(Decidable $p) ← pure inst
-    let (q, h?) ← toPropP p
-    let q : Q(Prop) ← pure q
-    let h : Q($p = $q) ← pure (h?.getD q(Eq.refl $p))
-    return (q, some q(@decide_eq_true_eq_of_eq $p $q $inst $h))
+    return (p, some q(@smtDecide_eq_true $p))
+  if b.isAppOfArity ``smtEq 3 then
+    let α := b.getArg! 0
+    let (x, y) := (b.getArg! 1, b.getArg! 2)
+    if α.isConstOf ``Bool then
+      let ⟨_, _, p, q, hx, hy⟩ ← binary x y
+      return (q($p = $q), some q(smtEq_bool_eq_true_eq $hx $hy))
+    let u ← Meta.getLevel α
+    return (← Meta.mkEq x y, some (mkApp3 (.const ``smtEq_eq_true [u]) α x y))
+  if b.isAppOfArity ``smtLt 4 then
+    let #[α, inst, x, y] := b.getAppArgs | unreachable!
+    let u ← Meta.getDecLevel α
+    return (mkApp4 (.const ``LT.lt [u]) α inst x y, some (mkApp4 (.const ``smtLt_eq_true [u]) α x y inst))
+  if b.isAppOfArity ``smtLe 4 then
+    let #[α, inst, x, y] := b.getAppArgs | unreachable!
+    let u ← Meta.getDecLevel α
+    return (mkApp4 (.const ``LE.le [u]) α inst x y, some (mkApp4 (.const ``smtLe_eq_true [u]) α x y inst))
+  if b.isAppOfArity ``smtGt 4 then
+    let #[α, inst, x, y] := b.getAppArgs | unreachable!
+    let u ← Meta.getDecLevel α
+    return (mkApp4 (.const ``GT.gt [u]) α inst x y, some (mkApp4 (.const ``smtGt_eq_true [u]) α x y inst))
+  if b.isAppOfArity ``smtGe 4 then
+    let #[α, inst, x, y] := b.getAppArgs | unreachable!
+    let u ← Meta.getDecLevel α
+    return (mkApp4 (.const ``GE.ge [u]) α inst x y, some (mkApp4 (.const ``smtGe_eq_true [u]) α x y inst))
+  if b.isAppOfArity ``smtForall 2 || b.isAppOfArity ``smtExists 2 then
+    let α := b.getArg! 0
+    let u ← Meta.getLevel α
+    let f := b.getArg! 1
+    let (n, bi) := match f with
+      | .lam n _ _ bi => (n, bi)
+      | _ => (`x, .default)
+    return ← Meta.withLocalDecl n bi α fun x => do
+      let fx := f.beta #[x]
+      let (p, h?) ← toProp fx
+      let h ← match h? with
+        | some h => pure h
+        | none => Meta.mkEqRefl (← Meta.mkEq fx q(true))
+      let lp ← Meta.mkLambdaFVars #[x] p
+      let hx ← Meta.mkLambdaFVars #[x] h
+      if b.isAppOfArity ``smtForall 2 then
+        return (← Meta.mkForallFVars #[x] p,
+                some (mkAppN (.const ``smtForall_eq_true_eq [u]) #[α, f, lp, hx]))
+      else
+        return (mkApp2 (.const ``Exists [u]) α lp,
+                some (mkAppN (.const ``smtExists_eq_true_eq [u]) #[α, f, lp, hx]))
   return (← Meta.mkEq b q(true), none)
 where
   binary (x y : Expr) :
@@ -98,39 +104,5 @@ where
     let (p, hx) ← toProp x
     let (q, hy) ← toProp y
     return ⟨x, y, p, q, hx.getD q(Eq.refl ($x = true)), hy.getD q(Eq.refl ($y = true))⟩
-
-/-- Return the proposition denoted by the proposition `p`, which is `b = true` or a quantifier
-over such propositions, and a proof that they are equal (`none` if they are the same). -/
-partial def toPropP (p : Expr) : MetaM (Expr × Option Expr) := do
-  if let some (α, b, t) := p.eq? then
-    if α.isConstOf ``Bool && t.isConstOf ``Bool.true then
-      return ← toProp b
-  match p with
-  | .forallE n t r bi =>
-    -- Reconstructed quantifiers are over SMT-LIB sorts, so this is a quantifier (possibly over an
-    -- unused variable) rather than an implication.
-    Meta.withLocalDecl n bi t fun x => do
-      let (q, h?) ← toPropP (r.instantiate1 x)
-      let some h := h? | return (p, none)
-      let u ← Meta.getLevel t
-      let lp ← Meta.mkLambdaFVars #[x] (r.instantiate1 x)
-      let lq ← Meta.mkLambdaFVars #[x] q
-      let hx ← Meta.mkLambdaFVars #[x] h
-      let q' ← Meta.mkForallFVars #[x] q
-      return (q', some (mkApp4 (.const ``forall_congr [u]) t lp lq hx))
-  | _ =>
-    if let some (α, lp) := p.app2? ``Exists then
-      let .lam n t r bi := lp | return (p, none)
-      return ← Meta.withLocalDecl n bi t fun x => do
-        let (q, h?) ← toPropP (r.instantiate1 x)
-        let some h := h? | return (p, none)
-        let u ← Meta.getLevel α
-        let lq ← Meta.mkLambdaFVars #[x] q
-        let hx ← Meta.mkLambdaFVars #[x] h
-        return (mkApp2 (.const ``Exists [u]) α lq,
-                some (mkApp4 (.const ``exists_congr_eq [u]) α lp lq hx))
-    return (p, none)
-
-end
 
 end Smt.Reconstruct.Bool

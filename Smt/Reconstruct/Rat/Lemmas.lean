@@ -7,6 +7,7 @@ Authors: Tomaz Gomes Mascarenhas, Abdalrhman Mohamed
 
 module
 
+public import Smt.Reconstruct.Bool.Core
 public import Smt.Reconstruct.Int.Core
 public import Smt.Reconstruct.Rat.Core
 
@@ -226,17 +227,14 @@ theorem trichotomy₅ (h₁ : a ≥ b) (h₂ : a ≤ b) : a = b := by
 theorem trichotomy₆ (h₁ : a ≥ b) (h₂ : a ≠ b) : a > b := by
   exact trichotomy₃ (Ne.symm h₂) h₁
 
-theorem abs_elim_cond {x : Rat} {h : Decidable (x < 0)} : x.abs = cond (@decide (x < 0) h) (-x) x := by
-  unfold Rat.abs
-  cases h with
-  | isTrue h => simp [h, Rat.not_le.mpr h]
-  | isFalse h => simp [h, Rat.not_lt.mp h]
-
 theorem abs_elim {x : Rat} : x.abs = if x < 0 then -x else x := by
   unfold Rat.abs
   by_cases h : x < 0
   · rw [ite_eq_left h, ite_eq_right (Rat.not_le.mpr h)]
   · rw [ite_eq_right h, ite_eq_left (Rat.not_lt.mp h)]
+
+theorem abs_elim_cond {x : Rat} : x.abs = cond (smtLt x 0) (-x) x := by
+  rw [smtLt_eq_decide, Bool.cond_decide]; exact abs_elim
 
 theorem abs_eq {a b : Rat} (hb : 0 ≤ b) : a.abs = b ↔ a = b ∨ a = -b := by
   rewrite [abs_elim]

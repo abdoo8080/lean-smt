@@ -15,9 +15,13 @@ public import Smt.Reconstruct.Prop.Core
 # Booleans as the target of proof reconstruction
 
 SMT-LIB's `Bool` sort is reconstructed as Lean's `Bool`, and a proof of an SMT formula `φ` is a
-proof of `⟦φ⟧ = true`. This file defines the Boolean operators that Lean lacks, and the lemmas that
-relate a Boolean formula `b` to the proposition `p` with `(b = true) = p` that the theory-specific
-reconstruction (arithmetic, bit-vectors, …) reasons about.
+proof of `⟦φ⟧ = true`. This file defines the SMT-LIB operators that Lean lacks as Boolean
+functions, and the lemmas that relate a Boolean formula `b` to the proposition `p` with
+`(b = true) = p` that the theory-specific reconstruction (arithmetic, bit-vectors, …) reasons about.
+
+SMT-LIB's `=`, `<`, `<=`, `>`, `>=`, `forall`, and `exists` are `smtEq`, `smtLt`, `smtLe`, `smtGt`,
+`smtGe`, `smtForall`, and `smtExists`, and other atoms whose Lean counterparts are propositions are
+`smtDecide p`. They decide their propositions classically, so they carry no `Decidable` instances.
 
 The proposition associated with a Boolean formula mirrors its structure:
 
@@ -29,13 +33,89 @@ The proposition associated with a Boolean formula mirrors its structure:
 | `b₁ \|\| b₂`        | `p₁ ∨ p₂`           |
 | `xor b₁ b₂`         | `XOr p₁ p₂`         |
 | `b₁.smtImp b₂`      | `p₁ → p₂`           |
-| `cond c b₁ b₂`      | `ite p p₁ p₂`       |
-| `decide (b₁ = b₂)`  | `p₁ = p₂`           |
-| `decide (∀ x, b x = true)` | `∀ x, p x`   |
-| `decide (∃ x, b x = true)` | `∃ x, p x`   |
-| `decide q`          | `q`                 |
+| `smtEq b₁ b₂`       | `p₁ = p₂`           |
+| `smtEq x y`         | `x = y`             |
+| `smtLt x y`, …      | `x < y`, …          |
+| `smtForall b`       | `∀ x, p x`          |
+| `smtExists b`       | `∃ x, p x`          |
+| `smtDecide q`       | `q`                 |
 | other `b`           | `b = true`          |
 -/
+
+universe u
+
+/-- `true` iff the proposition `p` holds. Atoms whose Lean counterparts are propositions without an
+SMT operator below, e.g., applications of Lean predicates, are reconstructed as `smtDecide p`. -/
+noncomputable def smtDecide (p : Prop) : Bool := @decide p (Classical.propDecidable p)
+
+/-- SMT-LIB's `=`. -/
+noncomputable def smtEq {α : Sort u} (a b : α) : Bool := smtDecide (a = b)
+
+/-- SMT-LIB's `<`, and `bvult`. -/
+noncomputable def smtLt {α : Type u} [LT α] (a b : α) : Bool := smtDecide (a < b)
+
+/-- SMT-LIB's `<=`, and `bvule`. -/
+noncomputable def smtLe {α : Type u} [LE α] (a b : α) : Bool := smtDecide (a ≤ b)
+
+/-- SMT-LIB's `>`, and `bvugt`. -/
+noncomputable def smtGt {α : Type u} [LT α] (a b : α) : Bool := smtDecide (a > b)
+
+/-- SMT-LIB's `>=`, and `bvuge`. -/
+noncomputable def smtGe {α : Type u} [LE α] (a b : α) : Bool := smtDecide (a ≥ b)
+
+/-- SMT-LIB's `forall` over one variable. `(forall ((x T) (y U)) F)` is `smtForall fun x => smtForall
+fun y => F`. -/
+noncomputable def smtForall {α : Sort u} (p : α → Bool) : Bool := smtDecide (∀ x, p x = true)
+
+/-- SMT-LIB's `exists` over one variable. -/
+noncomputable def smtExists {α : Sort u} (p : α → Bool) : Bool := smtDecide (∃ x, p x = true)
+
+section
+
+variable {p q : Prop} {α : Sort u} {β : Type u} {a b : α} {x y : β}
+
+@[simp] theorem smtDecide_eq_true : (smtDecide p = true) = p := by simp [smtDecide]
+@[simp] theorem smtEq_eq_true : (smtEq a b = true) = (a = b) := smtDecide_eq_true
+@[simp] theorem smtLt_eq_true [LT β] : (smtLt x y = true) = (x < y) := smtDecide_eq_true
+@[simp] theorem smtLe_eq_true [LE β] : (smtLe x y = true) = (x ≤ y) := smtDecide_eq_true
+@[simp] theorem smtGt_eq_true [LT β] : (smtGt x y = true) = (x > y) := smtDecide_eq_true
+@[simp] theorem smtGe_eq_true [LE β] : (smtGe x y = true) = (x ≥ y) := smtDecide_eq_true
+@[simp] theorem smtForall_eq_true {f : α → Bool} : (smtForall f = true) = ∀ x, f x = true :=
+  smtDecide_eq_true
+@[simp] theorem smtExists_eq_true {f : α → Bool} : (smtExists f = true) = ∃ x, f x = true :=
+  smtDecide_eq_true
+
+@[simp] theorem smtDecide_eq_false : (smtDecide p = false) = ¬p := by simp [smtDecide]
+@[simp] theorem smtEq_eq_false : (smtEq a b = false) = ¬(a = b) := smtDecide_eq_false
+@[simp] theorem smtLt_eq_false [LT β] : (smtLt x y = false) = ¬(x < y) := smtDecide_eq_false
+@[simp] theorem smtLe_eq_false [LE β] : (smtLe x y = false) = ¬(x ≤ y) := smtDecide_eq_false
+@[simp] theorem smtGt_eq_false [LT β] : (smtGt x y = false) = ¬(x > y) := smtDecide_eq_false
+@[simp] theorem smtGe_eq_false [LE β] : (smtGe x y = false) = ¬(x ≥ y) := smtDecide_eq_false
+@[simp] theorem smtForall_eq_false {f : α → Bool} : (smtForall f = false) = ¬∀ x, f x = true :=
+  smtDecide_eq_false
+@[simp] theorem smtExists_eq_false {f : α → Bool} : (smtExists f = false) = ¬∃ x, f x = true :=
+  smtDecide_eq_false
+
+theorem eq_of_smtEq (h : smtEq a b = true) : a = b := Eq.mp smtEq_eq_true h
+theorem smtEq_of_eq (h : a = b) : smtEq a b = true := Eq.mpr smtEq_eq_true h
+
+theorem decide_eq_smtDecide {h : Decidable p} : @decide p h = smtDecide p := by
+  unfold smtDecide; congr
+
+/-! The operators of decidable propositions evaluate to their decisions. -/
+
+theorem smtDecide_eq_decide [Decidable p] : smtDecide p = decide p := decide_eq_smtDecide.symm
+theorem smtEq_eq_decide [Decidable (a = b)] : smtEq a b = decide (a = b) := smtDecide_eq_decide
+theorem smtLt_eq_decide [LT β] [Decidable (x < y)] : smtLt x y = decide (x < y) :=
+  smtDecide_eq_decide
+theorem smtLe_eq_decide [LE β] [Decidable (x ≤ y)] : smtLe x y = decide (x ≤ y) :=
+  smtDecide_eq_decide
+theorem smtGt_eq_decide [LT β] [Decidable (x > y)] : smtGt x y = decide (x > y) :=
+  smtDecide_eq_decide
+theorem smtGe_eq_decide [LE β] [Decidable (x ≥ y)] : smtGe x y = decide (x ≥ y) :=
+  smtDecide_eq_decide
+
+end
 
 namespace Bool
 
@@ -126,16 +206,20 @@ theorem smtImp_eq_true_eq {b₁ b₂ : Bool} (h₁ : (b₁ = true) = p₁) (h₂
     ((b₁.smtImp b₂) = true) = (p₁ → p₂) := by
   subst h₁ h₂; simp
 
-theorem decide_eq_true_eq_of_eq {p q : Prop} [Decidable p] (h : p = q) : (decide p = true) = q :=
-  h ▸ decide_eq_true_eq
+theorem smtDecide_eq_true_eq {p q : Prop} (h : p = q) : (smtDecide p = true) = q :=
+  h ▸ smtDecide_eq_true
 
-theorem decide_eq_eq_true_eq {b₁ b₂ : Bool} [Decidable (b₁ = b₂)]
-    (h₁ : (b₁ = true) = p₁) (h₂ : (b₂ = true) = p₂) : (decide (b₁ = b₂) = true) = (p₁ = p₂) := by
+theorem smtEq_bool_eq_true_eq {b₁ b₂ : Bool} (h₁ : (b₁ = true) = p₁) (h₂ : (b₂ = true) = p₂) :
+    (smtEq b₁ b₂ = true) = (p₁ = p₂) := by
   subst h₁ h₂; cases b₁ <;> cases b₂ <;> simp
 
-theorem cond_eq_true_eq {c x y : Bool} {p q r : Prop} [Decidable p] (hc : (c = true) = p) (hx : (x = true) = q)
-    (hy : (y = true) = r) : (cond c x y = true) = ite p q r := by
-  subst hc hx hy; cases c <;> simp
+theorem smtForall_eq_true_eq {α : Sort u} {f : α → Bool} {p : α → Prop}
+    (h : ∀ x, (f x = true) = p x) : (smtForall f = true) = ∀ x, p x := by
+  simp only [smtForall_eq_true]; exact forall_congr h
+
+theorem smtExists_eq_true_eq {α : Sort u} {f : α → Bool} {p : α → Prop}
+    (h : ∀ x, (f x = true) = p x) : (smtExists f = true) = ∃ x, p x := by
+  simp only [smtExists_eq_true]; exact propext (exists_congr (h · ▸ Iff.rfl))
 
 theorem exists_congr_eq {p q : α → Prop} (h : ∀ a, p a = q a) : (∃ a, p a) = (∃ a, q a) :=
   propext (exists_congr (h · ▸ Iff.rfl))

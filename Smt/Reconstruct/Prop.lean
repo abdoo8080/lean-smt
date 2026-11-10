@@ -293,9 +293,7 @@ def reconstructChainResolution (cs as : Array cvc5.Term) (ps : Array Expr) : Rec
     let c : Q(Bool) ← reconstructTerm pf.getArguments[0]![0]!
     let x : Q($α) ← reconstructTerm pf.getArguments[0]![1]!
     let y : Q($α) ← reconstructTerm pf.getArguments[0]![2]!
-    let h₁ : Q(Decidable (cond $c $x $y = $x)) ← mkDecidableInst q(cond $c $x $y = $x)
-    let h₂ : Q(Decidable (cond $c $x $y = $y)) ← mkDecidableInst q(cond $c $x $y = $y)
-    addThm (← reconstructProofType pf.getResult) q(@Bool.ite_eq $α $c $x $y $h₁ $h₂)
+    addThm (← reconstructProofType pf.getResult) q(@Bool.ite_eq $α $c $x $y)
   | .RESOLUTION =>
     let p := pf.getArguments[0]!
     let l := pf.getArguments[1]!
@@ -387,22 +385,22 @@ def reconstructChainResolution (cs as : Array cvc5.Term) (ps : Array Expr) : Rec
   | .EQUIV_ELIM1 =>
     let p : Q(Bool) ← reconstructTerm pf.getResult[0]![0]!
     let q : Q(Bool) ← reconstructTerm pf.getResult[1]!
-    let hpq : Q(decide ($p = $q) = true) ← reconstructProof pf.getChildren[0]!
+    let hpq : Q(smtEq $p $q = true) ← reconstructProof pf.getChildren[0]!
     addThm (← reconstructProofType pf.getResult) q(Bool.equiv_elim1 $hpq)
   | .EQUIV_ELIM2 =>
     let p : Q(Bool) ← reconstructTerm pf.getResult[0]!
     let q : Q(Bool) ← reconstructTerm pf.getResult[1]![0]!
-    let hpq : Q(decide ($p = $q) = true) ← reconstructProof pf.getChildren[0]!
+    let hpq : Q(smtEq $p $q = true) ← reconstructProof pf.getChildren[0]!
     addThm (← reconstructProofType pf.getResult) q(Bool.equiv_elim2 $hpq)
   | .NOT_EQUIV_ELIM1 =>
     let p : Q(Bool) ← reconstructTerm pf.getResult[0]!
     let q : Q(Bool) ← reconstructTerm pf.getResult[1]!
-    let hnpq : Q((!decide ($p = $q)) = true) ← reconstructProof pf.getChildren[0]!
+    let hnpq : Q((!smtEq $p $q) = true) ← reconstructProof pf.getChildren[0]!
     addThm (← reconstructProofType pf.getResult) q(Bool.not_equiv_elim1 $hnpq)
   | .NOT_EQUIV_ELIM2 =>
     let p : Q(Bool) ← reconstructTerm pf.getResult[0]![0]!
     let q : Q(Bool) ← reconstructTerm pf.getResult[1]![0]!
-    let hnpq : Q((!decide ($p = $q)) = true) ← reconstructProof pf.getChildren[0]!
+    let hnpq : Q((!smtEq $p $q) = true) ← reconstructProof pf.getChildren[0]!
     addThm (← reconstructProofType pf.getResult) q(Bool.not_equiv_elim2 $hnpq)
   | .XOR_ELIM1 =>
     let p : Q(Bool) ← reconstructTerm pf.getResult[0]!
@@ -492,7 +490,7 @@ def reconstructChainResolution (cs as : Array cvc5.Term) (ps : Array Expr) : Rec
     addThm (← reconstructProofType pf.getResult) q(Bool.true_intro $hp)
   | .TRUE_ELIM =>
     let p : Q(Bool) ← reconstructTerm pf.getResult
-    let hp : Q(decide ($p = true) = true) ← reconstructProof pf.getChildren[0]!
+    let hp : Q(smtEq $p true = true) ← reconstructProof pf.getChildren[0]!
     addThm q($p = true) q(Bool.true_elim $hp)
   | .FALSE_INTRO =>
     let p : Q(Bool) ← reconstructTerm pf.getResult[0]!
@@ -500,7 +498,7 @@ def reconstructChainResolution (cs as : Array cvc5.Term) (ps : Array Expr) : Rec
     addThm (← reconstructProofType pf.getResult) q(Bool.false_intro $hnp)
   | .FALSE_ELIM =>
     let p : Q(Bool) ← reconstructTerm pf.getResult[0]!
-    let hnp : Q(decide ($p = false) = true) ← reconstructProof pf.getChildren[0]!
+    let hnp : Q(smtEq $p false = true) ← reconstructProof pf.getChildren[0]!
     addThm (← reconstructProofType pf.getResult) q(Bool.false_elim $hnp)
   | _ => return none
 

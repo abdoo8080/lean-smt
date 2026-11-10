@@ -7,6 +7,7 @@ Authors: Tomaz Gomes Mascarenhas
 
 module
 
+public import Smt.Reconstruct.Bool.Core
 public import Smt.Reconstruct.Prop.Core
 
 @[expose] public section
@@ -86,29 +87,34 @@ theorem var_elim_eq_or {t : α} {p : α → Prop} : (∀ x, x ≠ t ∨ p x) = p
     (fun hpx => (hpx t).resolve_left (absurd rfl ·))
     (fun hpt x => (Classical.em (x = t)).elim (Or.inr $ · ▸ hpt) (Or.inl ·))
 
-/-! Variable elimination over Boolean formulas. The `Decidable (x = t)` instances `hx` of the atoms
-`decide (x = t)` are those of the reconstructed formulas. -/
+/-! ### Quantifiers over Boolean formulas -/
 
-theorem var_elim_eq_bool {t : α} {hx : ∀ x, Decidable (x = t)}
-    {h : Decidable (∀ x, (!@decide (x = t) (hx x)) = true)} :
-    @decide (∀ x, (!@decide (x = t) (hx x)) = true) h = false := by
-  simp only [decide_eq_false_iff_not]
-  intro h'
-  have := h' t
-  simp_all
+theorem smtForall_elim {α : Sort u} {p : α → Bool} (h : smtForall p = true) (x : α) : p x = true :=
+  (smtForall_eq_true ▸ h) x
 
-theorem var_elim_eq_or_bool {t : α} {b : α → Bool} {hx : ∀ x, Decidable (x = t)}
-    {h : Decidable (∀ x, (!@decide (x = t) (hx x) || b x) = true)} :
-    @decide (∀ x, (!@decide (x = t) (hx x) || b x) = true) h = b t := by
-  cases hbt : b t
-  · simp only [decide_eq_false_iff_not]
-    intro h'
-    have := h' t
-    simp_all
-  · simp only [decide_eq_true_eq]
-    intro x
-    by_cases hxt : x = t
-    · subst hxt; simp [hbt]
-    · simp [hxt]
+theorem smtForall_skolem {α : Sort u} [h : Nonempty α] {p : α → Bool} (hp : (!smtForall p) = true) :
+    (!p (@Classical.epsilon α h (fun x => ¬p x = true))) = true := by
+  have hp : ¬∀ x, p x = true := fun h' => by simp [Eq.mpr smtForall_eq_true h'] at hp
+  have hx : ∃ x, ¬p x = true := Classical.not_forall.mp hp
+  simpa using Classical.epsilon_spec hx
+
+open Classical in
+theorem var_elim_eq_bool {α : Sort u} {t : α} : smtForall (fun x => !smtEq x t) = false := by
+  rw [Bool.eq_false_iff]
+  intro h
+  simpa [smtEq_eq_decide] using smtForall_elim h t
+
+open Classical in
+theorem var_elim_eq_or_bool {α : Sort u} {t : α} {b : α → Bool} :
+    smtForall (fun x => !smtEq x t || b x) = b t := by
+  apply Bool.eq_iff_iff.mpr
+  rw [smtForall_eq_true]
+  constructor
+  · intro h
+    simpa [smtEq_eq_decide] using h t
+  · intro h x
+    by_cases hx : x = t
+    · subst hx; simp [h]
+    · simp [smtEq_eq_decide, hx]
 
 end Smt.Reconstruct.Quant

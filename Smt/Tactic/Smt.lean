@@ -180,8 +180,8 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
     let (vs', _) ← (vs.mapM Reconstruct.reconstructTerm).run ctx state
     -- Show the values of propositional symbols as propositions.
     let ufvs ← (ufs'.zip vs').mapM fun (uf, v) => do
-      let uf := match uf.app2? ``Decidable.decide with
-        | some (p, _) => p
+      let uf := match uf.app1? ``smtDecide with
+        | some p => p
         | none => uf
       let v ← propValue (← Meta.inferType uf) v
       return ((map[uf]?.getD #[uf])[0]?.getD uf, v)
@@ -190,13 +190,14 @@ where
   /-- Turn the value `v` of a symbol of type `ty` into a proposition if `ty` is `Prop`, and likewise
   for the arguments and results of functions. -/
   propValue (ty v : Expr) : MetaM Expr := do
-    if ty.isProp then return (← Reconstruct.Bool.toProp v).1
+    if ty.isProp then
+      return (← Reconstruct.propOfProofType (← Meta.mkEq v (.const ``Bool.true []))).1
     if !(ty.find? (·.isProp)).isSome then return v
     let .forallE _ α β _ := ty | return v
     if β.hasLooseBVars then return v
     let .lam n _ _ bi := v | return v
     Meta.withLocalDecl n bi α fun x => do
-      let arg ← if α.isProp then mkDecide x else pure x
+      let arg := if α.isProp then mkApp (.const ``smtDecide []) x else x
       Meta.mkLambdaFVars #[x] (← propValue β (v.beta #[arg]))
 
 namespace Tactic

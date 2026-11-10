@@ -46,10 +46,10 @@ def getFVarOrConstExpr! (n : String) : ReconstructM Expr := do
     else
       return none
 
-/-- The proposition `p` of the Boolean atom `decide p`, and `b = true` for other Booleans `b`. Used
-to pass an SMT-LIB argument of sort `Bool` to a Lean function that takes a proposition. -/
+/-- The proposition `p` of the Boolean atom `smtDecide p`, and `b = true` for other Booleans `b`.
+Used to pass an SMT-LIB argument of sort `Bool` to a Lean function that takes a proposition. -/
 def ofBool (b : Expr) : MetaM Expr := do
-  if let some (p, _) := b.app2? ``Decidable.decide then return p
+  if let some p := b.app1? ``smtDecide then return p
   Meta.mkEq b (.const ``Bool.true [])
 
 @[smt_term_reconstruct] def reconstructUF : TermReconstructor := fun t => do match t.getKind! with
@@ -62,7 +62,7 @@ def ofBool (b : Expr) : MetaM Expr := do
         | .forallE _ d _ _ => if d.isProp then ofBool arg else pure arg
         | _ => pure arg
       curr := .app curr arg
-    if (← Meta.inferType curr).isProp then mkDecide curr else return curr
+    if (← Meta.inferType curr).isProp then return mkApp (.const ``smtDecide []) curr else return curr
   | .UNINTERPRETED_SORT_VALUE =>
     let some n := (← read).sortCard[t.getSort!]? | throwError "unknown sort {t.getSort!}"
     let s := t.toString
@@ -89,35 +89,26 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   | .EQ_REFL =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
     let t : Q($α) ← reconstructTerm pf.getArguments[1]!
-    let h : Q(Decidable ($t = $t)) ← mkDecidableInst q($t = $t)
-    addEqThm pf.getResult q(@Bool.eq_refl $α $t $h)
+    addEqThm pf.getResult q(@Bool.eq_refl $α $t)
   | .EQ_SYMM =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
     let t : Q($α) ← reconstructTerm pf.getArguments[1]!
     let s : Q($α) ← reconstructTerm pf.getArguments[2]!
-    let h₁ : Q(Decidable ($t = $s)) ← mkDecidableInst q($t = $s)
-    let h₂ : Q(Decidable ($s = $t)) ← mkDecidableInst q($s = $t)
-    addEqThm pf.getResult q(@Bool.eq_symm $α $t $s $h₁ $h₂)
+    addEqThm pf.getResult q(@Bool.eq_symm $α $t $s)
   | .EQ_COND_DEQ =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
     let t : Q($α) ← reconstructTerm pf.getArguments[1]!
     let s : Q($α) ← reconstructTerm pf.getArguments[2]!
     let r : Q($α) ← reconstructTerm pf.getArguments[3]!
-    let hsr : Q(Decidable ($s = $r)) ← mkDecidableInst q($s = $r)
-    let hts : Q(Decidable ($t = $s)) ← mkDecidableInst q($t = $s)
-    let htr : Q(Decidable ($t = $r)) ← mkDecidableInst q($t = $r)
-    let h : Q(decide ($s = $r) = false) ← reconstructEqProof pf.getChildren[0]!
-    addEqThm pf.getResult q(@Bool.eq_cond_deq $α $t $s $r $hsr $hts $htr $h)
+    let h : Q(smtEq $s $r = false) ← reconstructEqProof pf.getChildren[0]!
+    addEqThm pf.getResult q(@Bool.eq_cond_deq $α $t $s $r $h)
   | .EQ_ITE_LIFT =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[2]!.getSort!
     let t : Q($α) ← reconstructTerm pf.getArguments[2]!
     let s : Q($α) ← reconstructTerm pf.getArguments[3]!
     let r : Q($α) ← reconstructTerm pf.getArguments[4]!
-    let h₁ : Q(Decidable (cond $c $t $s = $r)) ← mkDecidableInst q(cond $c $t $s = $r)
-    let h₂ : Q(Decidable ($t = $r)) ← mkDecidableInst q($t = $r)
-    let h₃ : Q(Decidable ($s = $r)) ← mkDecidableInst q($s = $r)
-    addEqThm pf.getResult q(@Bool.eq_ite_lift $α $c $t $s $r $h₁ $h₂ $h₃)
+    addEqThm pf.getResult q(@Bool.eq_ite_lift $α $c $t $s $r)
   | .DISTINCT_BINARY_ELIM =>
     let t : Q(Bool) ← reconstructTerm pf.getResult[0]!
     addEqThm pf.getResult q(Eq.refl $t)
@@ -140,10 +131,8 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getResult[0]![0]!.getSort!
       let a : Q($α) ← reconstructTerm pf.getResult[0]![1]!
       let b : Q($α) ← reconstructTerm pf.getResult[0]![0]!
-      let hab : Q(Decidable ($a = $b)) ← mkDecidableInst q($a = $b)
-      let hba : Q(Decidable ($b = $a)) ← mkDecidableInst q($b = $a)
-      let h : Q((!decide ($a = $b)) = true) ← reconstructProof pf.getChildren[0]!
-      addThm (← reconstructProofType pf.getResult) q(@Bool.not_decide_eq_symm $α $a $b $hab $hba $h)
+      let h : Q((!smtEq $a $b) = true) ← reconstructProof pf.getChildren[0]!
+      addThm (← reconstructProofType pf.getResult) q(@Bool.not_smtEq_symm $α $a $b $h)
   | .TRANS =>
     let cpfs := pf.getChildren
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort cpfs[0]!.getResult[0]!.getSort!

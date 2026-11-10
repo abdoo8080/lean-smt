@@ -7,6 +7,7 @@ Authors: Abdalrhman Mohamed
 
 module
 
+public import Smt.Reconstruct.Bool.Core
 public import Smt.Reconstruct.Int.Core
 
 @[expose] public section
@@ -103,20 +104,25 @@ theorem max_geq2 : (ite (t ≥ s) t s ≥ s) = True := by
 
 -- min/max rules, where the `ite` is reconstructed as `cond`
 
-theorem min_lt1_cond {t s : Int} {h : Decidable (t < s)} {h' : Decidable (cond (@decide (t < s) h) t s ≤ t)} :
-    @decide (cond (@decide (t < s) h) t s ≤ t) h' = true := by
-  cases h <;> simp_all <;> omega
+theorem min_lt1_cond {t s : Int} : smtLe (cond (smtLt t s) t s) t = true := by
+  rw [smtLt_eq_decide, Bool.cond_decide, smtLe_eq_true]; exact of_eq_true min_lt1
 
-theorem min_lt2_cond {t s : Int} {h : Decidable (t < s)} {h' : Decidable (cond (@decide (t < s) h) t s ≤ s)} :
-    @decide (cond (@decide (t < s) h) t s ≤ s) h' = true := by
-  cases h <;> simp_all <;> omega
+theorem min_lt2_cond {t s : Int} : smtLe (cond (smtLt t s) t s) s = true := by
+  rw [smtLt_eq_decide, Bool.cond_decide, smtLe_eq_true]; exact of_eq_true min_lt2
 
-theorem max_geq1_cond {t s : Int} {h : Decidable (t ≥ s)} {h' : Decidable (cond (@decide (t ≥ s) h) t s ≥ t)} :
-    @decide (cond (@decide (t ≥ s) h) t s ≥ t) h' = true := by
-  cases h <;> simp_all <;> omega
+theorem max_geq1_cond {t s : Int} : smtGe (cond (smtGe t s) t s) t = true := by
+  rw [smtGe_eq_decide (x := t) (y := s), Bool.cond_decide, smtGe_eq_true]; exact of_eq_true max_geq1
 
-theorem max_geq2_cond {t s : Int} {h : Decidable (t ≥ s)} {h' : Decidable (cond (@decide (t ≥ s) h) t s ≥ s)} :
-    @decide (cond (@decide (t ≥ s) h) t s ≥ s) h' = true := by
-  cases h <;> simp_all <;> omega
+theorem max_geq2_cond {t s : Int} : smtGe (cond (smtGe t s) t s) s = true := by
+  rw [smtGe_eq_decide (x := t) (y := s), Bool.cond_decide, smtGe_eq_true]; exact of_eq_true max_geq2
+
+/-- `abs_gt`, where the `ite` is reconstructed as `cond`. -/
+theorem abs_gt_cond {x y : Int} :
+    smtGt x.abs y.abs = cond (smtGe x 0) (cond (smtGe y 0) (smtGt x y) (smtGt x (-y)))
+      (cond (smtGe y 0) (smtGt (-x) y) (smtGt (-x) (-y))) := by
+  apply Bool.eq_iff_iff.mpr
+  rw [smtGt_eq_true, abs_gt]
+  simp only [smtGe_eq_decide, smtGt_eq_decide, Bool.cond_decide]
+  split <;> split <;> simp
 
 end Smt.Reconstruct.Int.Rewrite

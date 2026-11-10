@@ -160,22 +160,22 @@ where
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    mkDecide q($x < $y)
+    return q(smtLt $x $y)
   | .BITVECTOR_ULE =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    mkDecide q($x ≤ $y)
+    return q(smtLe $x $y)
   | .BITVECTOR_UGT =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    mkDecide q($x > $y)
+    return q(smtGt $x $y)
   | .BITVECTOR_UGE =>
     let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
     let y : Q(BitVec $w) ← reconstructTerm t[1]!
-    mkDecide q($x ≥ $y)
+    return q(smtGe $x $y)
   | .BITVECTOR_SLT =>
     let w : Nat := t[0]!.getSort!.getBitVectorSize!.toNat
     let x : Q(BitVec $w) ← reconstructTerm t[0]!
