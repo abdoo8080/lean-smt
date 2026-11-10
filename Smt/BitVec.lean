@@ -7,8 +7,6 @@ Authors: Abdalrhman Mohamed
 
 module
 
-public import Smt.Preprocess.Normalize.BitVec
-public meta import Smt.Preprocess.Normalize.BitVec
 public import Smt.Reconstruct.BitVec
 public meta import Smt.Reconstruct.BitVec
 public import Smt.Translate.BitVec

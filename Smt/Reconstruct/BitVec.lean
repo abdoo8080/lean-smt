@@ -11,8 +11,6 @@ public import Smt.Reconstruct.BitVec.Bitblast
 public meta import Smt.Reconstruct.BitVec.Bitblast
 public import Smt.Reconstruct.BitVec.Core
 public meta import Smt.Reconstruct.BitVec.Core
-public import Smt.Reconstruct.BitVec.PolyNorm
-public meta import Smt.Reconstruct.BitVec.PolyNorm
 public import Smt.Reconstruct.BitVec.Rewrites
 public meta import Smt.Reconstruct.BitVec.Rewrites
 public import Smt.Reconstruct.BitVec.RewritesElimination
@@ -1176,9 +1174,7 @@ def rewriteTheorem? (rule : cvc5.ProofRewriteRule) (args : Array cvc5.Term) :
 /-! ### Bit-blasting
 
 cvc5 bit-blasts a bit-vector of width `n > 0` into the bit-vector `cons xₙ₋₁ (… (cons x₀ nil))` of
-its bits, where each bit `xᵢ` is a Boolean formula. The helpers below prove that operations on
-bit-blasted bit-vectors equal the circuits that cvc5 builds for them, which are stated in
-`Smt.Reconstruct.BitVec.Bitblast`. -/
+its bits, where each bit `xᵢ` is a Boolean formula (see `Smt.Reconstruct.BitVec.Bitblast`). -/
 
 /-- The width `n`, the most significant bit `a`, and the other bits `xs` of the bit-blasted
 bit-vector `cons a xs : BitVec (n + 1)`. -/
@@ -1211,58 +1207,6 @@ where
     let h' := mkAppN (.const ``BitVec.smtEq_cons_cons_and []) #[n, a, b, acc, xs', ys']
     go xs' ys' q(smtEq $a $b && $acc) (← Meta.mkEqTrans h h')
 
-/-- A proof of `smtLt x y = F` for the bit-blasted bit-vectors `x` and `y`, where `F` is cvc5's
-comparator circuit: `!x₀ && y₀` for width `1`, and `smtEq a b && F' || !a && b` for `x = cons a xs`
-and `y = cons b ys`, where `F'` is the circuit for `smtLt xs ys`. -/
-partial def smtLtBits (x y : Expr) : MetaM Expr := do
-  let (n, a, xs) ← getCons! x
-  let (_, b, ys) ← getCons! y
-  let a : Q(Bool) ← pure a
-  let b : Q(Bool) ← pure b
-  if xs.isConstOf ``BitVec.nil then
-    return q(BitVec.smtLt_cons_nil $a $b)
-  let h := mkApp5 (.const ``BitVec.smtLt_cons_cons []) n a b xs ys
-  Meta.mkEqTrans h (← Meta.mkCongrArg q(fun r => smtEq $a $b && r || !$a && $b) (← smtLtBits xs ys))
-
-/-- A proof of `smtLe x y = F` for the bit-blasted bit-vectors `x` and `y`, where `F` is cvc5's
-comparator circuit: `!x₀ && y₀ || smtEq x₀ y₀` for width `1`, and `smtEq a b && F' || !a && b` for
-`x = cons a xs` and `y = cons b ys`, where `F'` is the circuit for `smtLe xs ys`. -/
-partial def smtLeBits (x y : Expr) : MetaM Expr := do
-  let (n, a, xs) ← getCons! x
-  let (_, b, ys) ← getCons! y
-  let a : Q(Bool) ← pure a
-  let b : Q(Bool) ← pure b
-  if xs.isConstOf ``BitVec.nil then
-    return q(BitVec.smtLe_cons_nil $a $b)
-  let h := mkApp5 (.const ``BitVec.smtLe_cons_cons []) n a b xs ys
-  Meta.mkEqTrans h (← Meta.mkCongrArg q(fun r => smtEq $a $b && r || !$a && $b) (← smtLeBits xs ys))
-
-/-- A proof of `x.slt y = F` for the bit-blasted bit-vectors `x` and `y`, where `F` is cvc5's
-comparator circuit: `x₀ && !y₀` for width `1`, and `smtEq a b && F' || a && !b` for `x = cons a xs`
-and `y = cons b ys`, where `F'` is the circuit for `smtLt xs ys`. -/
-def sltBits (x y : Expr) : MetaM Expr := do
-  let (n, a, xs) ← getCons! x
-  let (_, b, ys) ← getCons! y
-  let a : Q(Bool) ← pure a
-  let b : Q(Bool) ← pure b
-  if xs.isConstOf ``BitVec.nil then
-    return q(BitVec.slt_cons_nil $a $b)
-  let h := mkApp5 (.const ``BitVec.slt_cons_cons []) n a b xs ys
-  Meta.mkEqTrans h (← Meta.mkCongrArg q(fun r => smtEq $a $b && r || $a && !$b) (← smtLtBits xs ys))
-
-/-- A proof of `x.sle y = F` for the bit-blasted bit-vectors `x` and `y`, where `F` is cvc5's
-comparator circuit: `smtEq x₀ y₀ || x₀ && !y₀` for width `1`, and `smtEq a b && F' || a && !b` for
-`x = cons a xs` and `y = cons b ys`, where `F'` is the circuit for `smtLe xs ys`. -/
-def sleBits (x y : Expr) : MetaM Expr := do
-  let (n, a, xs) ← getCons! x
-  let (_, b, ys) ← getCons! y
-  let a : Q(Bool) ← pure a
-  let b : Q(Bool) ← pure b
-  if xs.isConstOf ``BitVec.nil then
-    return q(BitVec.sle_cons_nil $a $b)
-  let h := mkApp5 (.const ``BitVec.sle_cons_cons []) n a b xs ys
-  Meta.mkEqTrans h (← Meta.mkCongrArg q(fun r => smtEq $a $b && r || $a && !$b) (← smtLeBits xs ys))
-
 /-- Prove the equation `e` by rewriting with the theorems `thms`, unfolding the definitions `defs`,
 and simplifying with the simprocs `procs`, and then by `rfl`. -/
 def proveBySimp (e : Expr) (thms defs procs : List Name) : MetaM Expr := do
@@ -1275,63 +1219,6 @@ def proveBySimp (e : Expr) (thms defs procs : List Name) : MetaM Expr := do
     mv.refl
   instantiateMVars h
 
-/-- The bits `[x₀, …, xₙ₋₁]` of the bit-blasted bit-vector `cons xₙ₋₁ (… (cons x₀ nil))`. -/
-partial def getBits (x : Expr) : MetaM (List Expr) := do
-  if x.isConstOf ``BitVec.nil then return []
-  let (_, a, xs) ← getCons! x
-  return (← getBits xs) ++ [a]
-
-/-- The bit-blasted bit-vector `cons xₙ₋₁ (… (cons x₀ nil))` of the bits `[x₀, …, xₙ₋₁]`. -/
-def mkBits (bs : List Expr) : Expr :=
-  (bs.zipIdx.foldl (fun (x : Expr) (b, i) => mkApp3 (.const ``BitVec.cons []) (mkNatLit i) b x)
-    (.const ``BitVec.nil []))
-
-/-- The bits of the sum of the bit-blasted bit-vectors `x` and `y` that cvc5's ripple-carry adder
-computes: `sᵢ = xᵢ ^^ yᵢ ^^ cᵢ` and `cᵢ₊₁ = xᵢ && yᵢ || (xᵢ ^^ yᵢ) && cᵢ` with `c₀ = false`. -/
-def rippleCarryBits (x y : Expr) : MetaM Expr := do
-  let mut c : Q(Bool) := q(false)
-  let mut ss := #[]
-  for xi in ← getBits x, yi in ← getBits y do
-    let xi : Q(Bool) ← pure xi
-    let yi : Q(Bool) ← pure yi
-    ss := ss.push q(Bool.xor (Bool.xor $xi $yi) $c)
-    c := q($xi && $yi || Bool.xor $xi $yi && $c)
-  return mkBits ss.toList
-
-/-- A proof of `x + y = z` for the bit-blasted bit-vectors `x`, `y`, and `z`, where `z` is the
-result of cvc5's ripple-carry adder. -/
-def addBits (x y z : Expr) : MetaM Expr := do
-  let (n, _, _) ← getCons! x
-  let w : Q(Nat) ← pure (mkNatAdd n (mkNatLit 1))
-  let x : Q(BitVec $w) ← pure x
-  let y : Q(BitVec $w) ← pure y
-  let z : Q(BitVec $w) ← pure z
-  let h ← proveBySimp q((BitVec.adc' $x $y false).snd = $z) [``BitVec.getLsbD_cons, ``Nat.succ.injEq]
-    [``BitVec.adc', ``BitVec.adcb', ``BitVec.iunfoldr, ``Fin.hIterate, ``Fin.hIterateFrom]
-    [``Nat.reduceAdd, ``Nat.reduceLT, ``reduceDIte, ``reduceIte]
-  let h : Q((BitVec.adc' $x $y false).snd = $z) ← pure h
-  return q(Eq.trans (BitVec.add_eq_adc' $x $y) $h)
-
-/-- Prove the equation `p` between bit-vector polynomials as `bv_omega` does: by rewriting the
-bit-vectors into their values, and then by `omega`. Returns `none` if that fails within a quarter of
-the heartbeat limit, e.g., because the polynomials are not linear. -/
-def bvPolyNorm? (p : Expr) : MetaM (Option Expr) := do
-  let some ext ← Meta.getSimpExtension? `bitvec_to_nat | return none
-  let ctx ← Meta.Simp.mkContext { implicitDefEqProofs := false } #[← ext.getTheorems]
-  let h ← Meta.mkFreshExprMVar p
-  let s ← saveState
-  tryCatchRuntimeEx
-    (withCurrHeartbeats <|
-      withTheReader Core.Context (fun c => { c with maxHeartbeats := c.maxHeartbeats / 4 }) do
-        if let (some mv, _) ← Meta.simpTarget h.mvarId! ctx then
-          -- `omega` refutes the negation of the goal
-          let some mv ← mv.falseOrByContra | return some (← instantiateMVars h)
-          mv.withContext do
-            let some d := (← getLCtx).lastDecl | throwError "expected the negation of the goal"
-            Elab.Tactic.Omega.omega [d.toExpr] mv
-        return some (← instantiateMVars h))
-    (fun _ => do s.restore; return none)
-
 def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   let some h ← rewriteTheorem? pf.getRewriteRule! pf.getArguments | return none
   let some h ← proveHypotheses? h | return none
@@ -1340,31 +1227,6 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
 
 @[smt_proof_reconstruct] def reconstructBitVecProof : ProofReconstructor := fun pf => do match pf.getRule with
   | .DSL_REWRITE => reconstructRewrite pf
-  | .BV_POLY_NORM =>
-    -- `(= t s)` for bit-vector polynomials `t` and `s` that are equal modulo `2 ^ w`
-    let some h ← bvPolyNorm? (← reconstructProp pf.getResult) | return none
-    addPropThm pf.getResult h
-  | .BV_POLY_NORM_EQ =>
-    -- `(= (= x₁ x₂) (= y₁ y₂))` from `(= (bvmul cx (bvsub x₁ x₂)) (bvmul cy (bvsub y₁ y₂)))` for odd
-    -- constants `cx` and `cy`
-    let premise := pf.getChildren[0]!.getResult
-    let (cxt, cyt) := (premise[0]![0]!, premise[1]![0]!)
-    if cxt.getKind! != .CONST_BITVECTOR || cyt.getKind! != .CONST_BITVECTOR then return none
-    if (cxt.getBitVectorValue! 10).toNat! % 2 == 0 || (cyt.getBitVectorValue! 10).toNat! % 2 == 0 then
-      return none
-    let w : Nat := cxt.getSort!.getBitVectorSize!.toNat
-    let x₁ : Q(BitVec $w) ← reconstructTerm pf.getResult[0]![0]!
-    let x₂ : Q(BitVec $w) ← reconstructTerm pf.getResult[0]![1]!
-    let y₁ : Q(BitVec $w) ← reconstructTerm pf.getResult[1]![0]!
-    let y₂ : Q(BitVec $w) ← reconstructTerm pf.getResult[1]![1]!
-    let cx : Q(BitVec $w) ← reconstructTerm cxt
-    let cy : Q(BitVec $w) ← reconstructTerm cyt
-    -- `cx * (x₁ - x₂) = cy * (y₁ - y₂)`
-    let h ← reconstructPropProof pf.getChildren[0]!
-    -- `cx.getLsbD 0` and `cy.getLsbD 0` evaluate to `true`
-    let hodd := mkApp2 (.const ``Eq.refl [1]) q(Bool) q(true)
-    addPropThm pf.getResult
-      (mkAppN (.const ``BitVec.poly_norm_eq []) #[q($w), x₁, x₂, y₁, y₂, cx, cy, hodd, hodd, h])
   | .BV_BITBLAST_STEP =>
     -- The conclusion is `(= t t')`, where `t'` bit-blasts `t` given its bit-blasted arguments.
     let t := pf.getArguments[0]![0]!
@@ -1373,8 +1235,7 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       let w : Nat := t.getSort!.getBitVectorSize!.toNat
       let t : Q(BitVec $w) ← reconstructTerm pf.getResult[0]!
       addEqThm pf.getResult q(Eq.refl $t)
-    -- cvc5 bit-blasts the terms whose operators are not bit-vector operators into their bits
-    | .CONSTANT | .SKOLEM | .ITE | .APPLY_UF | .SELECT | .APPLY_SELECTOR =>
+    | .CONSTANT =>
       let w : Nat := t.getSort!.getBitVectorSize!.toNat
       let x : Q(BitVec $w) ← reconstructTerm pf.getResult[0]!
       let x' : Q(BitVec $w) ← reconstructTerm pf.getResult[1]!
@@ -1387,89 +1248,17 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       -- `(= (= x y) (and (= x₀ y₀) … (= xₙ₋₁ yₙ₋₁)))`
       let (_, x, y) ← getSmtEq! (← reconstructTerm pf.getResult[0]!)
       addEqThm pf.getResult (← smtEqBits x y)
-    | .BITVECTOR_ULT =>
-      let x ← reconstructTerm pf.getResult[0]![0]!
-      let y ← reconstructTerm pf.getResult[0]![1]!
-      addEqThm pf.getResult (← smtLtBits x y)
-    | .BITVECTOR_ULE =>
-      let x ← reconstructTerm pf.getResult[0]![0]!
-      let y ← reconstructTerm pf.getResult[0]![1]!
-      addEqThm pf.getResult (← smtLeBits x y)
-    | .BITVECTOR_UGT =>
-      -- `smtGt x y` is `smtLt y x`
-      let x ← reconstructTerm pf.getResult[0]![0]!
-      let y ← reconstructTerm pf.getResult[0]![1]!
-      addEqThm pf.getResult (← smtLtBits y x)
-    | .BITVECTOR_UGE =>
-      -- `smtGe x y` is `smtLe y x`
-      let x ← reconstructTerm pf.getResult[0]![0]!
-      let y ← reconstructTerm pf.getResult[0]![1]!
-      addEqThm pf.getResult (← smtLeBits y x)
-    | .BITVECTOR_SLT =>
-      let x ← reconstructTerm pf.getResult[0]![0]!
-      let y ← reconstructTerm pf.getResult[0]![1]!
-      addEqThm pf.getResult (← sltBits x y)
-    | .BITVECTOR_SLE =>
-      let x ← reconstructTerm pf.getResult[0]![0]!
-      let y ← reconstructTerm pf.getResult[0]![1]!
-      addEqThm pf.getResult (← sleBits x y)
-    | .BITVECTOR_SGT =>
-      -- `(bvsgt x y)` is reconstructed as `y.slt x`
-      let x ← reconstructTerm pf.getResult[0]![0]!
-      let y ← reconstructTerm pf.getResult[0]![1]!
-      addEqThm pf.getResult (← sltBits y x)
-    | .BITVECTOR_SGE =>
-      -- `(bvsge x y)` is reconstructed as `y.sle x`
-      let x ← reconstructTerm pf.getResult[0]![0]!
-      let y ← reconstructTerm pf.getResult[0]![1]!
-      addEqThm pf.getResult (← sleBits y x)
-    | .BITVECTOR_NOT =>
-      let (_, x, x') ← getSmtEq! (← reconstructTerm pf.getResult)
-      addEqThm pf.getResult (← proveBySimp (← Meta.mkEq x x') [``BitVec.not_cons, ``BitVec.not_nil] [] [])
-    | .BITVECTOR_AND =>
-      -- cvc5's `(bvand x y z)` is `(x &&& y) &&& z`, whose bits are `(xᵢ && yᵢ) && zᵢ`
-      let (_, x, x') ← getSmtEq! (← reconstructTerm pf.getResult)
-      addEqThm pf.getResult
-        (← proveBySimp (← Meta.mkEq x x') [``BitVec.cons_and_cons, ``BitVec.nil_and_nil] [] [])
-    | .BITVECTOR_OR =>
-      let (_, x, x') ← getSmtEq! (← reconstructTerm pf.getResult)
-      addEqThm pf.getResult
-        (← proveBySimp (← Meta.mkEq x x') [``BitVec.cons_or_cons, ``BitVec.nil_or_nil] [] [])
-    | .BITVECTOR_XOR =>
-      let (_, x, x') ← getSmtEq! (← reconstructTerm pf.getResult)
-      addEqThm pf.getResult
-        (← proveBySimp (← Meta.mkEq x x') [``BitVec.cons_xor_cons, ``BitVec.nil_xor_nil] [] [])
     | .BITVECTOR_ADD =>
-      -- cvc5's `(bvadd x₀ x₁ … xₙ)` is `((x₀ + x₁) + …) + xₙ`, which it bit-blasts with a ripple-carry
-      -- adder for each `+`
-      let n := pf.getResult[0]!.getNumChildren
-      -- `HAdd.hAdd` on bit-vectors
-      let add := (← reconstructTerm pf.getResult[0]!).appFn!.appFn!
-      let mut x ← reconstructTerm pf.getResult[0]![0]!
-      -- a proof of `x₀ + … + xᵢ = x`
-      let mut h? : Option Expr := none
-      for i in [1:n] do
-        let y ← reconstructTerm pf.getResult[0]![i]!
-        let z ← if i == n - 1 then reconstructTerm pf.getResult[1]! else rippleCarryBits x y
-        let h ← addBits x y z
-        h? ← match h? with
-          | none => pure h
-          | some h' => do Meta.mkEqTrans (← Meta.mkCongrFun (← Meta.mkCongrArg add h') y) h
-        x := z
-      let some h := h? | return none
-      addEqThm pf.getResult h
-    | .BITVECTOR_NEG =>
-      -- cvc5 negates `x` by adding `~~~x`, `0`, and the carry `true` (see `BitVec.neg_eq_adc'`)
-      let w : Nat ← pure t.getSort!.getBitVectorSize!.toNat
+      if pf.getResult[0]!.getNumChildren != 2 then return none
+      let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
       let x : Q(BitVec $w) ← reconstructTerm pf.getResult[0]![0]!
+      let y : Q(BitVec $w) ← reconstructTerm pf.getResult[0]![1]!
       let z : Q(BitVec $w) ← reconstructTerm pf.getResult[1]!
-      let h ← proveBySimp q((BitVec.adc' (~~~$x) 0#$w true).snd = $z)
-        [``BitVec.getLsbD_cons, ``BitVec.getLsbD_not, ``BitVec.getLsbD_zero, ``Nat.succ.injEq,
-         ``decide_true, ``Bool.true_and]
+      let h ← proveBySimp q((BitVec.adc' $x $y false).snd = $z) [``BitVec.getLsbD_cons, ``Nat.succ.injEq]
         [``BitVec.adc', ``BitVec.adcb', ``BitVec.iunfoldr, ``Fin.hIterate, ``Fin.hIterateFrom]
         [``Nat.reduceAdd, ``Nat.reduceLT, ``reduceDIte, ``reduceIte]
-      let h : Q((BitVec.adc' (~~~$x) 0#$w true).snd = $z) ← pure h
-      addEqThm pf.getResult q(Eq.trans (BitVec.neg_eq_adc' $x) $h)
+      let h : Q((BitVec.adc' $x $y false).snd = $z) ← pure h
+      addEqThm pf.getResult q(Eq.trans (BitVec.add_eq_adc' $x $y) $h)
     | _ => return none
   | _ => return none
 
