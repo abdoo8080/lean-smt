@@ -40,33 +40,18 @@ def decEqInst (α : Expr) : MetaM Expr := do
   if let some inst ← Meta.synthInstance? (mkApp (.const ``DecidableEq [u]) α) then return inst
   return mkApp (.const ``Classical.typeDecidableEq [u]) α
 
-/-- The Boolean formula of `a = b` for `a b : α`: `a == b` with the instance `instBEqOfDecidableEq`
-of `decEqInst α` if `α : Type u`, and `decide (a = b)` (see `decideOf`) otherwise, e.g., if
-`α : Sort u`. -/
+/-- The Boolean formula `a == b` of `a = b` for `a b : α`, with the instance `instBEqOfDecidableEq`
+of `decEqInst α`. -/
 def mkBEq (α a b : Expr) : MetaM Expr := do
-  if let some u := (← Meta.getLevel α).dec then
-    return mkApp4 (.const ``BEq.beq [u]) α (mkApp2 (.const ``instBEqOfDecidableEq [u]) α (← decEqInst α)) a b
-  decideOf (← Meta.mkEq a b)
-
-/-- The instance of `Decidable (a = b)` that the Boolean formula `mkBEq α a b` decides `a = b` with.
-`a == b` is `decide (a = b)` with the instance `decEqInst α a b`. -/
-def eqInst (α a b : Expr) : MetaM Expr := do
-  if (← Meta.getLevel α).dec.isSome then
-    return mkApp2 (← decEqInst α) a b
-  let p ← Meta.mkEq a b
-  match ← Meta.synthInstance? (mkApp (.const ``Decidable []) p) with
-  | some inst => return inst
-  | none => return mkApp (.const ``Classical.propDecidable []) p
+  let u ← Meta.getDecLevel α
+  return mkApp4 (.const ``BEq.beq [u]) α (mkApp2 (.const ``instBEqOfDecidableEq [u]) α (← decEqInst α)) a b
 
 /-- The type `α`, the sides `a` and `b`, and the instance of `Decidable (a = b)` of the Boolean
-formula `a == b` or `decide (a = b)` of an equality. -/
+formula `a == b` of an equality (see `mkBEq`). -/
 def getEq? (e : Expr) : Option (Expr × Expr × Expr × Expr) := Id.run do
   if let some (α, inst, a, b) := e.app4? ``BEq.beq then
     if let some (_, d) := inst.app2? ``instBEqOfDecidableEq then
       return some (α, a, b, mkApp2 d a b)
-  if let some (p, inst) := e.app2? ``Decidable.decide then
-    if let some (α, a, b) := p.eq? then
-      return some (α, a, b, inst)
   return none
 
 /-- Return the proposition `p` denoted by the Boolean formula `b` (see the table in

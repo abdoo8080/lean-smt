@@ -1,5 +1,9 @@
 import Smt
 
+-- SMT-LIB sorts are reconstructed as types.
+universe u
+variable {U : Type u}
+
 inductive Color where
   | red
   | green

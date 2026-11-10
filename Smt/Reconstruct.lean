@@ -156,13 +156,6 @@ Lean's `Bool`, so a proof of `t` is a proof that its reconstruction is `true`. -
 def reconstructProofType (t : cvc5.Term) : ReconstructM Expr := do
   return mkApp3 (.const ``Eq [1]) (.const ``Bool []) (← reconstructTerm t) (.const ``Bool.true [])
 
-/-- The proposition denoted by the SMT formula `t`, e.g., `x < y ∧ ¬p = true` for
-`(and (< x y) (not p))`. See `Smt.Reconstruct.Bool.toProp`. Theory-specific proof reconstruction
-reasons about these propositions, and converts their proofs from and to proofs of `⟦t⟧ = true`
-with `reconstructPropProof` and `addPropThm`. -/
-def reconstructProp (t : cvc5.Term) : ReconstructM Expr := do
-  return (← Bool.toProp (← reconstructTerm t)).1
-
 def withNewProofCache (k : ReconstructM α) : ReconstructM α := do
   let proofCache := (← get).proofCache
   modify fun state => { state with proofCache := {} }
@@ -247,37 +240,6 @@ where
     let type ← reconstructProofType pf.getResult
     addTrust type pf
 
-open Qq in
-/-- A proof of the proposition denoted by the conclusion of `pf` (see `reconstructProp`). -/
-def reconstructPropProof (pf : cvc5.Proof) : ReconstructM Expr := do
-  let h ← reconstructProof pf
-  let b : Q(Bool) ← reconstructTerm pf.getResult
-  let (p, e?) ← Bool.toProp b
-  let some e := e? | return h
-  let p : Q(Prop) ← pure p
-  let e : Q(($b = true) = $p) ← pure e
-  let h : Q($b = true) ← pure h
-  return q(Eq.mp $e $h)
-
-open Qq in
-/-- Add the proof `h` of the proposition denoted by the SMT formula `t` (see `reconstructProp`) as a
-proof of `⟦t⟧ = true`. -/
-def addPropThm (t : cvc5.Term) (h : Expr) : ReconstructM Expr := do
-  let b : Q(Bool) ← reconstructTerm t
-  let (p, e?) ← Bool.toProp b
-  let some e := e? | addThm q($b = true) h
-  let p : Q(Prop) ← pure p
-  let e : Q(($b = true) = $p) ← pure e
-  let h : Q($p) ← pure h
-  addThm q($b = true) q(Eq.mpr $e $h)
-
-/-- Prove the proposition denoted by the SMT formula `t` (see `reconstructProp`) with the tactic
-`tac`, and add it as a proof of `⟦t⟧ = true`. -/
-def addPropTac (t : cvc5.Term) (tac : MVarId → MetaM Unit) : ReconstructM Expr := do
-  let h ← Meta.mkFreshExprMVar (← reconstructProp t)
-  tac h.mvarId!
-  addPropThm t h
-
 /-- Return the type `α`, the sides `a` and `b`, and the instance of `Decidable (a = b)` of the Boolean
 formula `a == b` (or `decide (a = b)`) of an equality (see `Bool.mkBEq`). -/
 def getEq! (e : Expr) : MetaM (Expr × Expr × Expr × Expr) := do
@@ -290,6 +252,11 @@ def reconstructEqProof (pf : cvc5.Proof) : ReconstructM Expr := do
   let h ← reconstructProof pf
   let (_, a, b, inst) ← getEq! (← reconstructTerm pf.getResult)
   return mkApp3 (.const ``of_decide_eq_true []) (← Meta.mkEq a b) inst h
+
+/-- A proof of the conclusion of `pf`, e.g., of a premise `(<rel> l r)` of an arithmetic rule: a proof
+of `l = r` if it is an equality `(= l r)`, and of `⟦(<rel> l r)⟧ = true` otherwise. -/
+def reconstructRelProof (pf : cvc5.Proof) : ReconstructM Expr :=
+  if pf.getResult.getKind! == .EQUAL then reconstructEqProof pf else reconstructProof pf
 
 /-- Add the proof `h` of `a = b` as a proof of the SMT formula `t = (= a b)`, i.e., of
 `(a == b) = true`. -/

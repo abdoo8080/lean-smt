@@ -15,6 +15,8 @@ module
 public import Mathlib.Analysis.Complex.Exponential
 
 public import Smt.Reconstruct.Prop
+public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Real.Core
 
 @[expose] public section
 
@@ -27,7 +29,8 @@ theorem arithTransExpSuperLin' (t : ℝ) (ht : t > 0) :
   Real.add_one_lt_exp (ne_of_gt ht)
 
 theorem arithTransExpSuperLin (t : ℝ) :
-    t ≤ 0 ∨ Real.exp t > t + 1 := by
+    (t.ble 0 || (Real.exp t).bgt (t + 1)) = true := by
+  simp only [Bool.or_eq_true, Real.ble_eq_true, Real.bgt_eq_true]
   apply orImplies
   intro h
   simp at h

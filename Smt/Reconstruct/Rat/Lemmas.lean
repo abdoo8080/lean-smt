@@ -116,6 +116,14 @@ private theorem Rat.mul_eq_zero_left {x y : Rat} : x ≠ 0 → x * y = 0 → y =
 
 namespace Smt.Reconstruct.Rat
 
+/-! The lemmas used by proof reconstruction are stated over the reconstructions of SMT-LIB formulas
+(see `Smt.Reconstruct.Int`): a proof of a formula `b` is a proof of `b = true`, except that a proof
+of an equality `(= t s)` is a proof of `t = s`. Since `a < b` is `a.blt b = true` and `a > b` is
+`a.bgt b = true` by definition, facts about `<` and `>` apply to `blt` and `bgt` as they are. -/
+
+-- `==` is the reconstruction of SMT-LIB's `=` (see `Smt.Reconstruct.Bool.mkBEq`).
+attribute [local instance high] instBEqOfDecidableEq
+
 variable {a b c d x₁ x₂ y₁ y₂ : Rat}
 
 theorem add_nonneg : 0 ≤ a → 0 ≤ b → 0 ≤ a + b :=
@@ -161,83 +169,103 @@ theorem lt_trans (hab : a < b) (hbc : b < c) : a < c := lt_of_lt_of_le hab (le_o
 theorem lt_of_le_of_lt (hab : a ≤ b) (hbc : b < c) : a < c :=
   lt_of_le_not_le (le_trans hab (le_of_lt hbc)) fun hca ↦ not_le_of_lt hbc (le_trans hca hab)
 
-theorem sum_ub₁ (h₁ : a < b) (h₂ : c < d) : a + c < b + d := by
+theorem sum_ub₁ (h₁ : a.blt b = true) (h₂ : c.blt d = true) : (a + c).blt (b + d) = true := by
+  simp only [Rat.blt_eq_true] at *
   have h' : c + a < c + b := Rat.add_lt_add_left.mpr h₁
   have h'' : b + c < b + d := Rat.add_lt_add_left.mpr h₂
   rewrite [Rat.add_comm, Rat.add_comm c b] at h'
   exact lt_trans h' h''
 
-theorem sum_ub₂ (h₁ : a < b) (h₂ : c ≤ d) : a + c < b + d := by
+theorem sum_ub₂ (h₁ : a.blt b = true) (h₂ : c.ble d = true) : (a + c).blt (b + d) = true := by
+  simp only [Rat.blt_eq_true, Rat.ble_eq_true] at *
   have h' : c + a < c + b := Rat.add_lt_add_left.mpr h₁
   have h'' : b + c ≤ b + d := Rat.add_le_add_left.mpr h₂
   rewrite [Rat.add_comm, Rat.add_comm c b] at h'
   exact lt_of_lt_of_le h' h''
 
-theorem sum_ub₃ (h₁ : a < b) (h₂ : c = d) : a + c < b + d := by
+theorem sum_ub₃ (h₁ : a.blt b = true) (h₂ : c = d) : (a + c).blt (b + d) = true := by
+  simp only [Rat.blt_eq_true] at *
   rewrite [h₂]
   have : d + a < d + b := Rat.add_lt_add_left.mpr h₁
   rewrite [Rat.add_comm, Rat.add_comm d b] at this
   exact this
 
-theorem sum_ub₄ (h₁ : a ≤ b) (h₂ : c < d) : a + c < b + d := by
+theorem sum_ub₄ (h₁ : a.ble b = true) (h₂ : c.blt d = true) : (a + c).blt (b + d) = true := by
+  simp only [Rat.blt_eq_true, Rat.ble_eq_true] at *
   have h' : c + a ≤ c + b := Rat.add_le_add_left.mpr h₁
   have h'' : b + c < b + d := Rat.add_lt_add_left.mpr h₂
   rewrite [Rat.add_comm, Rat.add_comm c b] at h'
   exact lt_of_le_of_lt h' h''
 
-theorem sum_ub₅ (h₁ : a ≤ b) (h₂ : c ≤ d) : a + c ≤ b + d := by
+theorem sum_ub₅ (h₁ : a.ble b = true) (h₂ : c.ble d = true) : (a + c).ble (b + d) = true := by
+  simp only [Rat.ble_eq_true] at *
   have h' : c + a ≤ c + b := Rat.add_le_add_left.mpr h₁
   have h'' : b + c ≤ b + d := Rat.add_le_add_left.mpr h₂
   rewrite [Rat.add_comm, Rat.add_comm c b] at h'
   exact le_trans h' h''
 
-theorem sum_ub₆ (h₁ : a ≤ b) (h₂ : c = d) : a + c ≤ b + d := by
+theorem sum_ub₆ (h₁ : a.ble b = true) (h₂ : c = d) : (a + c).ble (b + d) = true := by
+  simp only [Rat.ble_eq_true] at *
   rewrite [h₂, Rat.add_comm, Rat.add_comm b d]
   exact Rat.add_le_add_left.mpr h₁
 
-theorem sum_ub₇ (h₁ : a = b) (h₂ : c < d) : a + c < b + d := by
+theorem sum_ub₇ (h₁ : a = b) (h₂ : c.blt d = true) : (a + c).blt (b + d) = true := by
+  simp only [Rat.blt_eq_true] at *
   rewrite [h₁, Rat.add_comm b c, Rat.add_comm b d]
   exact sum_ub₃ h₂ rfl
 
-theorem sum_ub₈ (h₁ : a = b) (h₂ : c ≤ d) : a + c ≤ b + d := by
+theorem sum_ub₈ (h₁ : a = b) (h₂ : c.ble d = true) : (a + c).ble (b + d) = true := by
+  simp only [Rat.ble_eq_true] at *
   rewrite [h₁]
   exact Rat.add_le_add_left.mpr h₂
 
 theorem sum_ub₉ (h₁ : a = b) (h₂ : c = d) : a + c = b + d := by
   rw [h₁, h₂]
 
-theorem trichotomy₁ (h₁ : a ≤ b) (h₂ : a ≠ b) : a < b := by
+theorem ble_of_eq (h : a = b) : a.ble b = true := by
+  rw [Rat.ble_eq_true, h]; exact Rat.le_refl
+
+theorem trichotomy₁ (h₁ : a.ble b = true) (h₂ : (!(a == b)) = true) : a.blt b = true := by
+  simp only [Rat.ble_eq_true, Rat.blt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *
   refine Rat.not_le.mp ?_
   intro abs
   have h := Rat.le_antisymm h₁ abs
   exact h₂ h
 
-theorem trichotomy₂ (h₁ : a ≤ b) (h₂ : a ≥ b) : a = b :=
-  Rat.le_antisymm h₁ h₂
+theorem trichotomy₂ (h₁ : a.ble b = true) (h₂ : a.bge b = true) : a = b := by
+  simp only [Rat.ble_eq_true, Rat.bge_eq_true] at *
+  exact Rat.le_antisymm h₁ h₂
 
-theorem trichotomy₃ (h₁ : a ≠ b) (h₂ : a ≤ b) : a < b := by
-  exact trichotomy₁ h₂ h₁
+theorem trichotomy₃ (h₁ : (!(a == b)) = true) (h₂ : a.ble b = true) : a.blt b = true :=
+  trichotomy₁ h₂ h₁
 
-theorem trichotomy₄ (h₁ : a ≠ b) (h₂ : a ≥ b) : a > b := by
-  exact trichotomy₃ (Ne.symm h₁) h₂
+theorem trichotomy₄ (h₁ : (!(a == b)) = true) (h₂ : a.bge b = true) : a.bgt b = true := by
+  simp only [Rat.bge_eq_true, Rat.bgt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *
+  exact Rat.not_le.mp fun h => h₁ (Rat.le_antisymm h h₂)
 
-theorem trichotomy₅ (h₁ : a ≥ b) (h₂ : a ≤ b) : a = b := by
+theorem trichotomy₅ (h₁ : a.bge b = true) (h₂ : a.ble b = true) : a = b := by
+  simp only [Rat.ble_eq_true, Rat.bge_eq_true] at *
   exact Rat.le_antisymm h₂ h₁
 
-theorem trichotomy₆ (h₁ : a ≥ b) (h₂ : a ≠ b) : a > b := by
-  exact trichotomy₃ (Ne.symm h₂) h₁
+theorem trichotomy₆ (h₁ : a.bge b = true) (h₂ : (!(a == b)) = true) : a.bgt b = true := by
+  simp only [Rat.bge_eq_true, Rat.bgt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *
+  exact Rat.not_le.mp fun h => h₂ (Rat.le_antisymm h h₁)
 
-theorem abs_elim {x : Rat} : x.abs = if x < 0 then -x else x := by
+theorem abs_eq_ite {x : Rat} : x.abs = if x < 0 then -x else x := by
   unfold Rat.abs
   by_cases h : x < 0
   · rw [ite_eq_left h, ite_eq_right (Rat.not_le.mpr h)]
   · rw [ite_eq_right h, ite_eq_left (Rat.not_lt.mp h)]
 
-theorem abs_elim_cond {x : Rat} : x.abs = cond (decide (x < 0)) (-x) x := by
-  rw [Bool.cond_decide]; exact abs_elim
+theorem abs_elim {x : Rat} : x.abs = cond (x.blt 0) (-x) x := by
+  rw [abs_eq_ite]
+  cases h : x.blt 0
+  · have hx : ¬x < 0 := by rw [← Rat.blt_eq_true, h]; decide
+    exact ite_eq_right hx
+  · exact ite_eq_left h
 
 theorem abs_eq {a b : Rat} (hb : 0 ≤ b) : a.abs = b ↔ a = b ∨ a = -b := by
-  rewrite [abs_elim]
+  rewrite [abs_eq_ite]
   cases Classical.em (a < 0)
   next hl =>
     simp only [hl, ↓reduceIte]
@@ -289,7 +317,7 @@ theorem pos_of_neg {a : Rat} : a < 0 → 0 < -a := by
   exact sum_ub₇ rfl h
 
 theorem abs_nonneg (x : Rat) : 0 ≤ x.abs := by
-  rewrite [Rat.abs_elim]
+  rewrite [abs_eq_ite]
   split
   next hx =>
     have := pos_of_neg hx
@@ -298,21 +326,21 @@ theorem abs_nonneg (x : Rat) : 0 ≤ x.abs := by
     exact Rat.not_lt.mp hx
 
 theorem abs_of_nonpos (h : a ≤ 0) : a.abs = -a := by
-  rewrite [Rat.abs_elim]
+  rewrite [abs_eq_ite]
   split
   next => rfl
   next hx =>
     have := Rat.not_lt.mp hx
-    have : a = 0 := trichotomy₅ this h
+    have : a = 0 := Rat.le_antisymm h this
     rw [this]
     simp
 
 theorem abs_of_nonneg {a : Rat} (h : 0 ≤ a) : a.abs = a := by
-  rewrite [Rat.abs_elim]
+  rewrite [abs_eq_ite]
   split
   next hx =>
     have : a ≤ 0 := le_of_lt hx
-    have : a = 0 := trichotomy₅ h this
+    have : a = 0 := Rat.le_antisymm this h
     rw [this]
     simp
   next => rfl
@@ -326,16 +354,20 @@ theorem abs_mul (a b : Rat) : (a * b).abs = a.abs * b.abs := by
 theorem mul_abs₁ (h₁ : x₁.abs = y₁.abs) (h₂ : x₂.abs = y₂.abs) : (x₁ * x₂).abs = (y₁ * y₂).abs := by
   rw [Rat.abs_mul x₁ x₂, Rat.abs_mul y₁ y₂, h₁, h₂]
 
-theorem mul_abs₂ (h₁ : x₁.abs > y₁.abs) (h₂ : x₂.abs = y₂.abs ∧ x₂.abs ≠ 0) : (x₁ * x₂).abs > (y₁ * y₂).abs := by
+theorem mul_abs₂ (h₁ : x₁.abs.bgt y₁.abs = true) (h₂ : (x₂.abs == y₂.abs && !(x₂.abs == 0)) = true) :
+    (x₁ * x₂).abs.bgt (y₁ * y₂).abs = true := by
+  simp only [Rat.bgt_eq_true, Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true', beq_eq_false_iff_ne] at *
   obtain ⟨hxy, hx⟩ := h₂
   rw [Rat.abs_mul, Rat.abs_mul]
   rw [<- hxy]
   rw [Rat.mul_comm, Rat.mul_comm (y₁.abs)]
   refine (Rat.mul_lt_mul_left ?_).mpr h₁
   · have : 0 ≤ x₂.abs := abs_nonneg x₂
-    exact trichotomy₃ (Ne.symm hx) this
+    exact Rat.not_le.mp fun h => hx (Rat.le_antisymm h this)
 
-theorem mul_abs₃ (h₁ : x₁.abs > y₁.abs) (h₂ : x₂.abs > y₂.abs) : (x₁ * x₂).abs > (y₁ * y₂).abs := by
+theorem mul_abs₃ (h₁ : x₁.abs.bgt y₁.abs = true) (h₂ : x₂.abs.bgt y₂.abs = true) :
+    (x₁ * x₂).abs.bgt (y₁ * y₂).abs = true := by
+  simp only [Rat.bgt_eq_true] at *
   rw [Rat.abs_mul, Rat.abs_mul]
   show y₁.abs * y₂.abs < x₁.abs * x₂.abs
   have : 0 < x₁.abs := lt_of_le_of_lt (abs_nonneg y₁) h₁
@@ -389,7 +421,8 @@ theorem neg_le_neg : a ≤ b → -a ≥ -b :=
       rw [Int.add_comm, <- Int.sub_eq_add_neg]
       exact h'
 
-theorem int_tight_lb {i : Int} (h : i > c) : i ≥ c.floor + 1 := by
+theorem int_tight_lb {i : Int} (h : (i : Rat).bgt c = true) : i.bge (c.floor + 1) = true := by
+  simp only [Rat.bgt_eq_true, Int.bge_eq_true] at *
   cases Int.lt_trichotomy i (c.floor + 1) with
   | inl iltc =>
     have ilec := (Int.lt_iff_add_one_le).mp iltc
@@ -407,9 +440,11 @@ theorem int_tight_lb {i : Int} (h : i > c) : i ≥ c.floor + 1 := by
 theorem floor_neg : Rat.floor (-a) = -Rat.ceil' a := by
   simp [Rat.ceil']
 
-theorem int_tight_ub {i : Int} (h : i < c) : i ≤ c.ceil' - 1 := by
+theorem int_tight_ub {i : Int} (h : (i : Rat).blt c = true) : i.ble (c.ceil' - 1) = true := by
+  simp only [Rat.blt_eq_true, Int.ble_eq_true] at *
   have h' := Rat.neg_lt_neg h
   have i_le_floor_neg_c := int_tight_lb h'
+  rw [Int.bge_eq_true] at i_le_floor_neg_c
   rw [floor_neg] at i_le_floor_neg_c
   have pf := Int.neg_le_neg i_le_floor_neg_c
   simp [Int.add_comm, Int.neg_add] at pf
@@ -462,13 +497,14 @@ theorem gt_eq_sub_gt_zero : (a > b) = (a - b > 0) := by
   apply propext
   exact Rat.lt_iff_sub_pos b a
 
-theorem lt_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ < a₂) = (b₁ < b₂) := by
+theorem lt_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
   have {c x y : Rat} (hc : c > 0) : (c * (x - y) < 0) = (x - y < 0) := by
     rw (config := { occs := .pos [1] }) [← Rat.mul_zero c, Rat.mul_lt_mul_left hc]
+  apply Bool.eq_iff_iff.mpr; apply Iff.of_eq; show (a₁ < a₂) = (b₁ < b₂)
   rw [lt_eq_sub_lt_zero, @lt_eq_sub_lt_zero b₁, ← this hc₁, ← this hc₂, h]
 
-theorem mul_sign₁ : a < 0 → b < 0 → a * b > 0 :=
-  Rat.numDenCasesOn' a fun a_num a_den a_den_nz ha =>
+theorem mul_sign₁ (ha : a.blt 0 = true) (hb : b.blt 0 = true) : (a * b).bgt 0 = true :=
+  (show a < 0 → b < 0 → a * b > 0 from Rat.numDenCasesOn' a fun a_num a_den a_den_nz ha =>
     Rat.numDenCasesOn' b fun b_num b_den b_den_nz hb => by
       have : 0 < a_den := Nat.zero_lt_of_ne_zero a_den_nz
       have a_den_pos : (0 : Int) < a_den := Int.natCast_pos.mpr this
@@ -481,10 +517,10 @@ theorem mul_sign₁ : a < 0 → b < 0 → a * b > 0 :=
       rw [Rat.divInt_mul_divInt _ _]
       have : 0 < (a_den : Int) * b_den := Int.mul_pos a_den_pos b_den_pos
       apply (Rat.divInt_pos_iff_of_pos_right this).mpr
-      exact Int.mul_pos_of_neg_of_neg a_num_neg b_num_neg
+      exact Int.mul_pos_of_neg_of_neg a_num_neg b_num_neg) ha hb
 
-theorem mul_sign₃ : a < 0 → b > 0 → a * b < 0 :=
-  Rat.numDenCasesOn' a fun a_num a_den a_den_nz ha =>
+theorem mul_sign₃ (ha : a.blt 0 = true) (hb : b.bgt 0 = true) : (a * b).blt 0 = true :=
+  (show a < 0 → b > 0 → a * b < 0 from Rat.numDenCasesOn' a fun a_num a_den a_den_nz ha =>
     Rat.numDenCasesOn' b fun b_num b_den b_den_nz hb => by
       have : 0 < a_den := Nat.zero_lt_of_ne_zero a_den_nz
       have a_den_pos : (0 : Int) < a_den := Int.natCast_pos.mpr this
@@ -497,9 +533,9 @@ theorem mul_sign₃ : a < 0 → b > 0 → a * b < 0 :=
       rw [Rat.divInt_mul_divInt _ _]
       have : 0 < (a_den : Int) * b_den := Int.mul_pos a_den_pos b_den_pos
       apply (Rat.divInt_neg_iff_of_neg_right this).mpr
-      exact Int.mul_neg_of_neg_of_pos a_num_neg b_num_neg
+      exact Int.mul_neg_of_neg_of_pos a_num_neg b_num_neg) ha hb
 
-theorem mul_sign₄ (ha : a > 0) (hb : b < 0) : a * b < 0 := by
+theorem mul_sign₄ (ha : a.bgt 0 = true) (hb : b.blt 0 = true) : (a * b).blt 0 = true := by
   rw [Rat.mul_comm]
   exact mul_sign₃ hb ha
 
@@ -545,16 +581,17 @@ theorem lt_of_sub_eq_neg' {c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0
   have := neg_of_mul_pos c₂ (b₁ - b₂) hc₂ this
   exact (lt_iff_sub_pos' b₂ b₁).mpr this
 
-theorem lt_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ < a₂) = (b₁ < b₂) := by
-  apply propext
+theorem lt_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
+  apply Bool.eq_iff_iff.mpr
   constructor
   · exact lt_of_sub_eq_neg' hc₁ hc₂ h
   · intro h2
     exact lt_of_sub_eq_neg' (c₁ := c₂) (c₂ := c₁) (a₁ := b₁) (a₂ := b₂) (b₁ := a₁) (b₂ := a₂) hc₂ hc₁ (Eq.symm h) h2
 
-theorem le_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≤ a₂) = (b₁ ≤ b₂) := by
+theorem le_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
   have {c x y : Rat} (hc : c > 0) : (c * (x - y) ≤ 0) = (x - y ≤ 0) := by
     rw (config := { occs := .pos [1] }) [← Rat.mul_zero c, Rat.mul_le_mul_left hc]
+  apply Bool.eq_iff_iff.mpr; rw [Rat.ble_eq_true, Rat.ble_eq_true]; apply Iff.of_eq
   rw [le_eq_sub_le_zero, @le_eq_sub_le_zero b₁, ← this hc₁, ← this hc₂, h]
 
 theorem le_of_sub_eq_neg' {c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≤ a₂) → (b₁ ≤ b₂) := by
@@ -565,15 +602,16 @@ theorem le_of_sub_eq_neg' {c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0
   have := nonpos_of_mul_nonneg c₂ (b₁ - b₂) hc₂ this
   exact (Rat.le_iff_sub_nonneg' b₂ b₁).mpr this
 
-theorem le_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≤ a₂) = (b₁ ≤ b₂) := by
-  apply propext
+theorem le_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
+  apply Bool.eq_iff_iff.mpr; rw [Rat.ble_eq_true, Rat.ble_eq_true]
   constructor
   · exact le_of_sub_eq_neg' hc₁ hc₂ h
   · intro h2
     exact le_of_sub_eq_neg' (c₁ := c₂) (c₂ := c₁) (a₁ := b₁) (a₂ := b₂) (b₁ := a₁) (b₂ := a₂) hc₂ hc₁ (Eq.symm h) h2
 
-theorem eq_of_sub_eq {c₁ c₂ : Rat} (hc₁ : c₁ ≠ 0) (hc₂ : c₂ ≠ 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ = a₂) = (b₁ = b₂) := by
-  apply propext
+theorem eq_of_sub_eq {c₁ c₂ : Rat} (hc₁ : (!(c₁ == 0)) = true) (hc₂ : (!(c₂ == 0)) = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ == a₂) = (b₁ == b₂) := by
+  simp only [Bool.not_eq_true', beq_eq_false_iff_ne] at hc₁ hc₂
+  apply Bool.eq_iff_iff.mpr; rw [beq_iff_eq, beq_iff_eq]
   apply Iff.intro
   · intro ha
     rw [ha] at h
@@ -588,9 +626,10 @@ theorem eq_of_sub_eq {c₁ c₂ : Rat} (hc₁ : c₁ ≠ 0) (hc₂ : c₂ ≠ 0)
     rw [eq_eq_sub_eq_zero]
     exact this
 
-theorem ge_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≥ a₂) = (b₁ ≥ b₂) := by
+theorem ge_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
   have {c x y : Rat} (hc : c > 0) : (c * (x - y) ≥ 0) = (x - y ≥ 0) := by
     rw (config := { occs := .pos [1] }) [← Rat.mul_zero c, ge_iff_le, Rat.mul_le_mul_left hc]
+  apply Bool.eq_iff_iff.mpr; rw [Rat.bge_eq_true, Rat.bge_eq_true]; apply Iff.of_eq
   rw [ge_eq_sub_ge_zero, @ge_eq_sub_ge_zero b₁, ← this hc₁, ← this hc₂, h]
 
 theorem mul_neg (a b : Rat) : a * (-b) = - (a * b) :=
@@ -607,115 +646,131 @@ theorem neg_eq {a b : Rat} : -a = -b → a = b := by
   simp only [Rat.neg_neg] at h'
   exact h'
 
-theorem ge_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≥ a₂) = (b₁ ≥ b₂) := by
-  show (a₂ ≤ a₁) = (b₂ ≤ b₁)
+theorem ge_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
+  show a₂.ble a₁ = b₂.ble b₁
   rw [<- Rat.neg_sub, <- Rat.neg_sub b₂ b₁, mul_neg, mul_neg] at h
   have h' := neg_eq h
   exact le_of_sub_eq_neg hc₁ hc₂ h'
 
-theorem gt_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ > a₂) = (b₁ > b₂) := by
+theorem gt_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
   have {c x y : Rat} (hc : c > 0) : (c * (x - y) > 0) = (x - y > 0) := by
     rw (config := { occs := .pos [1] }) [← Rat.mul_zero c, gt_iff_lt, Rat.mul_lt_mul_left hc]
+  apply Bool.eq_iff_iff.mpr; apply Iff.of_eq; show (a₁ > a₂) = (b₁ > b₂)
   rw [gt_eq_sub_gt_zero, @gt_eq_sub_gt_zero b₁, ← this hc₁, ← this hc₂, h]
 
-theorem gt_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ > a₂) = (b₁ > b₂) := by
-  show (a₂ < a₁) = (b₂ < b₁)
+theorem gt_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
+  show a₂.blt a₁ = b₂.blt b₁
   rw [<- Rat.neg_sub, <- Rat.neg_sub b₂ b₁, mul_neg, mul_neg] at h
   have h' := neg_eq h
   exact lt_of_sub_eq_neg hc₁ hc₂ h'
 
-theorem lt_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ < a₂) = (b₁ < b₂) := by
+theorem cast_blt {a b : Int} : a.blt b = (a : Rat).blt b :=
+  Bool.eq_iff_iff.mpr (by rw [Int.blt_eq_true]; exact Rat.cast_lt')
+
+theorem cast_ble {a b : Int} : a.ble b = (a : Rat).ble b :=
+  Bool.eq_iff_iff.mpr (by rw [Int.ble_eq_true, Rat.ble_eq_true]; exact Rat.cast_le')
+
+theorem cast_bgt {a b : Int} : a.bgt b = (a : Rat).bgt b :=
+  Bool.eq_iff_iff.mpr (by rw [Int.bgt_eq_true]; exact Rat.cast_gt')
+
+theorem cast_bge {a b : Int} : a.bge b = (a : Rat).bge b :=
+  Bool.eq_iff_iff.mpr (by rw [Int.bge_eq_true, Rat.bge_eq_true]; exact Rat.cast_ge')
+
+theorem cast_beq {a b : Int} : (a == b) = ((a : Rat) == b) :=
+  Bool.eq_iff_iff.mpr (by rw [beq_iff_eq, beq_iff_eq]; exact Rat.cast_eq)
+
+theorem lt_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_lt']
+  rw [cast_blt]
   exact lt_of_sub_eq_pos hc₁ hc₂ h
 
-theorem lt_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ < a₂) = (b₁ < b₂) := by
+theorem lt_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_lt']
+  rw [cast_blt]
   exact lt_of_sub_eq_neg hc₁ hc₂ h
 
-theorem le_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≤ a₂) = (b₁ ≤ b₂) := by
+theorem le_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_le']
+  rw [cast_ble]
   exact le_of_sub_eq_pos hc₁ hc₂ h
 
-theorem le_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≤ a₂) = (b₁ ≤ b₂) := by
+theorem le_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_le']
+  rw [cast_ble]
   exact le_of_sub_eq_neg hc₁ hc₂ h
 
-theorem eq_of_sub_eq_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁ ≠ 0) (hc₂ : c₂ ≠ 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ = a₂) = (b₁ = b₂) := by
+theorem eq_of_sub_eq_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : (!(c₁ == 0)) = true) (hc₂ : (!(c₂ == 0)) = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ == a₂) = (b₁ == b₂) := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_eq]
+  rw [cast_beq]
   exact eq_of_sub_eq hc₁ hc₂ h
 
-theorem ge_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≥ a₂) = (b₁ ≥ b₂) := by
+theorem ge_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_ge']
+  rw [cast_bge]
   exact ge_of_sub_eq_pos hc₁ hc₂ h
 
-theorem ge_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≥ a₂) = (b₁ ≥ b₂) := by
+theorem ge_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_ge']
+  rw [cast_bge]
   exact ge_of_sub_eq_neg hc₁ hc₂ h
 
-theorem gt_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ > a₂) = (b₁ > b₂) := by
+theorem gt_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_gt']
+  rw [cast_bgt]
   exact gt_of_sub_eq_pos hc₁ hc₂ h
 
-theorem gt_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ > a₂) = (b₁ > b₂) := by
+theorem gt_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_gt']
+  rw [cast_bgt]
   exact gt_of_sub_eq_neg hc₁ hc₂ h
 
-theorem lt_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ < a₂) = (b₁ < b₂) := by
+theorem lt_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_lt']
+  rw [cast_blt]
   exact lt_of_sub_eq_pos hc₁ hc₂ h
 
-theorem lt_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ < a₂) = (b₁ < b₂) := by
+theorem lt_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_lt']
+  rw [cast_blt]
   exact lt_of_sub_eq_neg hc₁ hc₂ h
 
-theorem le_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ ≤ a₂) = (b₁ ≤ b₂) := by
+theorem le_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_le']
+  rw [cast_ble]
   exact le_of_sub_eq_pos hc₁ hc₂ h
 
-theorem le_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ ≤ a₂) = (b₁ ≤ b₂) := by
+theorem le_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_le']
+  rw [cast_ble]
   exact le_of_sub_eq_neg hc₁ hc₂ h
 
-theorem eq_of_sub_eq_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁ ≠ 0) (hc₂ : c₂ ≠ 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ = a₂) = (b₁ = b₂) := by
+theorem eq_of_sub_eq_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : (!(c₁ == 0)) = true) (hc₂ : (!(c₂ == 0)) = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ == a₂) = (b₁ == b₂) := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_eq]
+  rw [cast_beq]
   exact eq_of_sub_eq hc₁ hc₂ h
 
-theorem ge_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ ≥ a₂) = (b₁ ≥ b₂) := by
+theorem ge_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_ge']
+  rw [cast_bge]
   exact ge_of_sub_eq_pos hc₁ hc₂ h
 
-theorem ge_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ ≥ a₂) = (b₁ ≥ b₂) := by
+theorem ge_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_ge']
+  rw [cast_bge]
   exact ge_of_sub_eq_neg hc₁ hc₂ h
 
-theorem gt_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ > a₂) = (b₁ > b₂) := by
+theorem gt_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_gt']
+  rw [cast_bgt]
   exact gt_of_sub_eq_pos hc₁ hc₂ h
 
-theorem gt_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ > a₂) = (b₁ > b₂) := by
+theorem gt_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
   rw [Rat.intCast_sub] at h
-  rw [Rat.cast_gt']
+  rw [cast_bgt]
   exact gt_of_sub_eq_neg hc₁ hc₂ h
 
-theorem mul_sign₆ : a > 0 → b > 0 → a * b > 0 :=
-  Rat.numDenCasesOn' a fun a_num a_den a_den_nz ha =>
+theorem mul_sign₆ (ha : a.bgt 0 = true) (hb : b.bgt 0 = true) : (a * b).bgt 0 = true :=
+  (show a > 0 → b > 0 → a * b > 0 from Rat.numDenCasesOn' a fun a_num a_den a_den_nz ha =>
     Rat.numDenCasesOn' b fun b_num b_den b_den_nz hb => by
       have : 0 < a_den := Nat.zero_lt_of_ne_zero a_den_nz
       have a_den_pos : (0 : Int) < a_den := Int.natCast_pos.mpr this
@@ -728,7 +783,7 @@ theorem mul_sign₆ : a > 0 → b > 0 → a * b > 0 :=
       rw [Rat.divInt_mul_divInt _ _]
       have : 0 < (a_den : Int) * b_den := Int.mul_pos a_den_pos b_den_pos
       apply (Rat.divInt_pos_iff_of_pos_right this).mpr
-      exact Int.mul_pos a_num_pos b_num_pos
+      exact Int.mul_pos a_num_pos b_num_pos) ha hb
 
 theorem Int.square_pos {i : Int} : i ≠ 0 → 0 < i * i := by
   intro h
@@ -736,41 +791,52 @@ theorem Int.square_pos {i : Int} : i ≠ 0 → 0 < i * i := by
   | inl h' => exact Int.mul_pos_of_neg_of_neg h' h'
   | inr h' => exact Int.mul_pos h' h'
 
-theorem mul_sign₀ : a ≠ 0 → a * a > 0 :=
-  Rat.numDenCasesOn' a fun a_num a_den a_den_nz ha => by
+theorem mul_sign₀ (ha : (!(a == 0)) = true) : (a * a).bgt 0 = true := by
+  simp only [Bool.not_eq_true', beq_eq_false_iff_ne] at ha
+  exact (show a ≠ 0 → a * a > 0 from Rat.numDenCasesOn' a fun a_num a_den a_den_nz ha => by
     have : a_num ≠ 0 := (Rat.mkRat_ne_zero a_den_nz).mp ha
     have : 0 < a_num * a_num := Int.square_pos this
     have bar : (a_den : Int) ≠ (0 : Int) := Int.ofNat_ne_zero.mpr a_den_nz
     have foo : (0 : Int) < a_den * a_den := Int.square_pos bar
     rw [Rat.divInt_mul_divInt _ _]
-    exact (Rat.divInt_pos_iff_of_pos_right foo).mpr this
+    exact (Rat.divInt_pos_iff_of_pos_right foo).mpr this) ha
 
-theorem mul_sign₂ (ha : a < 0) (hb : b ≠ 0) : a * b * b < 0 := by
+theorem mul_sign₂ (ha : a.blt 0 = true) (hb : (!(b == 0)) = true) : (a * b * b).blt 0 = true := by
   have := mul_sign₀ hb
   rw [Rat.mul_assoc]
   exact mul_sign₃ ha this
 
-theorem mul_sign₅ (ha : a > 0) (hb : b ≠ 0) : a * b * b > 0 := by
+theorem mul_sign₅ (ha : a.bgt 0 = true) (hb : (!(b == 0)) = true) : (a * b * b).bgt 0 = true := by
   have := mul_sign₀ hb
   rw [Rat.mul_assoc]
   exact mul_sign₆ ha this
 
-theorem mul_pos_lt (h : c > 0 ∧ a < b) : c * a < c * b := by
+theorem mul_pos_lt : ((c.bgt 0 && a.blt b).imp ((c * a).blt (c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Rat.bgt_eq_true, Rat.blt_eq_true]
+  intro h
   have ⟨h1, h2⟩ := h
   exact (Rat.mul_lt_mul_left h1).mpr h2
 
-theorem mul_pos_le (h : c > 0 ∧ a ≤ b) : c * a ≤ c * b := by
+theorem mul_pos_le : ((c.bgt 0 && a.ble b).imp ((c * a).ble (c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Rat.bgt_eq_true, Rat.ble_eq_true]
+  intro h
   have ⟨h1, h2⟩ := h
   exact (Rat.mul_le_mul_left h1).mpr h2
 
-theorem mul_pos_gt (h : c > 0 ∧ a > b) : c * a > c * b := mul_pos_lt h
+theorem mul_pos_gt : ((c.bgt 0 && a.bgt b).imp ((c * a).bgt (c * b))) = true :=
+  mul_pos_lt (a := b) (b := a)
 
-theorem mul_pos_ge (h : c > 0 ∧ a ≥ b) : c * a ≥ c * b := mul_pos_le h
+theorem mul_pos_ge : ((c.bgt 0 && a.bge b).imp ((c * a).bge (c * b))) = true :=
+  mul_pos_le (a := b) (b := a)
 
-theorem mul_pos_eq (h : c > 0 ∧ a = b) : c * a = c * b := by rw [h.2]
+theorem mul_pos_eq : ((c.bgt 0 && a == b).imp (c * a == c * b)) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Rat.bgt_eq_true, beq_iff_eq]
+  intro h
+  rw [h.2]
 
-theorem mul_neg_lt : (c < 0 ∧ a < b) → c * a > c * b :=
-  Rat.numDenCasesOn' a fun a_num a_den a_den_nz =>
+theorem mul_neg_lt : ((c.blt 0 && a.blt b).imp ((c * a).bgt (c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Rat.blt_eq_true, Rat.bgt_eq_true]
+  exact Rat.numDenCasesOn' a fun a_num a_den a_den_nz =>
     Rat.numDenCasesOn' b fun b_num b_den b_den_nz =>
       Rat.numDenCasesOn' c fun c_num c_den c_den_nz => by
         rintro ⟨h1, h2⟩
@@ -794,9 +860,13 @@ theorem mul_neg_lt : (c < 0 ∧ a < b) → c * a > c * b :=
         rw [Int.mul_comm, Int.mul_comm a_den b_num]
         exact h3
 
-theorem mul_neg_gt (h : c < 0 ∧ a > b) : c * a < c * b := mul_neg_lt h
+theorem mul_neg_gt : ((c.blt 0 && a.bgt b).imp ((c * a).blt (c * b))) = true :=
+  mul_neg_lt (a := b) (b := a)
 
-theorem mul_neg_eq (h : c < 0 ∧ a = b) : c * a = c * b := by rw [h.2]
+theorem mul_neg_eq : ((c.blt 0 && a == b).imp (c * a == c * b)) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Rat.blt_eq_true, beq_iff_eq]
+  intro h
+  rw [h.2]
 
 theorem Int.mul_le_mul_of_neg_left {a b c : Int} (h : b ≤ a) (hc : c < 0) : c * a ≤ c * b :=
   match Int.le_iff_eq_or_lt.mp h with
@@ -853,10 +923,12 @@ theorem Rat.mul_le_mul_of_neg_left (a b c : Rat) : c < 0 -> (a ≤ b <-> c * a �
         · intro h2; rw [Int.mul_comm b_den a_num, Int.mul_comm a_den b_num]; exact Int.mul_le_mul_of_pos_left h2 this
         · intro h2; rw [Int.mul_comm a_num b_den, Int.mul_comm b_num a_den]; exact Int.le_of_mul_le_mul_left h2 this
 
-theorem mul_neg_le (h : c < 0 ∧ a ≤ b) : c * a ≥ c * b := (Rat.mul_le_mul_of_neg_left a b c h.1).mp h.2
+theorem mul_neg_le : ((c.blt 0 && a.ble b).imp ((c * a).bge (c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Rat.blt_eq_true, Rat.ble_eq_true, Rat.bge_eq_true]
+  exact fun h => (Rat.mul_le_mul_of_neg_left a b c h.1).mp h.2
 
-theorem mul_neg_ge (h : c < 0 ∧ a ≥ b) : c * a ≤ c * b :=
-  mul_neg_le h
+theorem mul_neg_ge : ((c.blt 0 && a.bge b).imp ((c * a).ble (c * b))) = true :=
+  mul_neg_le (a := b) (b := a)
 
 theorem mul_tangent_mp_lower (h : x * y ≤ b * x + a * y - a * b)
   : x ≤ a ∧ y ≥ b ∨ x ≥ a ∧ y ≤ b := by
@@ -935,9 +1007,11 @@ theorem mul_tangent_lower :
   x * y ≤ b * x + a * y - a * b ↔ x ≤ a ∧ y ≥ b ∨ x ≥ a ∧ y ≤ b :=
   ⟨mul_tangent_mp_lower, mul_tangent_mpr_lower⟩
 
-theorem mul_tangent_lower_eq
-  : (x * y ≤ b * x + a * y - a * b) = (x ≤ a ∧ y ≥ b ∨ x ≥ a ∧ y ≤ b) :=
-  propext (mul_tangent_lower)
+theorem mul_tangent_lower_eq {x y : Rat}
+  : (x * y).ble (b * x + a * y - a * b) = (x.ble a && y.bge b || x.bge a && y.ble b) := by
+  apply Bool.eq_iff_iff.mpr
+  simp only [Rat.ble_eq_true, Rat.bge_eq_true, Bool.or_eq_true, Bool.and_eq_true]
+  exact mul_tangent_lower
 
 theorem mul_tangent_mp_upper (h : x * y ≥ b * x + a * y - a * b)
   : x ≤ a ∧ y ≤ b ∨ x ≥ a ∧ y ≥ b := by
@@ -1015,8 +1089,10 @@ theorem mul_tangent_upper
   : x * y ≥ b * x + a * y - a * b ↔ x ≤ a ∧ y ≤ b ∨ x ≥ a ∧ y ≥ b :=
   ⟨mul_tangent_mp_upper, mul_tangent_mpr_upper⟩
 
-theorem mul_tangent_upper_eq
-  : (x * y ≥ b * x + a * y - a * b) = (x ≤ a ∧ y ≤ b ∨ x ≥ a ∧ y ≥ b) :=
-  propext (mul_tangent_upper)
+theorem mul_tangent_upper_eq {x y : Rat}
+  : (x * y).bge (b * x + a * y - a * b) = (x.ble a && y.ble b || x.bge a && y.bge b) := by
+  apply Bool.eq_iff_iff.mpr
+  simp only [Rat.ble_eq_true, Rat.bge_eq_true, Bool.or_eq_true, Bool.and_eq_true]
+  exact mul_tangent_upper
 
 end Smt.Reconstruct.Rat

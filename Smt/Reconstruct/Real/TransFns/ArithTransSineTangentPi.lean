@@ -15,6 +15,8 @@ module
 public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
 public import Mathlib.Analysis.Complex.Exponential
+public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Real.Core
 
 @[expose] public section
 
@@ -47,8 +49,10 @@ theorem arithTransSineTangentPi₂ : ∀ (t : ℝ),
   exact sin_lt e_pos
 
 theorem arithTransSineTangentPi : ∀ (t : ℝ),
-    (t > (-1) * Real.pi → sin t > (-1) * Real.pi - t) ∧ (t < Real.pi → sin t < Real.pi - t) := fun t =>
-  by simp only [neg_mul, one_mul, gt_iff_lt]
+    ((t.bgt ((-1) * Real.pi)).imp ((sin t).bgt ((-1) * Real.pi - t)) &&
+      (t.blt Real.pi).imp ((sin t).blt (Real.pi - t))) = true := fun t =>
+  by simp only [Bool.and_eq_true, Bool.imp_eq_true, Real.bgt_eq_true, Real.blt_eq_true]
+     simp only [neg_mul, one_mul, gt_iff_lt]
      exact ⟨arithTransSineTangentPi₁ t, arithTransSineTangentPi₂ t⟩
 
 end Smt.Reconstruct.Real.TransFns

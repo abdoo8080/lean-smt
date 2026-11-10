@@ -1,4 +1,4 @@
-Test/Unit/Datatype.lean:43:61: warning: Variable name `div2` is not explicitly referenced.
+Test/Unit/Datatype.lean:47:61: warning: Variable name `div2` is not explicitly referenced.
 
 Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
   [apply] _div2

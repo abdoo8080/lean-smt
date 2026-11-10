@@ -21,30 +21,36 @@ open Function
 
 -- https://github.com/cvc5/cvc5/blob/main/src/theory/arith/rewrites
 
-variable {t s x : Real}
+/-! The rewrites are stated over the reconstructions of SMT-LIB terms (see
+`Smt.Reconstruct.Int.Rewrite`). -/
+
+-- `==` is the reconstruction of SMT-LIB's `=` (see `Smt.Reconstruct.Bool.mkBEq`).
+attribute [local instance high] instBEqOfDecidableEq
+
+variable {t s x y : Real}
 
 theorem div_total_zero : x / 0 = 0 :=
   div_zero x
 
 -- Eliminations
 
-theorem elim_gt : (t > s) = ¬(s ≥ t) :=
-  propext not_le.symm
-theorem elim_lt : (t < s) = ¬(t ≥ s) :=
-  propext not_le.symm
-theorem elim_leq : (t ≤ s) = (s ≥ t) :=
-  propext ge_iff_le
+theorem elim_gt : t.bgt s = !t.ble s := by
+  simp only [Real.bgt, Real.ble, ← decide_not]; exact decide_eq_decide.mpr not_le.symm
+theorem elim_lt : t.blt s = !t.bge s := by
+  simp only [Real.blt, Real.bge, ← decide_not]; exact decide_eq_decide.mpr not_le.symm
+theorem elim_leq : t.ble s = s.bge t :=
+  decide_eq_decide.mpr Iff.rfl
 
-theorem geq_norm1 : (t ≥ s) = (t - s ≥ 0) :=
-  propext ⟨sub_nonneg_of_le, le_of_sub_nonneg⟩
+theorem geq_norm1 : t.bge s = (t - s).bge 0 :=
+  decide_eq_decide.mpr ⟨sub_nonneg_of_le, le_of_sub_nonneg⟩
 
-theorem eq_elim : (t = s) = (t ≥ s ∧ t ≤ s) :=
-  propext (Iff.symm antisymm_iff)
+theorem eq_elim : (t == s) = (t.bge s && t.ble s) := by
+  simp only [Real.bge, Real.ble, ← Bool.decide_and]; exact decide_eq_decide.mpr (Iff.symm antisymm_iff)
 
-theorem eq_conflict {t : Int} {c : Real} (hcc : (↑⌊c⌋ = c) = False) : (t = c) = False := by
-  simp only [eq_iff_iff, iff_false]
+theorem eq_conflict {t : Int} {c : Real} (hcc : ((⌊c⌋ : Real) == c) = false) : ((t : Real) == c) = false := by
+  simp only [beq_eq_false_iff_ne] at *
   intro htc
-  have hcc : ⌊c⌋ < c := (le_iff_eq_or_lt.mp (Int.floor_le c)).resolve_left hcc.mp
+  have hcc : ⌊c⌋ < c := (le_iff_eq_or_lt.mp (Int.floor_le c)).resolve_left hcc
   cases Int.lt_trichotomy t ⌊c⌋ <;> rename_i htcf
   · have hntc : ↑t ≠ c := (lt_iff_le_and_ne.mp (lt_trans (Int.cast_lt.mpr htcf) hcc)).right
     contradiction
@@ -57,9 +63,11 @@ theorem eq_conflict {t : Int} {c : Real} (hcc : (↑⌊c⌋ = c) = False) : (t =
           exact htcf
       simp_all
 
-theorem geq_tighten {t : Int} {c : Real} {cc : Int} (hc : (↑⌊c⌋ = c) = False) (hcc : cc = Int.addN [⌊c⌋, 1]) : (t ≥ c) = (t ≥ cc) := by
-  simp only [hcc, Int.addN, ge_iff_le, eq_iff_iff, le_iff_eq_or_lt, ← Int.floor_lt]
-  have h : ↑t ≠ c := by simpa [Eq.symm] using eq_conflict hc
+theorem geq_tighten {t : Int} {c : Real} {cc : Int} (hc : ((⌊c⌋ : Real) == c) = false) (hcc : cc = ⌊c⌋ + 1) : (t : Real).bge c = t.bge cc := by
+  apply Bool.eq_iff_iff.mpr
+  rw [Real.bge_eq_true, Int.bge_eq_true]
+  simp only [hcc, ge_iff_le, le_iff_eq_or_lt, ← Int.floor_lt]
+  have h : ↑t ≠ c := by simpa using eq_conflict (t := t) hc
   apply Iff.intro <;> intro hct
   · have h := hct.resolve_left h.symm
     omega
@@ -67,44 +75,41 @@ theorem geq_tighten {t : Int} {c : Real} {cc : Int} (hc : (↑⌊c⌋ = c) = Fal
 
 -- Absolute value comparisons
 
-theorem abs_eq : (|x| = |y|) = (x = y ∨ x = -y) := propext abs_eq_abs
+theorem abs_eq : (|x| == |y|) = (x == y || x == -y) := by
+  apply Bool.eq_iff_iff.mpr
+  simp only [beq_iff_eq, Bool.or_eq_true]
+  exact abs_eq_abs
 
-theorem abs_gt : (|x| > |y|) = ite (x ≥ 0) (ite (y ≥ 0) (x > y) (x > -y)) (ite (y ≥ 0) (-x > y) (-x > -y)) := by
-  split <;> rename_i hx <;> split <;> rename_i hy
-  · rw [abs_eq_self.mpr hx, abs_eq_self.mpr hy]
-  · rw [abs_eq_self.mpr hx, abs_eq_neg_self.mpr (le_of_not_ge hy)]
-  · rw [abs_eq_neg_self.mpr (le_of_not_ge hx), abs_eq_self.mpr hy]
+theorem abs_gt : |x|.bgt |y| =
+    cond (x.bge 0) (cond (y.bge 0) (x.bgt y) (x.bgt (-y))) (cond (y.bge 0) ((-x).bgt y) ((-x).bgt (-y))) := by
+  cases hx : x.bge 0 <;> cases hy : y.bge 0 <;>
+    simp only [Real.bge_eq_true, Real.bge_eq_false, Bool.cond_true, Bool.cond_false] at hx hy ⊢
   · rw [abs_eq_neg_self.mpr (le_of_not_ge hx), abs_eq_neg_self.mpr (le_of_not_ge hy)]
+  · rw [abs_eq_neg_self.mpr (le_of_not_ge hx), abs_eq_self.mpr hy]
+  · rw [abs_eq_self.mpr hx, abs_eq_neg_self.mpr (le_of_not_ge hy)]
+  · rw [abs_eq_self.mpr hx, abs_eq_self.mpr hy]
 
 -- ITE lifting
 
-theorem geq_ite_lift [h : Decidable c] {t s r : Real} : (ite c t s ≥ r) = ite c (t ≥ r) (s ≥ r) := by
-  cases h <;> simp_all
+theorem geq_ite_lift {c : Bool} {t s r : Real} : (cond c t s).bge r = cond c (t.bge r) (s.bge r) := by
+  cases c <;> rfl
 
-theorem leq_ite_lift [h : Decidable c] {t s r : Real} : (ite c t s ≤ r) = ite c (t ≤ r) (s ≤ r) := by
-  cases h <;> simp_all
+theorem leq_ite_lift {c : Bool} {t s r : Real} : (cond c t s).ble r = cond c (t.ble r) (s.ble r) := by
+  cases c <;> rfl
 
 -- min/max rules
 
-theorem min_lt1 : (ite (t < s) t s ≤ t) = True := by
-  cases h : decide (t < s) <;>
-  simp_all only [decide_eq_false_iff_not, ite_false, not_false_eq_true, not_lt.mp,
-                 decide_eq_true_eq, ite_true, le_refl]
+theorem min_lt1 : (cond (t.blt s) t s).ble t = true := by
+  cases h : t.blt s <;> simp_all
 
-theorem min_lt2 : (ite (t < s) t s ≤ s) = True := by
-  cases h : decide (t < s) <;>
-  simp_all only [decide_eq_false_iff_not, ite_false, le_refl,
-                 decide_eq_true_eq, ite_true, le_of_lt]
+theorem min_lt2 : (cond (t.blt s) t s).ble s = true := by
+  cases h : t.blt s <;> simp_all [le_of_lt]
 
-theorem max_geq1 : (ite (t ≥ s) t s ≥ t) = True := by
-  cases h : decide (t ≥ s) <;>
-  simp_all only [ge_iff_le, decide_eq_false_iff_not, ite_false, not_false_eq_true, le_of_not_ge,
-                 decide_eq_true_eq, ite_true, le_refl]
+theorem max_geq1 : (cond (t.bge s) t s).bge t = true := by
+  cases h : t.bge s <;> simp_all [le_of_lt]
 
-theorem max_geq2 : (ite (t ≥ s) t s ≥ s) = True := by
-  cases h : decide (t ≥ s) <;>
-  simp_all only [ge_iff_le, decide_eq_false_iff_not, ite_false, le_refl,
-                 decide_eq_true_eq, ite_true]
+theorem max_geq2 : (cond (t.bge s) t s).bge s = true := by
+  cases h : t.bge s <;> simp_all
 
 theorem arith_sine_zero : Real.sin 0 = 0 := Real.sin_zero
 theorem arith_sine_pi2 : Real.sin ((1/2) * Real.pi) = 1 := by
@@ -121,28 +126,5 @@ theorem arith_tangent_elim (x : Real) : Real.tan x = Real.sin x / Real.cos x := 
 theorem arith_cotangent_elim (x : Real) : Real.cot x = Real.cos x / Real.sin x := Real.cot_eq_cos_div_sin x
 
 -- TODO: Secant and cosecant. There is no definition for those in mathlib. Should we define our own?
-
--- min/max rules, where the `ite` is reconstructed as `cond`
-
-theorem min_lt1_cond {t s : Real} : decide (cond (decide (t < s)) t s ≤ t) = true := by
-  rw [Bool.cond_decide, decide_eq_true_eq]; exact of_eq_true min_lt1
-
-theorem min_lt2_cond {t s : Real} : decide (cond (decide (t < s)) t s ≤ s) = true := by
-  rw [Bool.cond_decide, decide_eq_true_eq]; exact of_eq_true min_lt2
-
-theorem max_geq1_cond {t s : Real} : decide (cond (decide (t ≥ s)) t s ≥ t) = true := by
-  rw [Bool.cond_decide, decide_eq_true_eq]; exact of_eq_true max_geq1
-
-theorem max_geq2_cond {t s : Real} : decide (cond (decide (t ≥ s)) t s ≥ s) = true := by
-  rw [Bool.cond_decide, decide_eq_true_eq]; exact of_eq_true max_geq2
-
-/-- `abs_gt`, where the `ite` is reconstructed as `cond`. -/
-theorem abs_gt_cond {x y : Real} :
-    decide (|x| > |y|) = cond (decide (x ≥ 0)) (cond (decide (y ≥ 0)) (decide (x > y)) (decide (x > -y)))
-      (cond (decide (y ≥ 0)) (decide (-x > y)) (decide (-x > -y))) := by
-  apply Bool.eq_iff_iff.mpr
-  rw [decide_eq_true_eq, abs_gt]
-  simp only [Bool.cond_decide]
-  split <;> split <;> simp
 
 end Smt.Reconstruct.Real.Rewrite

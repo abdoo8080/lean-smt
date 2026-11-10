@@ -19,6 +19,8 @@ public import Mathlib.Analysis.Complex.Exponential
 
 public import Smt.Reconstruct.Real.TransFns.ArithTransExpApproxBelow
 public import Smt.Reconstruct.Real.TransFns.TaylorComp
+public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Real.Core
 
 @[expose] public section
 
@@ -94,7 +96,8 @@ theorem arithTransExpApproxAboveNeg' (d k : Nat) (l u t : ℝ) (evalL evalU : �
   exact arithTransExpApproxAboveNeg d k hd l u t ht hu'
 
 theorem arithTransExpApproxAboveNegComp (d k : Nat) (l u t : ℝ) (evalL evalU : ℝ) (hl : expTaylor d l = evalL) (hu : expTaylor d u = evalU) (hd : d = 2 * k) (hu' : u < 0):
-    t ≥ l ∧ t ≤ u → Real.exp t ≤ evalL + ((evalL - evalU) / (l - u)) * (t - l) := by
+    ((t.bge l && t.ble u).imp ((Real.exp t).ble (evalL + ((evalL - evalU) / (l - u)) * (t - l)))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.bge_eq_true, Real.ble_eq_true]
   rw [<- expEmbedding] at hl
   rw [<- expEmbedding] at hu
   exact fun a => arithTransExpApproxAboveNeg' d k l u t evalL evalU hl hu hd hu' a

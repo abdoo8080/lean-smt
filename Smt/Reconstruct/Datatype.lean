@@ -70,26 +70,6 @@ private def getFVarOrConstExpr! (n : String) : ReconstructM Expr := do
     return curr
   | _ => return none
 
-/-- Build a Lean proof of `(t = s) = False` where `t` and `s` are
-distinct constructors of the same inductive type. Uses the `noConfusion`
-principle that Lean auto-generates for every inductive type. -/
-private def proveConsClash (t s : Expr) : MetaM Expr := do
-  let α ← inferType t
-  let .const αName _ := α.getAppFn
-    | throwError "Smt.Reconstruct.Datatype: expected inductive type, got {α}"
-  let ncName := αName ++ `noConfusion
-  let heq ← mkEq t s
-  -- Forward: (t = s) → False  via noConfusion with motive False
-  let fwd ← withLocalDeclD `h heq fun h => do
-    let nc ← mkAppOptM ncName #[some (mkConst ``False), some t, some s, some h]
-    mkLambdaFVars #[h] nc
-  -- Backward: False → (t = s)  via False.elim
-  let bwd ← withLocalDeclD `h (mkConst ``False) fun h => do
-    let fe ← mkAppOptM ``False.elim #[some heq, some h]
-    mkLambdaFVars #[h] fe
-  let iff_pf ← mkAppM ``Iff.intro #[fwd, bwd]
-  mkAppM ``propext #[iff_pf]
-
 /-- A proof of `(t == s) = F` for applications `t` and `s` of constructors, where `F` is the
 conjunction of the equalities of their fields, by the injectivity of the constructors. Returns `none`
 if that fails. -/
@@ -116,28 +96,6 @@ where
     | some (.ctorInfo _) => true
     | _ => false
 
-def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
-  match pf.getRewriteRule! with
-  | .MACRO_DT_CONS_EQ
-  | .DT_CONS_EQ
-  | .DT_CONS_EQ_CLASH =>
-    let result := pf.getResult
-    let sort := result[0]![0]!.getSort!
-    if sort.getKind! == .DATATYPE_SORT && isBuiltinName sort.getDatatype!.getName!.toName then
-      return none
-    if result[1]!.getKind! == .CONST_BOOLEAN && !result[1]!.getBooleanValue! then
-      -- Distinct constructors.
-      let t ← reconstructTerm result[0]![0]!
-      let s ← reconstructTerm result[0]![1]!
-      -- The proposition denoted by `(= (= t s) false)` is `(t = s) = False`.
-      addPropThm pf.getResult (← proveConsClash t s)
-    else
-      -- `(= (= (C t₁ … tₙ) (C s₁ … sₙ)) (and (= t₁ s₁) … (= tₙ sₙ)))`
-      let (_, l, r, _) ← getEq! (← reconstructTerm result)
-      let some h ← proveConsEq l r | return none
-      addEqThm result h
-  | _ => return none
-
 /-- Build a Lean proof of `¬(t = s)` where `t` and `s` are distinct constructors.
 Uses the `noConfusion` principle: `fun h : t = s => noConfusion False t s h`. -/
 private def proveDistinctValues (t s : Expr) : MetaM Expr := do
@@ -150,6 +108,26 @@ private def proveDistinctValues (t s : Expr) : MetaM Expr := do
     let nc ← mkAppOptM ncName #[some (mkConst ``False), some t, some s, some h]
     mkLambdaFVars #[h] nc
 
+def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
+  match pf.getRewriteRule! with
+  | .MACRO_DT_CONS_EQ
+  | .DT_CONS_EQ
+  | .DT_CONS_EQ_CLASH =>
+    let result := pf.getResult
+    let sort := result[0]![0]!.getSort!
+    if sort.getKind! == .DATATYPE_SORT && isBuiltinName sort.getDatatype!.getName!.toName then
+      return none
+    if result[1]!.getKind! == .CONST_BOOLEAN && !result[1]!.getBooleanValue! then
+      -- Distinct constructors: `(t == s) = false`.
+      let (_, t, s, inst) ← getEq! (← reconstructTerm result[0]!)
+      addEqThm pf.getResult (mkApp3 (.const ``decide_eq_false []) (← mkEq t s) inst (← proveDistinctValues t s))
+    else
+      -- `(= (= (C t₁ … tₙ) (C s₁ … sₙ)) (and (= t₁ s₁) … (= tₙ sₙ)))`
+      let (_, l, r, _) ← getEq! (← reconstructTerm result)
+      let some h ← proveConsEq l r | return none
+      addEqThm result h
+  | _ => return none
+
 @[smt_proof_reconstruct] def reconstructDatatypeProof : ProofReconstructor := fun pf => do
   match pf.getRule with
   | .DSL_REWRITE
@@ -158,10 +136,14 @@ private def proveDistinctValues (t s : Expr) : MetaM Expr := do
     let sort := pf.getArguments[0]!.getSort!
     if sort.getKind! == .DATATYPE_SORT && isBuiltinName sort.getDatatype!.getName!.toName then
       return none
-    let t ← reconstructTerm pf.getArguments[0]!
-    let s ← reconstructTerm pf.getArguments[1]!
-    -- The proposition denoted by `(not (= t s))` is `¬t = s`.
-    addPropThm pf.getResult (← proveDistinctValues t s)
+    -- `(not (= t s))` is reconstructed as `!(t == s)`.
+    let (_, t, s, inst) ← getEq! (← reconstructTerm pf.getResult[0]!)
+    let p ← mkEq t s
+    let h := mkApp3 (.const ``decide_eq_false []) p inst (← proveDistinctValues t s)
+    -- `(!decide (t = s)) = !false`
+    let b := .const ``Bool []
+    addThm (← reconstructProofType pf.getResult)
+      (mkAppN (.const ``congrArg [1, 1]) #[b, b, mkApp2 (.const ``decide []) p inst, .const ``Bool.false [], .const ``not [], h])
   | _ => return none
 
 end Smt.Reconstruct.Datatype

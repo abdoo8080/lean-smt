@@ -201,8 +201,8 @@ theorem implies_false_of_not_and {ps : List Bool} (h : (!Bool.andN ps) = true) :
 
 /-! ### `ite` over `Bool` conditions, reconstructed as `cond` -/
 
-theorem ite_eq {α : Sort u} (c : Bool) (x y : α) {h₁ : Decidable (cond c x y = x)}
-    {h₂ : Decidable (cond c x y = y)} : cond c (@decide (cond c x y = x) h₁) (@decide (cond c x y = y) h₂) = true := by
+theorem ite_eq {α : Type u} [DecidableEq α] (c : Bool) (x y : α) :
+    cond c (@BEq.beq α instBEqOfDecidableEq (cond c x y) x) (@BEq.beq α instBEqOfDecidableEq (cond c x y) y) = true := by
   cases c <;> simp
 
 theorem ite_elim1 {c p q : Bool} (h : cond c p q = true) : (!c || p) = true := by
@@ -229,9 +229,9 @@ theorem cnf_ite_neg3 (c p q : Bool) : (cond c p q || (!p || !q)) = true := by
 
 /-! ### Equality -/
 
-theorem not_decide_eq_symm {α : Sort u} {a b : α} {h₁ : Decidable (a = b)} {h₂ : Decidable (b = a)}
-    (h : (!@decide (a = b) h₁) = true) : (!@decide (b = a) h₂) = true := by
-  simp only [Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not] at h ⊢
+theorem not_beq_symm {α : Type u} [DecidableEq α] {a b : α}
+    (h : (!@BEq.beq α instBEqOfDecidableEq a b) = true) : (!@BEq.beq α instBEqOfDecidableEq b a) = true := by
+  simp only [Bool.not_eq_true', beq_eq_false_iff_ne] at h ⊢
   exact Ne.symm h
 
 theorem eq_of_decide_eq {p q : Prop} {hp : Decidable p} {hq : Decidable q}

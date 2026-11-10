@@ -18,32 +18,44 @@ open Function
 
 -- https://github.com/cvc5/cvc5/blob/main/src/theory/arith/rewrites
 
-variable {t s x : Rat}
+/-! The rewrites are stated over the reconstructions of SMT-LIB terms (see
+`Smt.Reconstruct.Int.Rewrite`). -/
+
+-- `==` is the reconstruction of SMT-LIB's `=` (see `Smt.Reconstruct.Bool.mkBEq`).
+attribute [local instance high] instBEqOfDecidableEq
+
+variable {t s x y : Rat}
 
 theorem div_total_zero : t / 0 = 0 :=
   Rat.div_def t 0 ▸ Rat.inv_zero.symm ▸ Rat.mul_zero t
 
 -- Eliminations
 
-theorem elim_gt : (t > s) = ¬(s ≥ t) :=
-  propext Rat.not_le.symm
-theorem elim_lt : (t < s) = ¬(t ≥ s) :=
-  propext Rat.not_le.symm
-theorem elim_leq : (t ≤ s) = (s ≥ t) :=
-  propext ge_iff_le
+theorem elim_gt : t.bgt s = !t.ble s := by
+  apply Bool.eq_iff_iff.mpr
+  rw [Bool.not_eq_true', Rat.ble_eq_false]
+  exact Rat.not_le.symm
+theorem elim_lt : t.blt s = !t.bge s := by
+  apply Bool.eq_iff_iff.mpr
+  rw [Bool.not_eq_true', Rat.bge_eq_false]
+  exact Rat.not_le.symm
+theorem elim_leq : t.ble s = s.bge t :=
+  rfl
 
-theorem geq_norm1 : (t ≥ s) = (t - s ≥ 0) := by
-  rw [←elim_leq, ←elim_leq, Rat.le_iff_sub_nonneg _ _]
+theorem geq_norm1 : t.bge s = (t - s).bge 0 := by
+  apply Bool.eq_iff_iff.mpr
+  rw [Rat.bge_eq_true, Rat.bge_eq_true]
+  exact Rat.le_iff_sub_nonneg s t
 
-theorem eq_elim : (t = s) = (t ≥ s ∧ t ≤ s) := by
-  apply propext
-  rw [←elim_leq, And.comm]
+theorem eq_elim : (t == s) = (t.bge s && t.ble s) := by
+  apply Bool.eq_iff_iff.mpr
+  rw [beq_iff_eq, Bool.and_eq_true, Rat.bge_eq_true, Rat.ble_eq_true, ge_iff_le, And.comm]
   exact Rat.le_antisymm_iff
 
-theorem eq_conflict {t : Int} {c : Rat} (hcc : (↑c.floor = c) = False) : (t = c) = False := by
-  simp only [eq_iff_iff, iff_false]
+theorem eq_conflict {t : Int} {c : Rat} (hcc : ((c.floor : Rat) == c) = false) : ((t : Rat) == c) = false := by
+  simp only [beq_eq_false_iff_ne] at *
   intro htc
-  have hcc : c.floor < c := (Rat.le_iff_eq_or_lt.mp (Rat.floor_le_self c)).resolve_right hcc.mp
+  have hcc : c.floor < c := (Rat.le_iff_eq_or_lt.mp (Rat.floor_le_self c)).resolve_right hcc
   cases Int.lt_trichotomy t c.floor <;> rename_i htcf
   · have hntc : ↑t ≠ c := (Rat.lt_iff_le_and_ne.mp (Rat.lt_trans (Rat.cast_lt2 htcf) hcc)).right
     contradiction
@@ -56,10 +68,12 @@ theorem eq_conflict {t : Int} {c : Rat} (hcc : (↑c.floor = c) = False) : (t = 
       simp_all [Rat.lt_irrefl]
 
 set_option warn.sorry false in
-theorem geq_tighten {t : Int} {c : Rat} {cc : Int} (hc : (↑c.floor = c) = False) (hcc : cc = Int.addN [c.floor, 1]) : (t ≥ c) = (t ≥ cc) := by
+theorem geq_tighten {t : Int} {c : Rat} {cc : Int} (hc : ((c.floor : Rat) == c) = false) (hcc : cc = c.floor + 1) : (t : Rat).bge c = t.bge cc := by
   have Int.floor_lt {z : Int} {a : Rat} : a.floor < z ↔ a < ↑z := sorry
-  simp only [hcc, Int.addN, ge_iff_le, eq_iff_iff, Rat.le_iff_eq_or_lt, ← Int.floor_lt]
-  have h : ↑t ≠ c := by simpa [Eq.symm] using eq_conflict hc
+  apply Bool.eq_iff_iff.mpr
+  rw [Rat.bge_eq_true, Int.bge_eq_true]
+  simp only [hcc, ge_iff_le, Rat.le_iff_eq_or_lt, ← Int.floor_lt]
+  have h : ↑t ≠ c := by simpa [beq_eq_false_iff_ne] using eq_conflict (t := t) hc
   apply Iff.intro <;> intro hct
   · have h := hct.resolve_right h.symm
     omega
@@ -68,56 +82,44 @@ theorem geq_tighten {t : Int} {c : Rat} {cc : Int} (hc : (↑c.floor = c) = Fals
 -- Absolute value comparisons
 
 set_option warn.sorry false in
-theorem abs_eq : (x.abs = y.abs) = (x = y ∨ x = -y) := by
+theorem abs_eq : (x.abs == y.abs) = (x == y || x == -y) := by
+  apply Bool.eq_iff_iff.mpr
+  simp only [beq_iff_eq, Bool.or_eq_true]
   cases hx : decide (x < 0) <;> cases hy : decide (y < 0) <;> simp_all [Rat.abs] <;> sorry
 
 set_option warn.sorry false in
-theorem abs_gt : (x.abs > y.abs) = ite (x ≥ 0) (ite (y ≥ 0) (x > y) (x > -y)) (ite (y ≥ 0) (-x > y) (-x > -y)) := by
-  simp only [Rat.abs, gt_iff_lt, ge_iff_le, eq_iff_iff] <;> split <;> split <;> sorry
+theorem abs_gt : x.abs.bgt y.abs =
+    cond (x.bge 0) (cond (y.bge 0) (x.bgt y) (x.bgt (-y))) (cond (y.bge 0) ((-x).bgt y) ((-x).bgt (-y))) := by
+  sorry
 
 -- ITE lifting
 
-theorem geq_ite_lift [h : Decidable c] {t s r : Rat} : (ite c t s ≥ r) = ite c (t ≥ r) (s ≥ r) := by
-  cases h <;> simp_all
+theorem geq_ite_lift {c : Bool} {t s r : Rat} : (cond c t s).bge r = cond c (t.bge r) (s.bge r) := by
+  cases c <;> rfl
 
-theorem leq_ite_lift [h : Decidable c] {t s r : Rat} : (ite c t s ≤ r) = ite c (t ≤ r) (s ≤ r) := by
-  cases h <;> simp_all
+theorem leq_ite_lift {c : Bool} {t s r : Rat} : (cond c t s).ble r = cond c (t.ble r) (s.ble r) := by
+  cases c <;> rfl
 
 -- min/max rules
 
-theorem min_lt1 : (ite (t < s) t s ≤ t) = True := by
-  cases h : decide (t < s) <;> simp_all [Rat.not_lt.mp]
+theorem min_lt1 : (cond (t.blt s) t s).ble t = true := by
+  cases h : t.blt s
+  · rw [Bool.cond_false, Rat.ble_eq_true]; rw [Rat.blt_eq_false] at h; exact Rat.not_lt.mp h
+  · rw [Bool.cond_true, Rat.ble_eq_true]; exact Rat.le_refl
 
-theorem min_lt2 : (ite (t < s) t s ≤ s) = True := by
-  cases h : decide (t < s) <;> simp_all [Rat.le_of_lt]
+theorem min_lt2 : (cond (t.blt s) t s).ble s = true := by
+  cases h : t.blt s
+  · rw [Bool.cond_false, Rat.ble_eq_true]; exact Rat.le_refl
+  · rw [Bool.cond_true, Rat.ble_eq_true]; exact Rat.le_of_lt h
 
-theorem max_geq1 : (ite (t ≥ s) t s ≥ t) = True := by
-  cases h : decide (t ≥ s) <;> simp_all [Rat.le_of_not_le]
+theorem max_geq1 : (cond (t.bge s) t s).bge t = true := by
+  cases h : t.bge s
+  · rw [Bool.cond_false, Rat.bge_eq_true]; rw [Rat.bge_eq_false] at h; exact Rat.le_of_not_le h
+  · rw [Bool.cond_true, Rat.bge_eq_true]; exact Rat.le_refl
 
-theorem max_geq2 : (ite (t ≥ s) t s ≥ s) = True := by
-  cases h : decide (t ≥ s) <;> simp_all
-
--- min/max rules, where the `ite` is reconstructed as `cond`
-
-theorem min_lt1_cond {t s : Rat} : decide (cond (decide (t < s)) t s ≤ t) = true := by
-  rw [Bool.cond_decide, decide_eq_true_eq]; exact of_eq_true min_lt1
-
-theorem min_lt2_cond {t s : Rat} : decide (cond (decide (t < s)) t s ≤ s) = true := by
-  rw [Bool.cond_decide, decide_eq_true_eq]; exact of_eq_true min_lt2
-
-theorem max_geq1_cond {t s : Rat} : decide (cond (decide (t ≥ s)) t s ≥ t) = true := by
-  rw [Bool.cond_decide, decide_eq_true_eq]; exact of_eq_true max_geq1
-
-theorem max_geq2_cond {t s : Rat} : decide (cond (decide (t ≥ s)) t s ≥ s) = true := by
-  rw [Bool.cond_decide, decide_eq_true_eq]; exact of_eq_true max_geq2
-
-/-- `abs_gt`, where the `ite` is reconstructed as `cond`. -/
-theorem abs_gt_cond {x y : Rat} :
-    decide (x.abs > y.abs) = cond (decide (x ≥ 0)) (cond (decide (y ≥ 0)) (decide (x > y)) (decide (x > -y)))
-      (cond (decide (y ≥ 0)) (decide (-x > y)) (decide (-x > -y))) := by
-  apply Bool.eq_iff_iff.mpr
-  rw [decide_eq_true_eq, abs_gt]
-  simp only [Bool.cond_decide]
-  split <;> split <;> simp
+theorem max_geq2 : (cond (t.bge s) t s).bge s = true := by
+  cases h : t.bge s
+  · rw [Bool.cond_false, Rat.bge_eq_true]; exact Rat.le_refl
+  · rw [Bool.cond_true]; exact h
 
 end Smt.Reconstruct.Rat.Rewrite

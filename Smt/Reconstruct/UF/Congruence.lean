@@ -119,7 +119,7 @@ partial def smtCongr (mv : MVarId) (hs : Array Expr) : MetaM Unit := mv.withCont
   if l.isArrow then
     smtCongrArrow mv hs
   else if let (some (p, hp), some (q, hq)) := (l.app2? ``Decidable.decide, r.app2? ``Decidable.decide) then
-    -- Atoms, e.g., comparisons and applications of Lean predicates, are reconstructed as `decide p`.
+    -- Atoms, e.g., applications of Lean predicates, are reconstructed as `decide p`.
     let h ← Meta.mkFreshExprMVar (← Meta.mkEq p q)
     smtCongr h.mvarId! hs
     mv.assign (mkAppN (.const ``Smt.Reconstruct.Bool.decide_eq_decide_of_eq []) #[p, q, hp, hq, h])

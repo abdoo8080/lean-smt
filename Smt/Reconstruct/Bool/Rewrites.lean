@@ -131,49 +131,34 @@ end
 
 -- https://github.com/cvc5/cvc5/blob/main/src/theory/uf/rewrites
 
-/-! The theorems about equalities are stated for `decide (t = s)`, which `t == s` is for
-`instBEqOfDecidableEq`. -/
+/-! The theorems about equalities are stated for `==` with `instBEqOfDecidableEq`, the
+reconstruction of SMT-LIB's `=` (see `Smt.Reconstruct.Bool.mkBEq`). -/
 
 section
 
-variable {α : Sort u}
+attribute [local instance high] instBEqOfDecidableEq
 
-theorem eq_refl {t : α} {h : Decidable (t = t)} : @decide (t = t) h = true := decide_eq_true rfl
+variable {α : Type u} [DecidableEq α]
 
-theorem eq_symm {t s : α} {h₁ : Decidable (t = s)} {h₂ : Decidable (s = t)} :
-    @decide (t = s) h₁ = @decide (s = t) h₂ :=
-  decide_eq_decide.mpr ⟨Eq.symm, Eq.symm⟩
+theorem eq_refl {t : α} : (t == t) = true := beq_self_eq_true t
 
-theorem eq_cond_deq {t s r : α} {h₁ : Decidable (s = r)} {h₂ : Decidable (t = s)} {h₃ : Decidable (t = r)}
-    (h : @decide (s = r) h₁ = false) :
-    (@decide (t = s) h₂ == @decide (t = r) h₃) = (!@decide (t = s) h₂ && !@decide (t = r) h₃) := by
+theorem eq_symm {t s : α} : (t == s) = (s == t) :=
+  Bool.eq_iff_iff.mpr (by simp only [beq_iff_eq]; exact ⟨Eq.symm, Eq.symm⟩)
+
+theorem eq_cond_deq {t s r : α} (h : (s == r) = false) :
+    ((t == s) == (t == r)) = (!(t == s) && !(t == r)) := by
   have hsr : s ≠ r := by simpa using h
   by_cases hts : t = s
-  · subst hts; simp [hsr]
+  · subst hts; simp [beq_eq_false_iff_ne.mpr hsr]
   · by_cases htr : t = r
-    · subst htr; simp [hts]
-    · simp [hts, htr]
+    · subst htr; simp [beq_eq_false_iff_ne.mpr hts]
+    · simp [beq_eq_false_iff_ne.mpr hts, beq_eq_false_iff_ne.mpr htr]
 
-theorem eq_ite_lift {c : Bool} {t s r : α} {h : Decidable (cond c t s = r)} {h₁ : Decidable (t = r)}
-    {h₂ : Decidable (s = r)} : @decide (cond c t s = r) h = cond c (@decide (t = r) h₁) (@decide (s = r) h₂) := by
-  cases c <;> exact decide_eq_decide.mpr Iff.rfl
+theorem eq_ite_lift {c : Bool} {t s r : α} : (cond c t s == r) = cond c (t == r) (s == r) := by
+  cases c <;> rfl
 
-theorem distinct_binary_elim {t s : α} {h : Decidable (t = s)} :
-    (!@decide (t = s) h) = !@decide (t = s) h := rfl
+theorem distinct_binary_elim {t s : α} : (!(t == s)) = !(t == s) := rfl
 
 end
-
--- https://github.com/cvc5/cvc5/blob/main/src/theory/arith/rewrites
--- `ite` lifting over arithmetic comparisons, where the `ite` is reconstructed as `cond`.
-
-theorem geq_cond_lift {α} [LE α] {c : Bool} {t s r : α} [Decidable (cond c t s ≥ r)]
-    [Decidable (t ≥ r)] [Decidable (s ≥ r)] :
-    decide (cond c t s ≥ r) = cond c (decide (t ≥ r)) (decide (s ≥ r)) := by
-  cases c <;> simp
-
-theorem leq_cond_lift {α} [LE α] {c : Bool} {t s r : α} [Decidable (cond c t s ≤ r)]
-    [Decidable (t ≤ r)] [Decidable (s ≤ r)] :
-    decide (cond c t s ≤ r) = cond c (decide (t ≤ r)) (decide (s ≤ r)) := by
-  cases c <;> simp
 
 end Smt.Reconstruct.Bool

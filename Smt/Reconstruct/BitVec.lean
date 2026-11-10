@@ -1222,8 +1222,8 @@ def proveBySimp (e : Expr) (thms defs procs : List Name) : MetaM Expr := do
 def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   let some h ← rewriteTheorem? pf.getRewriteRule! pf.getArguments | return none
   let some h ← proveHypotheses? h | return none
-  -- The theorems state the propositions denoted by the rewrites.
-  addPropThm pf.getResult h
+  -- The theorems are the equations of the rewrites, between bit-vectors or Booleans.
+  addEqThm pf.getResult h
 
 @[smt_proof_reconstruct] def reconstructBitVecProof : ProofReconstructor := fun pf => do match pf.getRule with
   | .DSL_REWRITE => reconstructRewrite pf

@@ -13,6 +13,8 @@ https://cvc5.github.io/docs/cvc5-1.0.2/proofs/proof_rules.html#_CPPv4N4cvc58inte
 module
 
 public import Smt.Reconstruct.Real.TransFns.ArithTransSineApproxBelowPos
+public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Real.Core
 
 @[expose] public section
 
@@ -50,7 +52,8 @@ theorem arithTransSineApproxBelowNegComp (d k : ℕ) (lb ub x c evalC : ℝ) (hd
     (hc' : evalC = sinTaylor d c - c ^ (d + 1) / (d + 1).factorial)
     (hl : -π ≤ lb) (hu : ub ≤ 0)
     (hc : c = if -π/2 < lb then lb else if - π/2 < ub then - π/2 else ub) :
-    (x ≥ lb ∧ x ≤ ub) → evalC ≤ sin x := by
+    ((x.bge lb && x.ble ub).imp (evalC.ble (sin x))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.bge_eq_true, Real.ble_eq_true]
   rintro ⟨hx1, hx2⟩
   rw [hc', <- sinEmbedding]
   exact arithTransSineApproxBelowNeg d k lb ub x c hd hl hu hx1 hx2 hc

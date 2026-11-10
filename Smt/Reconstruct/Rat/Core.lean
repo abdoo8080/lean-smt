@@ -14,16 +14,18 @@ public import Smt.Reconstruct.Int.Core
 namespace Rat
 
 /-! Boolean comparisons, the reconstructions of SMT-LIB's `<`, `<=`, `>`, and `>=` on reals when
-rationals represent them. Core's `Rat.blt` is the Boolean `<`. -/
+rationals represent them. Core's `Rat.blt` is the Boolean `<`, and core defines `a < b` as
+`a.blt b = true`. `bgt` and `bge` swap the arguments of `blt` and `ble`, so that `a.bgt b = true` is
+`a > b` by definition. -/
 
 /-- Boolean `≤` on rationals. -/
 def ble (a b : Rat) : Bool := decide (a ≤ b)
 
 /-- Boolean `>` on rationals. -/
-def bgt (a b : Rat) : Bool := decide (a > b)
+def bgt (a b : Rat) : Bool := b.blt a
 
 /-- Boolean `≥` on rationals. -/
-def bge (a b : Rat) : Bool := decide (a ≥ b)
+def bge (a b : Rat) : Bool := b.ble a
 
 section
 
@@ -32,11 +34,11 @@ variable {a b : Rat}
 -- Not `simp` lemmas: core rewrites `a < b` to `a.blt b = true`.
 theorem blt_eq_true : (a.blt b = true) = (a < b) := rfl
 theorem ble_eq_true : (a.ble b = true) = (a ≤ b) := decide_eq_true_eq
-theorem bgt_eq_true : (a.bgt b = true) = (a > b) := decide_eq_true_eq
+theorem bgt_eq_true : (a.bgt b = true) = (a > b) := rfl
 theorem bge_eq_true : (a.bge b = true) = (a ≥ b) := decide_eq_true_eq
 theorem blt_eq_false : (a.blt b = false) = ¬(a < b) := by rw [← blt_eq_true, Bool.not_eq_true]
 theorem ble_eq_false : (a.ble b = false) = ¬(a ≤ b) := propext decide_eq_false_iff_not
-theorem bgt_eq_false : (a.bgt b = false) = ¬(a > b) := propext decide_eq_false_iff_not
+theorem bgt_eq_false : (a.bgt b = false) = ¬(a > b) := by rw [← bgt_eq_true, Bool.not_eq_true]
 theorem bge_eq_false : (a.bge b = false) = ¬(a ≥ b) := propext decide_eq_false_iff_not
 
 end

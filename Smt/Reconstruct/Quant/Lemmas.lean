@@ -12,85 +12,72 @@ public import Smt.Reconstruct.Prop.Core
 
 @[expose] public section
 
-theorem exists_congr_eq {p q : α → Prop} (h : ∀ a, p a = q a) : (∃ a, p a) = (∃ a, q a) :=
-  propext (exists_congr (h · ▸ Iff.rfl))
-
-theorem forall_const_eq (α : Sort u) [Nonempty α] {p q : Prop} (h : p = q) : (α → p) = q :=
-  h ▸ propext (forall_const α)
-
-namespace Classical
-
-theorem exists_elim {α} {p : α → Prop} : (∃ x, p x) = ¬∀ x, ¬p x :=
-  Eq.symm (propext not_forall_not)
-
-theorem not_forall_eq (p : α → Prop) : (¬∀ (x : α), p x) = ∃ x, ¬p x := propext not_forall
-
-theorem not_not_eq (p : Prop) : (¬¬p) = p := propext not_not
-
-theorem epsilon_spec_aux' {α : Sort u} (h : Nonempty α) (p : α → Prop) : (¬∀ y, p y) → ¬p (@epsilon α h (fun x => ¬p x)) :=
-  propext not_forall ▸ epsilon_spec_aux h (fun x => ¬p x)
-
-end Classical
-
 namespace Smt.Reconstruct.Quant
-
-theorem miniscope_and {p q : α → Prop} : (∀ x, p x ∧ q x) = ((∀ x, p x) ∧ (∀ x, q x)) :=
-  propext forall_and
-
-/-- A list that can store proofs. Mainly for `miniscope_andN`. -/
-inductive PList (α : Sort u) where
-  | nil : PList α
-  | cons (head : α) (tail : PList α) : PList α
-
-def PList.map (f : α → β) : PList α → PList β
-  | .nil        => .nil
-  | .cons h t   => .cons (f h) (map f t)
-
-def pAndN : PList Prop → Prop
-  | .nil         => True
-  | .cons h .nil => h
-  | .cons h t    => h ∧ pAndN t
-
-theorem miniscope_andN {ps : PList (α → Prop)} :
-  (∀ x, pAndN (ps.map (· x))) = pAndN (ps.map (∀ x, · x)) :=
-  match ps with
-  | .nil             => propext ⟨fun _ => trivial, fun _ _ => trivial⟩
-  | .cons _ .nil     => rfl
-  | .cons _ (.cons p₂ ps) => miniscope_and ▸ @miniscope_andN α (.cons p₂ ps) ▸ rfl
-
-theorem miniscope_or_left {p : α → Prop} {q : Prop} : (∀ x, p x ∨ q) = ((∀ x, p x) ∨ q) :=
-  propext <| Iff.intro
-    (fun hpxq => (Classical.em q).elim (Or.inr ·) (fun hnq => Or.inl (fun x => (hpxq x).resolve_right hnq)))
-    (fun hpxq x => hpxq.elim (fun hpx => Or.inl (hpx x)) (Or.inr ·))
-
-theorem miniscope_or_right {p : Prop} {q : α → Prop} : (∀ x, p ∨ q x) = (p ∨ (∀ x, q x)) :=
-  propext or_comm ▸ miniscope_or_left ▸ forall_congr (fun _ => propext or_comm)
-
-theorem miniscope_orN {ps : List Prop} {q : α → Prop} {rs : List Prop} :
-  (∀ x, orN (ps ++ q x :: rs)) = orN (ps ++ (∀ x, q x) :: rs) :=
-  match ps with
-  | []             => by cases rs <;> simp [orN, miniscope_or_left]
-  | [p]            => miniscope_or_right ▸ @miniscope_orN α [] q rs ▸ rfl
-  | p₁ :: p₂ :: ps => miniscope_or_right ▸ @miniscope_orN α (p₂ :: ps) q rs ▸ rfl
-
-theorem miniscope_ite {c : Prop} [h : Decidable c] {p q : α → Prop} :
-  (∀ x, ite c (p x) (q x)) = ite c (∀ x, p x) (∀ x, q x) :=
-  h.byCases
-    (fun hc => ite_eq_left hc ▸ propext ⟨((ite_eq_left hc).mp $ · ·), (ite_eq_left hc ▸ · ·)⟩)
-    (fun hnc => ite_eq_right hnc ▸ propext ⟨((ite_eq_right hnc).mp $ · ·), (ite_eq_right hnc ▸ · ·)⟩)
-
-theorem var_elim_eq {t : α} : (∀ x, x ≠ t) = False :=
-  propext ⟨fun hnxt => absurd rfl (hnxt t), False.elim⟩
-
-theorem var_elim_eq_or {t : α} {p : α → Prop} : (∀ x, x ≠ t ∨ p x) = p t :=
-  propext <| Iff.intro
-    (fun hpx => (hpx t).resolve_left (absurd rfl ·))
-    (fun hpt x => (Classical.em (x = t)).elim (Or.inr $ · ▸ hpt) (Or.inl ·))
 
 /-! ### Quantifiers over Boolean formulas -/
 
 theorem forall_elim {α : Sort u} {p : α → Bool} (h : Bool.forall p = true) (x : α) : p x = true :=
   (Bool.forall_eq_true ▸ h) x
+
+theorem forall_intro {α : Sort u} {p : α → Bool} (h : ∀ x, p x = true) : Bool.forall p = true :=
+  Bool.forall_eq_true ▸ h
+
+theorem forall_congr_bool {α : Sort u} {p q : α → Bool} (h : ∀ x, p x = q x) :
+    Bool.forall p = Bool.forall q :=
+  congrArg Bool.forall (funext h)
+
+theorem bool_eq_of_imp {a b : Bool} (h₁ : a = true → b = true) (h₂ : b = true → a = true) : a = b :=
+  Bool.eq_iff_iff.mpr ⟨h₁, h₂⟩
+
+theorem exists_eq_not_forall {α : Sort u} {p q : α → Bool} (h : ∀ x, p x = !q x) :
+    Bool.exists p = !Bool.forall q := by
+  apply Bool.eq_iff_iff.mpr
+  simp [Bool.exists_eq_true, Bool.forall_eq_false, h]
+
+theorem forall_const_bool (α : Sort u) [Nonempty α] {b c : Bool} (h : b = c) :
+    Bool.forall (fun _ : α => b) = c := by
+  subst h
+  apply Bool.eq_iff_iff.mpr
+  rw [Bool.forall_eq_true]
+  exact ⟨fun h => h (Classical.ofNonempty), fun h _ => h⟩
+
+theorem forall_andN {α : Type u} {ps : List (α → Bool)} :
+    Bool.forall (fun x => Bool.andN (ps.map (· x))) = Bool.andN (ps.map Bool.forall) := by
+  apply Bool.eq_iff_iff.mpr
+  simp only [Bool.forall_eq_true, Bool.andN_eq_true, List.mem_map]
+  constructor
+  · rintro h _ ⟨p, hp, rfl⟩
+    rw [Bool.forall_eq_true]
+    exact fun x => h x _ ⟨p, hp, rfl⟩
+  · rintro h x _ ⟨p, hp, rfl⟩
+    have := h _ ⟨p, hp, rfl⟩
+    rw [Bool.forall_eq_true] at this
+    exact this x
+
+theorem forall_orN {α : Sort u} {ps : List Bool} {q : α → Bool} {rs : List Bool} :
+    Bool.forall (fun x => Bool.orN (ps ++ q x :: rs)) = Bool.orN (ps ++ Bool.forall q :: rs) := by
+  apply Bool.eq_iff_iff.mpr
+  simp only [Bool.forall_eq_true, Bool.orN_eq_true, List.mem_append, List.mem_cons]
+  constructor
+  · intro h
+    by_cases hp : ∃ b, (b ∈ ps ∨ b ∈ rs) ∧ b = true
+    · obtain ⟨b, hb, hbt⟩ := hp
+      exact ⟨b, hb.elim Or.inl (Or.inr ∘ Or.inr), hbt⟩
+    · refine ⟨Bool.forall q, Or.inr (Or.inl rfl), ?_⟩
+      rw [Bool.forall_eq_true]
+      intro x
+      obtain ⟨b, hb, hbt⟩ := h x
+      rcases hb with hb | hb | hb
+      · exact absurd ⟨b, Or.inl hb, hbt⟩ hp
+      · exact hb ▸ hbt
+      · exact absurd ⟨b, Or.inr hb, hbt⟩ hp
+  · rintro ⟨b, hb, hbt⟩ x
+    rcases hb with hb | hb | hb
+    · exact ⟨b, Or.inl hb, hbt⟩
+    · subst hb
+      rw [Bool.forall_eq_true] at hbt
+      exact ⟨q x, Or.inr (Or.inl rfl), hbt x⟩
+    · exact ⟨b, Or.inr (Or.inr hb), hbt⟩
 
 theorem forall_skolem {α : Sort u} [h : Nonempty α] {p : α → Bool} (hp : (!Bool.forall p) = true) :
     (!p (@Classical.epsilon α h (fun x => ¬p x = true))) = true := by
@@ -98,14 +85,14 @@ theorem forall_skolem {α : Sort u} [h : Nonempty α] {p : α → Bool} (hp : (!
   have hx : ∃ x, ¬p x = true := Classical.not_forall.mp hp
   simpa using Classical.epsilon_spec hx
 
-theorem var_elim_eq_bool {α : Sort u} {t : α} {h : ∀ x, Decidable (x = t)} :
-    Bool.forall (fun x => !@decide (x = t) (h x)) = false := by
+theorem var_elim_eq_bool {α : Type u} [DecidableEq α] {t : α} :
+    Bool.forall (fun x => !@BEq.beq α instBEqOfDecidableEq x t) = false := by
   rw [Bool.eq_false_iff]
   intro h
   simpa using forall_elim h t
 
-theorem var_elim_eq_or_bool {α : Sort u} {t : α} {h : ∀ x, Decidable (x = t)} {b : α → Bool} :
-    Bool.forall (fun x => !@decide (x = t) (h x) || b x) = b t := by
+theorem var_elim_eq_or_bool {α : Type u} [DecidableEq α] {t : α} {b : α → Bool} :
+    Bool.forall (fun x => !@BEq.beq α instBEqOfDecidableEq x t || b x) = b t := by
   apply Bool.eq_iff_iff.mpr
   rw [Bool.forall_eq_true]
   constructor

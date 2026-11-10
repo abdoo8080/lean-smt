@@ -293,10 +293,8 @@ def reconstructChainResolution (cs as : Array cvc5.Term) (ps : Array Expr) : Rec
     let c ← reconstructTerm pf.getArguments[0]![0]!
     let x ← reconstructTerm pf.getArguments[0]![1]!
     let y ← reconstructTerm pf.getArguments[0]![2]!
-    let u ← Meta.getLevel α
-    let cxy := mkApp4 (.const ``cond [u]) α c x y
-    addThm (← reconstructProofType pf.getResult) (mkAppN (.const ``Bool.ite_eq [u])
-      #[α, c, x, y, ← Bool.eqInst α cxy x, ← Bool.eqInst α cxy y])
+    addThm (← reconstructProofType pf.getResult) (mkAppN (.const ``Bool.ite_eq [← Meta.getDecLevel α])
+      #[α, ← Bool.decEqInst α, c, x, y])
   | .RESOLUTION =>
     let p := pf.getArguments[0]!
     let l := pf.getArguments[1]!

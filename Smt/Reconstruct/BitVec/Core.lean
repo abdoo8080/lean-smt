@@ -7,6 +7,7 @@ Authors: Abdalrhman Mohamed
 
 module
 
+public import Smt.Reconstruct.Bool.Core
 public import Smt.Reconstruct.Prop.Core
 
 /-!

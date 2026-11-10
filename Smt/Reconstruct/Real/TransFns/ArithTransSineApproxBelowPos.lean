@@ -16,6 +16,8 @@ public import Mathlib.Analysis.InnerProductSpace.Basic
 public import Mathlib.Algebra.Order.Star.Real
 
 public import Smt.Reconstruct.Real.TransFns.ArithTransExpApproxAboveNeg
+public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Real.Core
 
 @[expose] public section
 
@@ -122,7 +124,8 @@ theorem arithTransSineApproxBelowPos' (d : ℕ) (t lb ub evalL evalU : ℝ) (hl 
 theorem arithTransSineApproxBelowPosComp (d : ℕ) (t lb ub evalL evalU : ℝ) (hl : 0 ≤ lb) (hu : ub ≤ Real.pi)
     (hl' : evalL = sinTaylor d lb - (lb ^ (d + 1) / (d + 1).factorial))
     (hu' : evalU = sinTaylor d ub - (ub ^ (d + 1) / (d + 1).factorial)) :
-    (t ≥ lb ∧ t ≤ ub) → sin t ≥ evalL + ((evalL - evalU) / (lb - ub)) * (t - lb) := by
+    ((t.bge lb && t.ble ub).imp ((sin t).bge (evalL + ((evalL - evalU) / (lb - ub)) * (t - lb)))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.bge_eq_true, Real.ble_eq_true]
   rw [<- sinEmbedding] at hl'
   rw [<- sinEmbedding] at hu'
   exact fun a => arithTransSineApproxBelowPos' d t lb ub evalL evalU hl hu hl' hu' a

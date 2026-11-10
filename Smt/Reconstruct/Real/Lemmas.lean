@@ -8,114 +8,106 @@ Authors: Tomaz Gomes Mascarenhas, Abdalrhman Mohamed
 module
 
 public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Int.Core
+public import Smt.Reconstruct.Real.Core
 public import Mathlib.Algebra.Order.Archimedean.Real.Basic
 
 @[expose] public section
 
-private theorem uncurry {p₁ p₂ p₃ : Prop} : (p₁ → p₂ → p₃) → (p₁ ∧ p₂) → p₃ := by
-  intros h₁ h₂
-  have ⟨ht₁, ht₂⟩ := h₂
-  exact h₁ ht₁ ht₂
-
 namespace Smt.Reconstruct.Real
+
+/-! The lemmas used by proof reconstruction are stated over the reconstructions of SMT-LIB formulas
+(see `Smt.Reconstruct.Int`): a proof of a formula `b` is a proof of `b = true`, except that a proof
+of an equality `(= t s)` is a proof of `t = s`. -/
+
+-- `==` is the reconstruction of SMT-LIB's `=` (see `Smt.Reconstruct.Bool.mkBEq`).
+attribute [local instance high] instBEqOfDecidableEq
 
 variable {a b c d x₁ x₂ y₁ y₂ : Real}
 
-theorem sum_ub₁ (h₁ : a < b) (h₂ : c < d) : a + c < b + d := by
-  have r₁ : a + c < a + d := add_lt_add_right h₂ a
-  have r₂ : a + d < b + d := add_lt_add_left h₁ d
-  exact lt_trans r₁ r₂
+theorem sum_ub₁ (h₁ : a.blt b = true) (h₂ : c.blt d = true) : (a + c).blt (b + d) = true := by
+  simp only [Real.blt_eq_true] at *; linarith
 
-theorem sum_ub₂ (h₁ : a < b) (h₂ : c ≤ d) : a + c < b + d := by
-  have r₁ : a + c ≤ a + d := add_le_add_right h₂ a
-  have r₂ : a + d < b + d := add_lt_add_left h₁ d
-  exact lt_of_le_of_lt r₁ r₂
+theorem sum_ub₂ (h₁ : a.blt b = true) (h₂ : c.ble d = true) : (a + c).blt (b + d) = true := by
+  simp only [Real.blt_eq_true, Real.ble_eq_true] at *; linarith
 
-theorem sum_ub₃ (h₁ : a < b) (h₂ : c = d) : a + c < b + d := by
-  rewrite [h₂]
-  exact add_lt_add_left h₁ d
+theorem sum_ub₃ (h₁ : a.blt b = true) (h₂ : c = d) : (a + c).blt (b + d) = true := by
+  simp only [Real.blt_eq_true] at *; linarith
 
-theorem sum_ub₄ (h₁ : a ≤ b) (h₂ : c < d) : a + c < b + d := by
-  have r₁ : a + c < a + d := add_lt_add_right h₂ a
-  have r₂ : a + d ≤ b + d := add_le_add_left h₁ d
-  exact lt_of_lt_of_le r₁ r₂
+theorem sum_ub₄ (h₁ : a.ble b = true) (h₂ : c.blt d = true) : (a + c).blt (b + d) = true := by
+  simp only [Real.blt_eq_true, Real.ble_eq_true] at *; linarith
 
-theorem sum_ub₅ (h₁ : a ≤ b) (h₂ : c ≤ d) : a + c ≤ b + d := by
-  have r₁ : a + c ≤ a + d := add_le_add_right h₂ a
-  have r₂ : a + d ≤ b + d := add_le_add_left h₁ d
-  exact le_trans r₁ r₂
+theorem sum_ub₅ (h₁ : a.ble b = true) (h₂ : c.ble d = true) : (a + c).ble (b + d) = true := by
+  simp only [Real.ble_eq_true] at *; linarith
 
-theorem sum_ub₆ (h₁ : a ≤ b) (h₂ : c = d) : a + c ≤ b + d := by
-  rewrite [h₂]
-  exact add_le_add_left h₁ d
+theorem sum_ub₆ (h₁ : a.ble b = true) (h₂ : c = d) : (a + c).ble (b + d) = true := by
+  simp only [Real.ble_eq_true] at *; linarith
 
-theorem sum_ub₇ (h₁ : a = b) (h₂ : c < d) : a + c < b + d := by
-  rewrite [h₁]
-  exact add_lt_add_right h₂ b
+theorem sum_ub₇ (h₁ : a = b) (h₂ : c.blt d = true) : (a + c).blt (b + d) = true := by
+  simp only [Real.blt_eq_true] at *; linarith
 
-theorem sum_ub₈ (h₁ : a = b) (h₂ : c ≤ d) : a + c ≤ b + d := by
-  rewrite [h₁]
-  exact add_le_add_right h₂ b
+theorem sum_ub₈ (h₁ : a = b) (h₂ : c.ble d = true) : (a + c).ble (b + d) = true := by
+  simp only [Real.ble_eq_true] at *; linarith
+
 theorem sum_ub₉ (h₁ : a = b) (h₂ : c = d) : a + c = b + d := by
   rw [h₁, h₂]
+
+theorem ble_of_eq (h : a = b) : a.ble b = true := by
+  simp only [Real.ble_eq_true]; exact le_of_eq h
 
 theorem mul_abs₁ (h₁ : |x₁| = |y₁|) (h₂ : |x₂| = |y₂|) : |x₁ * x₂| = |y₁ * y₂| := by
   rw [abs_mul x₁ x₂, abs_mul y₁ y₂, h₁, h₂]
 
-theorem mul_abs₂ (h₁ : |x₁| > |y₁|) (h₂ : |x₂| = |y₂| ∧ x₂ ≠ 0) : |x₁ * x₂| > |y₁ * y₂| := by
+theorem mul_abs₂ (h₁ : |x₁|.bgt |y₁| = true) (h₂ : (|x₂| == |y₂| && !(|x₂| == 0)) = true) :
+    |x₁ * x₂|.bgt |y₁ * y₂| = true := by
+  simp only [Real.bgt_eq_true, Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true', beq_eq_false_iff_ne] at *
   rw [abs_mul, abs_mul]
   apply mul_lt_mul h₁ (le_of_eq h₂.left.symm) _ (abs_nonneg x₁)
   rewrite [← h₂.left]
-  have : abs x₂ ≠ 0 := by
-    intro abs_0
-    have := h₂.2
-    have abs_pos : abs x₂ > 0 := abs_pos.mpr this
-    rw [abs_0] at abs_pos
-    simp at abs_pos
-  exact lt_of_le_of_ne (abs_nonneg x₂) this.symm
+  exact lt_of_le_of_ne (abs_nonneg x₂) (Ne.symm h₂.right)
 
-theorem mul_abs₃ (h₁ : |x₁| > |y₁|) (h₂ : |x₂| > |y₂|) : |x₁ * x₂| > |y₁ * y₂| := by
+theorem mul_abs₃ (h₁ : |x₁|.bgt |y₁| = true) (h₂ : |x₂|.bgt |y₂| = true) : |x₁ * x₂|.bgt |y₁ * y₂| = true := by
+  simp only [Real.bgt_eq_true] at *
   rw [abs_mul, abs_mul]
   apply mul_lt_mul' (le_of_lt h₁) h₂ (abs_nonneg y₂)
   cases Decidable.eq_or_lt_of_le (abs_nonneg y₁) <;> rename_i h
   · rewrite [h]; exact h₁
   · exact lt_trans h h₁
 
-theorem int_tight_ub {i : Int} (h : i < c) : i ≤ ⌈c⌉ - 1 :=
-  Int.le_of_lt_add_one (Int.sub_add_cancel _ _ ▸ Int.lt_ceil.mpr h)
+theorem int_tight_ub {i : Int} (h : (i : Real).blt c = true) : i.ble (⌈c⌉ - 1) = true := by
+  simp only [Real.blt_eq_true, Int.ble_eq_true] at *
+  exact Int.le_of_lt_add_one (Int.sub_add_cancel _ _ ▸ Int.lt_ceil.mpr h)
 
-theorem int_tight_lb {i : Int} (h : i > c) : i ≥ ⌊c⌋ + 1 :=
-  Int.add_one_le_of_lt (Int.floor_lt.mpr h)
+theorem int_tight_lb {i : Int} (h : (i : Real).bgt c = true) : i.bge (⌊c⌋ + 1) = true := by
+  simp only [Real.bgt_eq_true, Int.bge_eq_true] at *
+  exact Int.add_one_le_of_lt (Int.floor_lt.mpr h)
 
-theorem trichotomy₁ (h₁ : a ≤ b) (h₂ : a ≠ b) : a < b := by
-  have tr := lt_trichotomy a b
-  exact Or.resolve_right (Or.resolve_right (or_assoc.mpr tr) (not_lt.mpr h₁)) h₂
+theorem trichotomy₁ (h₁ : a.ble b = true) (h₂ : (!(a == b)) = true) : a.blt b = true := by
+  simp only [Real.ble_eq_true, Real.blt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *
+  exact lt_of_le_of_ne h₁ h₂
 
-theorem trichotomy₂ (h₁ : a ≤ b) (h₂ : a ≥ b) : a = b := by
-  have tr := lt_trichotomy a b
-  exact Or.resolve_right (Or.resolve_left tr (not_lt.mpr h₂)) (not_lt.mpr h₁)
+theorem trichotomy₂ (h₁ : a.ble b = true) (h₂ : a.bge b = true) : a = b := by
+  simp only [Real.ble_eq_true, Real.bge_eq_true] at *
+  exact le_antisymm h₁ h₂
 
-theorem trichotomy₃ (h₁ : a ≠ b) (h₂ : a ≤ b) : a < b := by
-  have tr := lt_trichotomy a b
-  exact Or.resolve_right (Or.resolve_right (or_assoc.mpr tr) (not_lt.mpr h₂)) h₁
+theorem trichotomy₃ (h₁ : (!(a == b)) = true) (h₂ : a.ble b = true) : a.blt b = true :=
+  trichotomy₁ h₂ h₁
 
-theorem trichotomy₄ (h₁ : a ≠ b) (h₂ : a ≥ b) : a > b := by
-  have tr := lt_trichotomy a b
-  exact Or.resolve_left (Or.resolve_left tr (not_lt.mpr h₂)) h₁
+theorem trichotomy₄ (h₁ : (!(a == b)) = true) (h₂ : a.bge b = true) : a.bgt b = true := by
+  simp only [Real.bge_eq_true, Real.bgt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *
+  exact lt_of_le_of_ne h₂ (Ne.symm h₁)
 
-theorem trichotomy₅ (h₁ : a ≥ b) (h₂ : a ≤ b) : a = b := by
-  have tr := lt_trichotomy a b
-  exact Or.resolve_right (Or.resolve_left tr (not_lt.mpr h₁)) (not_lt.mpr h₂)
+theorem trichotomy₅ (h₁ : a.bge b = true) (h₂ : a.ble b = true) : a = b := by
+  simp only [Real.ble_eq_true, Real.bge_eq_true] at *
+  exact le_antisymm h₂ h₁
 
-theorem trichotomy₆ (h₁ : a ≥ b) (h₂ : a ≠ b) : a > b := by
-  have tr := lt_trichotomy a b
-  exact Or.resolve_left (Or.resolve_left tr (not_lt.mpr h₁)) h₂
+theorem trichotomy₆ (h₁ : a.bge b = true) (h₂ : (!(a == b)) = true) : a.bgt b = true := by
+  simp only [Real.bge_eq_true, Real.bgt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *
+  exact lt_of_le_of_ne h₁ (Ne.symm h₂)
 
-theorem abs_elim {x : Real} : |x| = if x < 0 then -x else x := by
+theorem abs_elim {x : Real} : |x| = cond (x.blt 0) (-x) x := by
+  rw [Real.blt, Bool.cond_decide]
   cases abs_cases x <;> rename_i h <;> split <;> linarith
-
-theorem abs_elim_cond {x : Real} : |x| = cond (decide (x < 0)) (-x) x := by
-  rw [Bool.cond_decide]; exact abs_elim
 
 theorem lt_eq_sub_lt_zero : (a < b) = (a - b < 0) := by
   apply propext
@@ -144,26 +136,40 @@ theorem gt_eq_sub_gt_zero : (a > b) = (a - b > 0) := by
   · exact sub_pos_of_lt
   · exact lt_of_sub_pos
 
-theorem lt_of_sub_eq_pos {c₁ c₂ : Real} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ < a₂) = (b₁ < b₂) := by
+/-! The signs of the constants of `lt_of_sub_eq_pos` and its variants are proved by `norm_num`. -/
+
+theorem blt_of_lt {a b : Real} (h : a < b) : a.blt b = true := decide_eq_true h
+theorem bgt_of_gt {a b : Real} (h : a > b) : a.bgt b = true := decide_eq_true h
+theorem not_beq_of_ne {a b : Real} (h : a ≠ b) : (!(a == b)) = true := by simp [h]
+
+theorem lt_of_sub_eq_pos {c₁ c₂ : Real} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
+  simp only [Real.bgt_eq_true] at hc₁ hc₂
   have {c x y : Real} (hc : c > 0) : (c * (x - y) < 0) = (x - y < 0) := by
     rw (config := { occs := .pos [1] }) [← mul_zero c, mul_lt_mul_iff_right₀ hc]
+  simp only [Real.blt]; apply decide_eq_decide.mpr; apply Iff.of_eq
   rw [lt_eq_sub_lt_zero, @lt_eq_sub_lt_zero b₁, ← this hc₁, ← this hc₂, h]
 
-theorem lt_of_sub_eq_neg {c₁ c₂ : Real} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ < a₂) = (b₁ < b₂) := by
+theorem lt_of_sub_eq_neg {c₁ c₂ : Real} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
+  simp only [Real.blt_eq_true] at hc₁ hc₂
   rewrite [← mul_right_inj' (by norm_num : (-1 : Real) ≠ 0), ← mul_assoc (-1), ← mul_assoc (-1)] at h
-  apply lt_of_sub_eq_pos (by linarith) (by linarith) h
+  apply lt_of_sub_eq_pos (by simp only [Real.bgt_eq_true]; linarith) (by simp only [Real.bgt_eq_true]; linarith) h
 
-theorem le_of_sub_eq_pos {c₁ c₂ : Real} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≤ a₂) = (b₁ ≤ b₂) := by
+theorem le_of_sub_eq_pos {c₁ c₂ : Real} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
+  simp only [Real.bgt_eq_true] at hc₁ hc₂
   have {c x y : Real} (hc : c > 0) : (c * (x - y) ≤ 0) = (x - y ≤ 0) := by
     rw (config := { occs := .pos [1] }) [← mul_zero c, mul_le_mul_iff_right₀ hc]
+  simp only [Real.ble]; apply decide_eq_decide.mpr; apply Iff.of_eq
   rw [le_eq_sub_le_zero, @le_eq_sub_le_zero b₁, ← this hc₁, ← this hc₂, h]
 
-theorem le_of_sub_eq_neg {c₁ c₂ : Real} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≤ a₂) = (b₁ ≤ b₂) := by
+theorem le_of_sub_eq_neg {c₁ c₂ : Real} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
+  simp only [Real.blt_eq_true] at hc₁ hc₂
   rewrite [← mul_right_inj' (by norm_num : (-1 : Real) ≠ 0), ← mul_assoc (-1), ← mul_assoc (-1)] at h
-  apply le_of_sub_eq_pos (by linarith) (by linarith) h
+  apply le_of_sub_eq_pos (by simp only [Real.bgt_eq_true]; linarith) (by simp only [Real.bgt_eq_true]; linarith) h
 
-theorem eq_of_sub_eq {c₁ c₂ : Real} (hc₁ : c₁ ≠ 0) (hc₂ : c₂ ≠ 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ = a₂) = (b₁ = b₂) := by
-  apply propext
+theorem eq_of_sub_eq {c₁ c₂ : Real} (hc₁ : (!(c₁ == 0)) = true) (hc₂ : (!(c₂ == 0)) = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ == a₂) = (b₁ == b₂) := by
+  simp only [Bool.not_eq_true', beq_eq_false_iff_ne] at hc₁ hc₂
+  apply Bool.eq_iff_iff.mpr
+  rw [beq_iff_eq, beq_iff_eq]
   apply Iff.intro
   · intro ha
     rewrite [ha, sub_self, mul_zero, eq_comm, mul_eq_zero] at h
@@ -174,180 +180,205 @@ theorem eq_of_sub_eq {c₁ c₂ : Real} (hc₁ : c₁ ≠ 0) (hc₂ : c₂ ≠ 0
     have h := h.resolve_left hc₁
     exact eq_of_sub_eq_zero h
 
-theorem ge_of_sub_eq_pos {c₁ c₂ : Real} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≥ a₂) = (b₁ ≥ b₂) := by
+theorem ge_of_sub_eq_pos {c₁ c₂ : Real} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
+  simp only [Real.bgt_eq_true] at hc₁ hc₂
   have {c x y : Real} (hc : c > 0) : (c * (x - y) ≥ 0) = (x - y ≥ 0) := by
     rw (config := { occs := .pos [1] }) [← mul_zero c, ge_iff_le, mul_le_mul_iff_right₀ hc]
+  simp only [Real.bge]; apply decide_eq_decide.mpr; apply Iff.of_eq
   rw [ge_eq_sub_ge_zero, @ge_eq_sub_ge_zero b₁, ← this hc₁, ← this hc₂, h]
 
-theorem ge_of_sub_eq_neg {c₁ c₂ : Real} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≥ a₂) = (b₁ ≥ b₂) := by
+theorem ge_of_sub_eq_neg {c₁ c₂ : Real} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
+  simp only [Real.blt_eq_true] at hc₁ hc₂
   rewrite [← mul_right_inj' (by norm_num : (-1 : Real) ≠ 0), ← mul_assoc (-1), ← mul_assoc (-1)] at h
-  apply ge_of_sub_eq_pos (by linarith) (by linarith) h
+  apply ge_of_sub_eq_pos (by simp only [Real.bgt_eq_true]; linarith) (by simp only [Real.bgt_eq_true]; linarith) h
 
-theorem gt_of_sub_eq_pos {c₁ c₂ : Real} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ > a₂) = (b₁ > b₂) := by
+theorem gt_of_sub_eq_pos {c₁ c₂ : Real} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
+  simp only [Real.bgt_eq_true] at hc₁ hc₂
   have {c x y : Real} (hc : c > 0) : (c * (x - y) > 0) = (x - y > 0) := by
     rw (config := { occs := .pos [1] }) [← mul_zero c, gt_iff_lt, mul_lt_mul_iff_right₀ hc]
+  simp only [Real.bgt]; apply decide_eq_decide.mpr; apply Iff.of_eq
   rw [gt_eq_sub_gt_zero, @gt_eq_sub_gt_zero b₁, ← this hc₁, ← this hc₂, h]
 
-theorem gt_of_sub_eq_neg {c₁ c₂ : Real} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ > a₂) = (b₁ > b₂) := by
+theorem gt_of_sub_eq_neg {c₁ c₂ : Real} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
+  simp only [Real.blt_eq_true] at hc₁ hc₂
   rewrite [← mul_right_inj' (by norm_num : (-1 : Real) ≠ 0), ← mul_assoc (-1), ← mul_assoc (-1)] at h
-  apply gt_of_sub_eq_pos (by linarith) (by linarith) h
+  apply gt_of_sub_eq_pos (by simp only [Real.bgt_eq_true]; linarith) (by simp only [Real.bgt_eq_true]; linarith) h
 
-theorem lt_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ < a₂) = (b₁ < b₂) := by
-  zify at h
-  have hc : (a₁ < a₂) = ((↑a₁ : Real) < ↑a₂) := by simp
-  simp only [lt_of_sub_eq_pos hc₁ hc₂ h, hc]
+theorem cast_blt {a b : Int} : a.blt b = (a : Real).blt b :=
+  decide_eq_decide.mpr Int.cast_lt.symm
 
-theorem lt_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ < a₂) = (b₁ < b₂) := by
-  zify at h
-  have hc : (a₁ < a₂) = ((↑a₁ : Real) < ↑a₂) := by simp
-  simp only [lt_of_sub_eq_neg hc₁ hc₂ h, hc]
+theorem cast_ble {a b : Int} : a.ble b = (a : Real).ble b :=
+  decide_eq_decide.mpr Int.cast_le.symm
 
-theorem le_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≤ a₂) = (b₁ ≤ b₂) := by
-  zify at h
-  have hc : (a₁ ≤ a₂) = ((↑a₁ : Real) ≤ ↑a₂) := by simp
-  simp only [le_of_sub_eq_pos hc₁ hc₂ h, hc]
+theorem cast_bgt {a b : Int} : a.bgt b = (a : Real).bgt b :=
+  decide_eq_decide.mpr Int.cast_lt.symm
 
-theorem le_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≤ a₂) = (b₁ ≤ b₂) := by
-  zify at h
-  have hc : (a₁ ≤ a₂) = ((↑a₁ : Real) ≤ ↑a₂) := by simp
-  simp only [le_of_sub_eq_neg hc₁ hc₂ h, hc]
+theorem cast_bge {a b : Int} : a.bge b = (a : Real).bge b :=
+  decide_eq_decide.mpr Int.cast_le.symm
 
-theorem eq_of_sub_eq_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁ ≠ 0) (hc₂ : c₂ ≠ 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ = a₂) = (b₁ = b₂) := by
-  zify at h
-  have hc : (a₁ = a₂) = ((↑a₁ : Real) = ↑a₂) := by simp
-  simp only [eq_of_sub_eq hc₁ hc₂ h, hc]
+theorem cast_beq {a b : Int} : (a == b) = ((a : Real) == b) :=
+  decide_eq_decide.mpr Int.cast_inj.symm
 
-theorem ge_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≥ a₂) = (b₁ ≥ b₂) := by
-  zify at h
-  have hc : (a₁ ≥ a₂) = ((↑a₁ : Real) ≥ ↑a₂) := by simp
-  simp only [ge_of_sub_eq_pos hc₁ hc₂ h, hc]
+theorem lt_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_blt]
+  exact lt_of_sub_eq_pos hc₁ hc₂ h
 
-theorem ge_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ ≥ a₂) = (b₁ ≥ b₂) := by
-  zify at h
-  have hc : (a₁ ≥ a₂) = ((↑a₁ : Real) ≥ ↑a₂) := by simp
-  simp only [ge_of_sub_eq_neg hc₁ hc₂ h, hc]
+theorem lt_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_blt]
+  exact lt_of_sub_eq_neg hc₁ hc₂ h
 
-theorem gt_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ > a₂) = (b₁ > b₂) := by
-  zify at h
-  have hc : (a₁ > a₂) = ((↑a₁ : Real) > ↑a₂) := by simp
-  simp only [gt_of_sub_eq_pos hc₁ hc₂ h, hc]
+theorem le_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_ble]
+  exact le_of_sub_eq_pos hc₁ hc₂ h
 
-theorem gt_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ > a₂) = (b₁ > b₂) := by
-  zify at h
-  have hc : (a₁ > a₂) = ((↑a₁ : Real) > ↑a₂) := by simp
-  simp only [gt_of_sub_eq_neg hc₁ hc₂ h, hc]
+theorem le_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_ble]
+  exact le_of_sub_eq_neg hc₁ hc₂ h
 
-theorem lt_of_sub_eq_pos_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ < a₂) = (b₁ < b₂) := by
-  zify at h
-  have hc : (b₁ < b₂) = ((↑b₁ : Real) < ↑b₂) := by simp
-  simp only [lt_of_sub_eq_pos hc₁ hc₂ h, hc]
+theorem eq_of_sub_eq_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : (!(c₁ == 0)) = true) (hc₂ : (!(c₂ == 0)) = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ == a₂) = (b₁ == b₂) := by
+  rw [Int.cast_sub] at h
+  rw [cast_beq]
+  exact eq_of_sub_eq hc₁ hc₂ h
 
-theorem lt_of_sub_eq_neg_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ < a₂) = (b₁ < b₂) := by
-  zify at h
-  have hc : (b₁ < b₂) = ((↑b₁ : Real) < ↑b₂) := by simp
-  simp only [lt_of_sub_eq_neg hc₁ hc₂ h, hc]
+theorem ge_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_bge]
+  exact ge_of_sub_eq_pos hc₁ hc₂ h
 
-theorem le_of_sub_eq_pos_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ ≤ a₂) = (b₁ ≤ b₂) := by
-  zify at h
-  have hc : (b₁ ≤ b₂) = ((↑b₁ : Real) ≤ ↑b₂) := by simp
-  simp only [le_of_sub_eq_pos hc₁ hc₂ h, hc]
+theorem ge_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_bge]
+  exact ge_of_sub_eq_neg hc₁ hc₂ h
 
-theorem le_of_sub_eq_neg_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ ≤ a₂) = (b₁ ≤ b₂) := by
-  zify at h
-  have hc : (b₁ ≤ b₂) = ((↑b₁ : Real) ≤ ↑b₂) := by simp
-  simp only [le_of_sub_eq_neg hc₁ hc₂ h, hc]
+theorem gt_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_bgt]
+  exact gt_of_sub_eq_pos hc₁ hc₂ h
 
-theorem eq_of_sub_eq_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁ ≠ 0) (hc₂ : c₂ ≠ 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ = a₂) = (b₁ = b₂) := by
-  zify at h
-  have hc : (b₁ = b₂) = ((↑b₁ : Real) = ↑b₂) := by simp
-  simp only [eq_of_sub_eq hc₁ hc₂ h, hc]
+theorem gt_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Real} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_bgt]
+  exact gt_of_sub_eq_neg hc₁ hc₂ h
 
-theorem ge_of_sub_eq_pos_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ ≥ a₂) = (b₁ ≥ b₂) := by
-  zify at h
-  have hc : (b₁ ≥ b₂) = ((↑b₁ : Real) ≥ ↑b₂) := by simp
-  simp only [ge_of_sub_eq_pos hc₁ hc₂ h, hc]
+theorem lt_of_sub_eq_pos_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_blt]
+  exact lt_of_sub_eq_pos hc₁ hc₂ h
 
-theorem ge_of_sub_eq_neg_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ ≥ a₂) = (b₁ ≥ b₂) := by
-  zify at h
-  have hc : (b₁ ≥ b₂) = ((↑b₁ : Real) ≥ ↑b₂) := by simp
-  simp only [ge_of_sub_eq_neg hc₁ hc₂ h, hc]
+theorem lt_of_sub_eq_neg_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_blt]
+  exact lt_of_sub_eq_neg hc₁ hc₂ h
 
-theorem gt_of_sub_eq_pos_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁ > 0) (hc₂ : c₂ > 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ > a₂) = (b₁ > b₂) := by
-  zify at h
-  have hc : (b₁ > b₂) = ((↑b₁ : Real) > ↑b₂) := by simp
-  simp only [gt_of_sub_eq_pos hc₁ hc₂ h, hc]
+theorem le_of_sub_eq_pos_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_ble]
+  exact le_of_sub_eq_pos hc₁ hc₂ h
 
-theorem gt_of_sub_eq_neg_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ > a₂) = (b₁ > b₂) := by
-  zify at h
-  have hc : (b₁ > b₂) = ((↑b₁ : Real) > ↑b₂) := by simp
-  simp only [gt_of_sub_eq_neg hc₁ hc₂ h, hc]
+theorem le_of_sub_eq_neg_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_ble]
+  exact le_of_sub_eq_neg hc₁ hc₂ h
 
-theorem mul_sign₁ (ha : a < 0) (hb : b < 0) : a * b > 0 := by
-  have h := mul_lt_mul_of_neg_right ha hb
-  simp at h
-  exact h
+theorem eq_of_sub_eq_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : (!(c₁ == 0)) = true) (hc₂ : (!(c₂ == 0)) = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ == a₂) = (b₁ == b₂) := by
+  rw [Int.cast_sub] at h
+  rw [cast_beq]
+  exact eq_of_sub_eq hc₁ hc₂ h
 
-theorem mul_sign₃ (ha : a < 0) (hb : b > 0) : a * b < 0 := by
-  have h := mul_lt_mul_of_pos_right ha hb
-  simp at h
-  exact h
+theorem ge_of_sub_eq_pos_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_bge]
+  exact ge_of_sub_eq_pos hc₁ hc₂ h
 
-theorem mul_sign₄ (ha : a > 0) (hb : b < 0) : a * b < 0 := by
-  have h := mul_lt_mul_of_pos_left hb ha
-  simp at h
-  exact h
+theorem ge_of_sub_eq_neg_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_bge]
+  exact ge_of_sub_eq_neg hc₁ hc₂ h
 
-theorem mul_sign₆ (ha : a > 0) (hb : b > 0) : a * b > 0 := by
-  have h := mul_lt_mul_of_pos_left hb ha
-  simp at h
-  exact h
+theorem gt_of_sub_eq_pos_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_bgt]
+  exact gt_of_sub_eq_pos hc₁ hc₂ h
 
-theorem mul_sign₀ (ha : a ≠ 0) : a * a > 0 :=
-  match lt_trichotomy a 0 with
-  | .inl hn         => mul_sign₁ hn hn
-  | .inr (.inl hz)  => absurd hz ha
-  | .inr (.inr hp)  => mul_sign₆ hp hp
+theorem gt_of_sub_eq_neg_int_right {a₁ a₂ : Real} {b₁ b₂ : Int} {c₁ c₂ : Real} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
+  rw [Int.cast_sub] at h
+  rw [cast_bgt]
+  exact gt_of_sub_eq_neg hc₁ hc₂ h
 
-theorem mul_sign₂ (ha : a < 0) (hb : b ≠ 0) : a * b * b < 0 :=
-  match lt_trichotomy b 0 with
-  | .inl hn         => mul_sign₄ (mul_sign₁ ha hn) hn
-  | .inr (.inl hz)  => absurd hz hb
-  | .inr (.inr hp)  => mul_sign₃ (mul_sign₃ ha hp) hp
+theorem mul_sign₁ (ha : a.blt 0 = true) (hb : b.blt 0 = true) : (a * b).bgt 0 = true := by
+  simp only [Real.blt_eq_true, Real.bgt_eq_true] at *
+  exact mul_pos_of_neg_of_neg ha hb
 
-theorem mul_sign₅ (ha : a > 0) (hb : b ≠ 0) : a * b * b > 0 :=
-  match lt_trichotomy b 0 with
-  | .inl hn         => mul_sign₁ (mul_sign₄ ha hn) hn
-  | .inr (.inl hz)  => absurd hz hb
-  | .inr (.inr hp)  => mul_sign₆ (mul_sign₆ ha hp) hp
+theorem mul_sign₃ (ha : a.blt 0 = true) (hb : b.bgt 0 = true) : (a * b).blt 0 = true := by
+  simp only [Real.blt_eq_true, Real.bgt_eq_true] at *
+  exact mul_neg_of_neg_of_pos ha hb
 
-theorem mul_pos_lt (h : c > 0 ∧ a < b) : c * a < c * b :=
-  mul_lt_mul_of_pos_left h.2 h.1
+theorem mul_sign₄ (ha : a.bgt 0 = true) (hb : b.blt 0 = true) : (a * b).blt 0 = true := by
+  simp only [Real.blt_eq_true, Real.bgt_eq_true] at *
+  exact mul_neg_of_pos_of_neg ha hb
 
-theorem mul_pos_le (h : c > 0 ∧ a ≤ b) : c * a ≤ c * b :=
-  mul_le_mul_of_nonneg_left h.2 (le_of_lt h.1)
+theorem mul_sign₆ (ha : a.bgt 0 = true) (hb : b.bgt 0 = true) : (a * b).bgt 0 = true := by
+  simp only [Real.bgt_eq_true] at *
+  exact mul_pos ha hb
 
-theorem mul_pos_gt (h : c > 0 ∧ a > b) : c * a > c * b :=
-  mul_pos_lt h
+theorem mul_sign₀ (ha : (!(a == 0)) = true) : (a * a).bgt 0 = true := by
+  simp only [Bool.not_eq_true', beq_eq_false_iff_ne, Real.bgt_eq_true] at *
+  exact mul_self_pos.mpr ha
 
-theorem mul_pos_ge (h : c > 0 ∧ a ≥ b) : c * a ≥ c * b :=
-  mul_pos_le h
+theorem mul_sign₂ (ha : a.blt 0 = true) (hb : (!(b == 0)) = true) : (a * b * b).blt 0 = true := by
+  simp only [Real.blt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *
+  rw [mul_assoc]
+  exact mul_neg_of_neg_of_pos ha (mul_self_pos.mpr hb)
 
-theorem mul_pos_eq (h : c > 0 ∧ a = b) : c * a = c * b := by
+theorem mul_sign₅ (ha : a.bgt 0 = true) (hb : (!(b == 0)) = true) : (a * b * b).bgt 0 = true := by
+  simp only [Real.bgt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *
+  rw [mul_assoc]
+  exact mul_pos ha (mul_self_pos.mpr hb)
+
+theorem mul_pos_lt : ((c.bgt 0 && a.blt b).imp ((c * a).blt (c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.bgt_eq_true, Real.blt_eq_true]
+  exact fun h => mul_lt_mul_of_pos_left h.2 h.1
+
+theorem mul_pos_le : ((c.bgt 0 && a.ble b).imp ((c * a).ble (c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.bgt_eq_true, Real.ble_eq_true]
+  exact fun h => mul_le_mul_of_nonneg_left h.2 (le_of_lt h.1)
+
+theorem mul_pos_gt : ((c.bgt 0 && a.bgt b).imp ((c * a).bgt (c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.bgt_eq_true]
+  exact fun h => mul_lt_mul_of_pos_left h.2 h.1
+
+theorem mul_pos_ge : ((c.bgt 0 && a.bge b).imp ((c * a).bge (c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.bgt_eq_true, Real.bge_eq_true]
+  exact fun h => mul_le_mul_of_nonneg_left h.2 (le_of_lt h.1)
+
+theorem mul_pos_eq : ((c.bgt 0 && a == b).imp (c * a == c * b)) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.bgt_eq_true, beq_iff_eq]
+  intro h
   rw [h.2]
 
-theorem mul_neg_lt (h : c < 0 ∧ a < b) : c * a > c * b :=
-  mul_lt_mul_of_neg_left h.2 h.1
+theorem mul_neg_lt : ((c.blt 0 && a.blt b).imp ((c * a).bgt (c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.blt_eq_true, Real.bgt_eq_true]
+  exact fun h => mul_lt_mul_of_neg_left h.2 h.1
 
-theorem mul_neg_le (h : c < 0 ∧ a ≤ b) : c * a ≥ c * b :=
-  mul_le_mul_of_nonpos_left h.2 (le_of_lt h.1)
+theorem mul_neg_le : ((c.blt 0 && a.ble b).imp ((c * a).bge (c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.blt_eq_true, Real.ble_eq_true, Real.bge_eq_true]
+  exact fun h => mul_le_mul_of_nonpos_left h.2 (le_of_lt h.1)
 
-theorem mul_neg_gt (h : c < 0 ∧ a > b) : c * a < c * b :=
-  mul_neg_lt h
+theorem mul_neg_gt : ((c.blt 0 && a.bgt b).imp ((c * a).blt (c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.blt_eq_true, Real.bgt_eq_true]
+  exact fun h => mul_lt_mul_of_neg_left h.2 h.1
 
-theorem mul_neg_ge (h : c < 0 ∧ a ≥ b) : c * a ≤ c * b :=
-  mul_neg_le h
+theorem mul_neg_ge : ((c.blt 0 && a.bge b).imp ((c * a).ble (c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.blt_eq_true, Real.bge_eq_true, Real.ble_eq_true]
+  exact fun h => mul_le_mul_of_nonpos_left h.2 (le_of_lt h.1)
 
-theorem mul_neg_eq (h : c < 0 ∧ a = b) : c * a = c * b := by
+theorem mul_neg_eq : ((c.blt 0 && a == b).imp (c * a == c * b)) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.blt_eq_true, beq_iff_eq]
+  intro h
   rw [h.2]
 
 theorem mul_tangent_mp_lower (h : x * y ≤ b * x + a * y - a * b)
@@ -410,9 +441,11 @@ theorem mul_tangent_lower :
   x * y ≤ b * x + a * y - a * b ↔ x ≤ a ∧ y ≥ b ∨ x ≥ a ∧ y ≤ b :=
   ⟨mul_tangent_mp_lower, mul_tangent_mpr_lower⟩
 
-theorem mul_tangent_lower_eq
-  : (x * y ≤ b * x + a * y - a * b) = (x ≤ a ∧ y ≥ b ∨ x ≥ a ∧ y ≤ b) :=
-  propext (mul_tangent_lower)
+theorem mul_tangent_lower_eq {x y : Real}
+  : (x * y).ble (b * x + a * y - a * b) = (x.ble a && y.bge b || x.bge a && y.ble b) := by
+  apply Bool.eq_iff_iff.mpr
+  simp only [Real.ble_eq_true, Real.bge_eq_true, Bool.or_eq_true, Bool.and_eq_true]
+  exact mul_tangent_lower
 
 theorem mul_tangent_mp_upper (h : x * y ≥ b * x + a * y - a * b)
   : x ≤ a ∧ y ≤ b ∨ x ≥ a ∧ y ≥ b := by
@@ -474,8 +507,10 @@ theorem mul_tangent_upper
   : x * y ≥ b * x + a * y - a * b ↔ x ≤ a ∧ y ≤ b ∨ x ≥ a ∧ y ≥ b :=
   ⟨mul_tangent_mp_upper, mul_tangent_mpr_upper⟩
 
-theorem mul_tangent_upper_eq
-  : (x * y ≥ b * x + a * y - a * b) = (x ≤ a ∧ y ≤ b ∨ x ≥ a ∧ y ≥ b) :=
-  propext (mul_tangent_upper)
+theorem mul_tangent_upper_eq {x y : Real}
+  : (x * y).bge (b * x + a * y - a * b) = (x.ble a && y.ble b || x.bge a && y.bge b) := by
+  apply Bool.eq_iff_iff.mpr
+  simp only [Real.ble_eq_true, Real.bge_eq_true, Bool.or_eq_true, Bool.and_eq_true]
+  exact mul_tangent_upper
 
 end Smt.Reconstruct.Real

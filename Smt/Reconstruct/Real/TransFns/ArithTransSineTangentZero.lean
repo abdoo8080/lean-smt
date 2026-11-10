@@ -14,6 +14,8 @@ module
 
 public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
 public import Mathlib.Analysis.Complex.Exponential
+public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Real.Core
 
 @[expose] public section
 
@@ -27,8 +29,9 @@ theorem sin_neg' : ∀ (t : ℝ), sin t = - sin (-t) := by
   simp
 
 theorem arithTransSinTangentZero : ∀ (t : ℝ),
-    (t > 0 → sin t < t) ∧ (t < 0 → sin t > t) := by
+    ((t.bgt 0).imp ((sin t).blt t) && (t.blt 0).imp ((sin t).bgt t)) = true := by
   intro t
+  simp only [Bool.and_eq_true, Bool.imp_eq_true, Real.bgt_eq_true, Real.blt_eq_true]
   apply And.intro
   · exact sin_lt
   · intro ht

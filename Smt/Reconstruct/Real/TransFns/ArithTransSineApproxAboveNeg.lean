@@ -18,6 +18,8 @@ public import Mathlib.Analysis.Convex.SpecificFunctions.Deriv
 public import Smt.Reconstruct.Real.TransFns.ArithTransExpApproxAbovePos
 public import Smt.Reconstruct.Real.TransFns.ArithTransExpApproxAboveNeg
 public import Smt.Reconstruct.Real.TransFns.Utils
+public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Real.Core
 
 @[expose] public section
 
@@ -65,7 +67,8 @@ theorem arithTransSineApproxAboveNeg' (d k : Nat) (l u t evalL evalU : ℝ) (hd 
 theorem arithTransSineApproxAboveNegComp (d k : Nat) (l u t evalL evalU : ℝ) (hd : d = 2*k + 1) (hu : u ≤ 0) (hl : -π ≤ l)
     (hl' : evalL = sinTaylor d l + (l ^ (d + 1)) / (d + 1).factorial)
     (hu' : evalU = sinTaylor d u + (u ^ (d + 1)) / (d + 1).factorial) :
-    (t ≥ l ∧ t ≤ u) → Real.sin t ≤ evalL + ((evalL - evalU) / (l - u)) * (t - l) := by
+    ((t.bge l && t.ble u).imp ((Real.sin t).ble (evalL + ((evalL - evalU) / (l - u)) * (t - l)))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.bge_eq_true, Real.ble_eq_true]
   rw [<- sinEmbedding] at hl'
   rw [<- sinEmbedding] at hu'
   exact fun a => arithTransSineApproxAboveNeg' d k l u t evalL evalU hd hu hl hl' hu' a

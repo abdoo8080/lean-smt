@@ -24,17 +24,22 @@ so that closed formulas evaluate unless they involve reals, quantifiers, or unde
 | `not`, `and`, `or`, `xor`   | `!`, `&&`, `\|\|`, `^^`         |
 | `=>`                        | `Bool.imp`                      |
 | `=`, `distinct`             | `==`, `!(· == ·)`               |
-| `<`, `<=`, `>`, `>=`        | `decide (x < y)`, …             |
+| `<`, `<=`, `>`, `>=`        | `x.blt y`, `x.ble y`, `x.bgt y`, `x.bge y` |
 | `ite`                       | `cond`                          |
 | `forall`, `exists`          | `Bool.forall`, `Bool.exists`    |
 | other atoms                 | `decide p`                      |
 
 `a == b` is `@BEq.beq α (@instBEqOfDecidableEq α inst) a b`, where `inst` is the `DecidableEq`
-instance of SMT-LIB's builtin sorts, and otherwise a synthesized or classical one. `decide p` uses a
-synthesized instance of `Decidable p`, or a classical one.
+instance of SMT-LIB's builtin sorts, and otherwise a synthesized or classical one. The comparisons are
+`Int.blt` and friends on integers, rationals, and reals, and `BitVec.ult` and friends on bit-vectors.
+`decide p` uses a synthesized instance of `Decidable p`, or a classical one.
 
-The theory-specific reconstruction (arithmetic, bit-vectors, …) reasons about the proposition `p`
-with `(b = true) = p` associated with a Boolean formula `b`, which mirrors its structure:
+The theorems of proof reconstruction are stated over these Boolean formulas: a proof of a formula
+`b` is a proof of `b = true`, a proof of an equality `(= t s)` is usually a proof of `t = s`, and
+rewrites are equations between Booleans or terms.
+
+When the goal is not embedded into Booleans, the hypotheses are the propositions `p` denoted by the
+Boolean formulas `b`, with `(b = true) = p` (see `Smt.Reconstruct.Bool.toProp`):
 
 | Boolean formula     | proposition         |
 |---------------------|---------------------|
@@ -150,6 +155,12 @@ namespace Smt.Reconstruct.Bool
 theorem true_eq_true_eq : (true = true) = True := eq_self true
 
 theorem false_eq_true_eq : (false = true) = False := by simp
+
+theorem not_eq_true_eq_not {b : Bool} : ((!b) = true) = ¬(b = true) := by
+  cases b <;> simp
+
+theorem beq_eq_true_eq_eq {a b : Bool} : ((a == b) = true) = ((a = true) = (b = true)) := by
+  cases a <;> cases b <;> simp
 
 theorem not_eq_true_eq {b : Bool} (h : (b = true) = p) : ((!b) = true) = ¬p := by
   subst h; cases b <;> simp

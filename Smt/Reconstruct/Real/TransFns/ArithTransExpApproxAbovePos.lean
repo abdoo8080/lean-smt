@@ -16,6 +16,8 @@ public import Mathlib.Analysis.InnerProductSpace.Basic
 public import Mathlib.Algebra.Order.Star.Real
 
 public import Smt.Reconstruct.Real.TransFns.ArithTransExpApproxAboveNeg
+public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Real.Core
 
 @[expose] public section
 
@@ -78,7 +80,8 @@ theorem arithTransExpApproxAbovePos' (d : Nat) (l u t evalL evalU : ℝ) (hl : 0
 theorem arithTransExpApproxAbovePosComp (d : Nat) (l u t evalL evalU : ℝ) (hl : 0 ≤ l) (hd : u^(d+1) < Nat.factorial (d+1))
     (hl' : evalL = expTaylor d l / (1-l^(d+1)/(d+1)!))
     (hu' : evalU = expTaylor d u / (1-u^(d+1)/(d+1)!)) :
-    (t ≥ l ∧ t ≤ u) → Real.exp t ≤ evalL + ((evalL - evalU) / (l - u)) * (t - l) := by
+    ((t.bge l && t.ble u).imp ((Real.exp t).ble (evalL + ((evalL - evalU) / (l - u)) * (t - l)))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.bge_eq_true, Real.ble_eq_true]
   rw [<- expEmbedding] at hl'
   rw [<- expEmbedding] at hu'
   exact fun a => arithTransExpApproxAbovePos' d l u t evalL evalU hl hd hl' hu' a

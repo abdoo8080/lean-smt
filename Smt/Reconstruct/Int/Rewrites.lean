@@ -18,111 +18,101 @@ open Function
 
 -- https://github.com/cvc5/cvc5/blob/main/src/theory/arith/rewrites
 
-variable {t s x : Int}
+/-! The rewrites are stated over the reconstructions of SMT-LIB terms: `(< t s)` is `t.blt s`, `(<= t s)`
+is `t.ble s`, `(> t s)` is `t.bgt s`, `(>= t s)` is `t.bge s`, `(= t s)` is `t == s`, and `(ite c t s)`
+is `cond c t s`. The conditions of conditional rewrites are equations, e.g., `(s == 0) = false`. -/
 
-theorem div_total : (s = 0) = False → t / s = t / s :=
+-- `==` is the reconstruction of SMT-LIB's `=` (see `Smt.Reconstruct.Bool.mkBEq`).
+attribute [local instance high] instBEqOfDecidableEq
+
+variable {t s x y : Int}
+
+theorem div_total : (s == 0) = false → t / s = t / s :=
   const _ rfl
 theorem div_total_one : t / 1 = t :=
   Int.ediv_one t
 theorem div_total_zero : t / 0 = 0 :=
   Int.ediv_zero t
 
-theorem div_total_neg : (s < 0) = True → t / s = -(t / -s) :=
+theorem div_total_neg : s.blt 0 = true → t / s = -(t / -s) :=
   const _ (Int.ediv_neg t s ▸ Int.neg_neg _ ▸ rfl)
 
-theorem mod_total : (s = 0) = False → t % s = t % s :=
+theorem mod_total : (s == 0) = false → t % s = t % s :=
   const _ rfl
 theorem mod_total_one : t % 1 = 0 :=
   Int.emod_one t
 theorem mod_total_zero : t % 0 = t :=
   Int.emod_zero t
 
-theorem mod_total_neg : (s < 0) = True → t % s = t % -s :=
+theorem mod_total_neg : s.blt 0 = true → t % s = t % -s :=
   const _ (Int.emod_neg t s ▸ rfl)
 
 -- Eliminations
 
-theorem elim_gt : (t > s) = ¬(s ≥ t) :=
-  propext Int.not_le.symm
-theorem elim_lt : (t < s) = ¬(t ≥ s) :=
-  propext Int.not_le.symm
-theorem elim_gt_add_one : (t > s) = (t ≥ Int.addN [s, 1]) :=
-  propext Int.lt_iff_add_one_le
-theorem elim_lt_add_one : (t < s) = (s ≥ Int.addN [t, 1]) :=
-  propext Int.lt_iff_add_one_le
-theorem elim_leq : (t ≤ s) = (s ≥ t) :=
-  propext ge_iff_le
+theorem elim_gt : t.bgt s = !t.ble s := by
+  simp only [Int.bgt, Int.ble, ← decide_not]; apply decide_eq_decide.mpr; omega
+theorem elim_lt : t.blt s = !t.bge s := by
+  simp only [Int.blt, Int.bge, ← decide_not]; apply decide_eq_decide.mpr; omega
+theorem elim_gt_add_one : t.bgt s = t.bge (s + 1) := by
+  simp only [Int.bgt, Int.bge]; apply decide_eq_decide.mpr; omega
+theorem elim_lt_add_one : t.blt s = s.bge (t + 1) := by
+  simp only [Int.blt, Int.bge]; apply decide_eq_decide.mpr; omega
+theorem elim_leq : t.ble s = s.bge t :=
+  rfl
 
-theorem leq_norm : (t ≤ s) = ¬(t ≥ Int.addN [s, 1]) :=
-  propext ⟨fun hts => Int.not_le.mpr (Int.add_le_add_right hts _),
-           Int.not_lt.mp⟩
+theorem leq_norm : t.ble s = !t.bge (s + 1) := by
+  simp only [Int.ble, Int.bge, ← decide_not]; apply decide_eq_decide.mpr; omega
 
-theorem geq_tighten : (¬(t ≥ s)) = (s ≥ Int.addN [t, 1]) :=
-  propext Int.not_le
+theorem geq_tighten : (!t.bge s) = s.bge (t + 1) := by
+  simp only [Int.bge, ← decide_not]; apply decide_eq_decide.mpr; omega
 
-theorem geq_norm1 : (t ≥ s) = (t - s ≥ 0) :=
-  propext ⟨Int.sub_nonneg_of_le, Int.le_of_sub_nonneg⟩
+theorem geq_norm1 : t.bge s = (t - s).bge 0 := by
+  simp only [Int.bge]; apply decide_eq_decide.mpr; omega
 
-theorem eq_elim : (t = s) = (t ≥ s ∧ t ≤ s) :=
-  propext ⟨(· ▸ And.intro (Int.le_refl t) (Int.le_refl t)), fun ⟨hst, hts⟩ => Int.le_antisymm hts hst⟩
+theorem eq_elim : (t == s) = (t.bge s && t.ble s) := by
+  simp only [Int.bge, Int.ble, ← Bool.decide_and]; apply decide_eq_decide.mpr; omega
 
-theorem mod_over_mod : (c = 0) = False → Int.addN (ts ++ r % c :: ss) % c = Int.addN (ts ++ r :: ss) % c := by
+theorem mod_over_mod : (c == 0) = false → Int.addN (ts ++ r % c :: ss) % c = Int.addN (ts ++ r :: ss) % c := by
   simp only [Int.addN_append, Int.addN_cons_append, Int.emod_add_cancel_left, Int.emod_add_cancel_right, Int.emod_emod, implies_true]
 
-theorem divisible_elim {n t : Int} (_ : (n = 0) = False) : (n ∣ t) = (t % n = 0) :=
-  propext Int.dvd_iff_emod_eq_zero
+/-- SMT-LIB's `(_ divisible n)` has no Boolean counterpart in Lean, so it is decided. -/
+theorem divisible_elim {n t : Int} (_ : (n == 0) = false) : decide (n ∣ t) = (t % n == 0) :=
+  decide_eq_decide.mpr Int.dvd_iff_emod_eq_zero
 
 -- Absolute value comparisons
 
-theorem abs_eq : (x.abs = y.abs) = (x = y ∨ x = -y) := by
+theorem abs_eq : (x.abs == y.abs) = (x == y || x == -y) := by
+  apply Bool.eq_iff_iff.mpr
+  simp only [beq_iff_eq, Bool.or_eq_true]
   cases hx : decide (x < 0) <;> cases hy : decide (y < 0) <;> simp_all [Int.abs] <;> omega
 
-theorem abs_gt : (x.abs > y.abs) = ite (x ≥ 0) (ite (y ≥ 0) (x > y) (x > -y)) (ite (y ≥ 0) (-x > y) (-x > -y)) := by
-  simp only [Int.abs, gt_iff_lt, ge_iff_le, eq_iff_iff] <;> split <;> split <;> split <;> split <;> omega
+theorem abs_gt : x.abs.bgt y.abs =
+    cond (x.bge 0) (cond (y.bge 0) (x.bgt y) (x.bgt (-y))) (cond (y.bge 0) ((-x).bgt y) ((-x).bgt (-y))) := by
+  apply Bool.eq_iff_iff.mpr
+  cases hx : x.bge 0 <;> cases hy : y.bge 0 <;>
+    simp only [Int.bge_eq_true, Int.bge_eq_false, Int.bgt_eq_true, Bool.cond_true, Bool.cond_false] at * <;>
+    simp only [Int.abs] <;> split <;> split <;> omega
 
 -- ITE lifting
 
-theorem geq_ite_lift [h : Decidable c] {t s r : Int} : (ite c t s ≥ r) = ite c (t ≥ r) (s ≥ r) := by
-  cases h <;> simp_all
+theorem geq_ite_lift {c : Bool} {t s r : Int} : (cond c t s).bge r = cond c (t.bge r) (s.bge r) := by
+  cases c <;> rfl
 
-theorem leq_ite_lift [h : Decidable c] {t s r : Int} : (ite c t s ≤ r) = ite c (t ≤ r) (s ≤ r) := by
-  cases h <;> simp_all
+theorem leq_ite_lift {c : Bool} {t s r : Int} : (cond c t s).ble r = cond c (t.ble r) (s.ble r) := by
+  cases c <;> rfl
 
 -- min/max rules
 
-theorem min_lt1 : (ite (t < s) t s ≤ t) = True := by
-  cases h : decide (t < s) <;> simp_all [Int.not_lt.mpr]
+theorem min_lt1 : (cond (t.blt s) t s).ble t = true := by
+  cases h : t.blt s <;> simp_all <;> omega
 
-theorem min_lt2 : (ite (t < s) t s ≤ s) = True := by
-  cases h : decide (t < s) <;> simp_all [Int.not_lt.mpr, Int.le_of_lt]
+theorem min_lt2 : (cond (t.blt s) t s).ble s = true := by
+  cases h : t.blt s <;> simp_all <;> omega
 
-theorem max_geq1 : (ite (t ≥ s) t s ≥ t) = True := by
-  cases h : decide (t ≥ s) <;> simp_all [Int.not_le_of_gt, Int.le_of_lt]
+theorem max_geq1 : (cond (t.bge s) t s).bge t = true := by
+  cases h : t.bge s <;> simp_all <;> omega
 
-theorem max_geq2 : (ite (t ≥ s) t s ≥ s) = True := by
-  cases h : decide (t ≥ s) <;> simp_all [Int.not_le_of_gt]
-
--- min/max rules, where the `ite` is reconstructed as `cond`
-
-theorem min_lt1_cond {t s : Int} : decide (cond (decide (t < s)) t s ≤ t) = true := by
-  rw [Bool.cond_decide, decide_eq_true_eq]; exact of_eq_true min_lt1
-
-theorem min_lt2_cond {t s : Int} : decide (cond (decide (t < s)) t s ≤ s) = true := by
-  rw [Bool.cond_decide, decide_eq_true_eq]; exact of_eq_true min_lt2
-
-theorem max_geq1_cond {t s : Int} : decide (cond (decide (t ≥ s)) t s ≥ t) = true := by
-  rw [Bool.cond_decide, decide_eq_true_eq]; exact of_eq_true max_geq1
-
-theorem max_geq2_cond {t s : Int} : decide (cond (decide (t ≥ s)) t s ≥ s) = true := by
-  rw [Bool.cond_decide, decide_eq_true_eq]; exact of_eq_true max_geq2
-
-/-- `abs_gt`, where the `ite` is reconstructed as `cond`. -/
-theorem abs_gt_cond {x y : Int} :
-    decide (x.abs > y.abs) = cond (decide (x ≥ 0)) (cond (decide (y ≥ 0)) (decide (x > y)) (decide (x > -y)))
-      (cond (decide (y ≥ 0)) (decide (-x > y)) (decide (-x > -y))) := by
-  apply Bool.eq_iff_iff.mpr
-  rw [decide_eq_true_eq, abs_gt]
-  simp only [Bool.cond_decide]
-  split <;> split <;> simp
+theorem max_geq2 : (cond (t.bge s) t s).bge s = true := by
+  cases h : t.bge s <;> simp_all <;> omega
 
 end Smt.Reconstruct.Int.Rewrite

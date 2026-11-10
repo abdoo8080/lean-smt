@@ -13,11 +13,14 @@ https://cvc5.github.io/docs/cvc5-1.0.2/proofs/proof_rules.html#_CPPv4N4cvc58inte
 module
 
 public import Mathlib.Analysis.Complex.Exponential
+public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Real.Core
 
 @[expose] public section
 
 namespace Smt.Reconstruct.Real.TransFns
 
-theorem arithTransExpPositivity (t : Real) : Real.exp t > 0 := Real.exp_pos t
+theorem arithTransExpPositivity (t : Real) : (Real.exp t).bgt 0 = true :=
+  decide_eq_true (Real.exp_pos t)
 
 end Smt.Reconstruct.Real.TransFns

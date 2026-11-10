@@ -90,13 +90,13 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     let α ← reconstructSort pf.getArguments[1]!.getSort!
     let t ← reconstructTerm pf.getArguments[1]!
     addEqThm pf.getResult
-      (mkApp3 (.const ``Bool.eq_refl [← Meta.getLevel α]) α t (← Bool.eqInst α t t))
+      (mkApp3 (.const ``Bool.eq_refl [← Meta.getDecLevel α]) α (← Bool.decEqInst α) t)
   | .EQ_SYMM =>
     let α ← reconstructSort pf.getArguments[1]!.getSort!
     let t ← reconstructTerm pf.getArguments[1]!
     let s ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult (mkAppN (.const ``Bool.eq_symm [← Meta.getLevel α])
-      #[α, t, s, ← Bool.eqInst α t s, ← Bool.eqInst α s t])
+    addEqThm pf.getResult (mkAppN (.const ``Bool.eq_symm [← Meta.getDecLevel α])
+      #[α, ← Bool.decEqInst α, t, s])
   | .EQ_COND_DEQ =>
     let α ← reconstructSort pf.getArguments[1]!.getSort!
     let t ← reconstructTerm pf.getArguments[1]!
@@ -104,18 +104,16 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     let r ← reconstructTerm pf.getArguments[3]!
     -- `(s == r) = false`
     let h ← reconstructEqProof pf.getChildren[0]!
-    addEqThm pf.getResult (mkAppN (.const ``Bool.eq_cond_deq [← Meta.getLevel α])
-      #[α, t, s, r, ← Bool.eqInst α s r, ← Bool.eqInst α t s, ← Bool.eqInst α t r, h])
+    addEqThm pf.getResult (mkAppN (.const ``Bool.eq_cond_deq [← Meta.getDecLevel α])
+      #[α, ← Bool.decEqInst α, t, s, r, h])
   | .EQ_ITE_LIFT =>
     let c ← reconstructTerm pf.getArguments[1]!
     let α ← reconstructSort pf.getArguments[2]!.getSort!
     let t ← reconstructTerm pf.getArguments[2]!
     let s ← reconstructTerm pf.getArguments[3]!
     let r ← reconstructTerm pf.getArguments[4]!
-    let u ← Meta.getLevel α
-    let cts := mkApp4 (.const ``cond [u]) α c t s
-    addEqThm pf.getResult (mkAppN (.const ``Bool.eq_ite_lift [u])
-      #[α, c, t, s, r, ← Bool.eqInst α cts r, ← Bool.eqInst α t r, ← Bool.eqInst α s r])
+    addEqThm pf.getResult (mkAppN (.const ``Bool.eq_ite_lift [← Meta.getDecLevel α])
+      #[α, ← Bool.decEqInst α, c, t, s, r])
   | .DISTINCT_BINARY_ELIM =>
     let t : Q(Bool) ← reconstructTerm pf.getResult[0]!
     addEqThm pf.getResult q(Eq.refl $t)
@@ -141,8 +139,7 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       -- `(!(a == b)) = true`
       let h ← reconstructProof pf.getChildren[0]!
       addThm (← reconstructProofType pf.getResult)
-        (mkAppN (.const ``Bool.not_decide_eq_symm [← Meta.getLevel α])
-          #[α, a, b, ← Bool.eqInst α a b, ← Bool.eqInst α b a, h])
+        (mkAppN (.const ``Bool.not_beq_symm [← Meta.getDecLevel α]) #[α, ← Bool.decEqInst α, a, b, h])
   | .TRANS =>
     let cpfs := pf.getChildren
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort cpfs[0]!.getResult[0]!.getSort!

@@ -25,6 +25,8 @@ public import Smt.Reconstruct.Util
 public meta import Smt.Reconstruct.Util
 public import Smt.Reconstruct.Real.Polynorm
 public meta import Smt.Reconstruct.Real.Polynorm
+public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Real.Core
 
 @[expose] public section
 
@@ -140,6 +142,11 @@ syntax (name := arithTransPi) "arithTransPi" term "," term : tactic
 
 example : 3.1415926535 ≤ Real.pi ∧ Real.pi ≤ 3.1415926536 := by
   arithTransPi 3.1415926535 , 3.1415926536
+
+/-- The bounds on `π` proved by `arithTransPiTac`, as the reconstruction of the rule's conclusion. -/
+theorem arithTransPi_of {l u : Real} (h : Real.pi ≥ l ∧ Real.pi ≤ u) :
+    (Real.pi.bge l && Real.pi.ble u) = true := by
+  simp only [Bool.and_eq_true, Real.bge_eq_true, Real.ble_eq_true]; exact h
 
 def arithTransPiTac (mvar : MVarId) : MetaM Unit := do
   let t : Q(Prop) ← mvar.getType

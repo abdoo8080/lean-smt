@@ -25,8 +25,8 @@ variable {x y : Rat}
   apply Bool.eq_iff_iff.mpr; rw [decide_eq_true_eq, Rat.blt_eq_true]
 @[smt_decide ↓] theorem decide_rat_le {h : Decidable (x ≤ y)} : @decide (x ≤ y) h = x.ble y :=
   decide_eq_decide.mpr Iff.rfl
-@[smt_decide ↓] theorem decide_rat_gt {h : Decidable (x > y)} : @decide (x > y) h = x.bgt y :=
-  decide_eq_decide.mpr Iff.rfl
+@[smt_decide ↓] theorem decide_rat_gt {h : Decidable (x > y)} : @decide (x > y) h = x.bgt y := by
+  apply Bool.eq_iff_iff.mpr; rw [decide_eq_true_eq, Rat.bgt_eq_true]
 @[smt_decide ↓] theorem decide_rat_ge {h : Decidable (x ≥ y)} : @decide (x ≥ y) h = x.bge y :=
   decide_eq_decide.mpr Iff.rfl
 

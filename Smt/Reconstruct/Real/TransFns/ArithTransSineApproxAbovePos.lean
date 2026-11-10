@@ -14,6 +14,8 @@ module
 
 public import Smt.Reconstruct.Real.TransFns.ArithTransSineApproxBelowNeg
 public import Mathlib.Analysis.Real.Pi.Bounds
+public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Real.Core
 
 @[expose] public section
 
@@ -44,7 +46,8 @@ theorem arithTransSineApproxAbovePosComp (d k : ℕ) (lb ub x c evalC : ℝ) (hd
     (hl : 0 ≤ lb) (hu : ub ≤ π)
     (hc' : evalC = sinTaylor d c + c ^ (d + 1) / (d + 1).factorial)
     (hc : c = if ub < π/2 then ub else if lb < π/2 then π/2 else lb) :
-    (x ≥ lb ∧ x ≤ ub) → Real.sin x ≤ evalC := by
+    ((x.bge lb && x.ble ub).imp ((Real.sin x).ble evalC)) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Real.bge_eq_true, Real.ble_eq_true]
   rintro ⟨hx1, hx2⟩
   rw [hc', <- sinEmbedding]
   exact arithTransSineApproxAbovePos d k lb ub x c hd hl hu hx1 hx2 hc

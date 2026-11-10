@@ -14,6 +14,8 @@ module
 
 public import Mathlib.Algebra.Order.Star.Real
 public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
+public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Real.Core
 
 @[expose] public section
 
@@ -132,8 +134,30 @@ theorem arithTransSineShift₀ : ∀ x , ∃ s y , shift_prop x s y := fun x =>
 
 open Classical
 
+-- `==` is the reconstruction of SMT-LIB's `=` (see `Smt.Reconstruct.Bool.mkBEq`).
+attribute [local instance high] instBEqOfDecidableEq
+
+/-- `shift_prop` as a Boolean formula, the reconstruction of the conclusion of the rule. -/
+noncomputable def shiftBool (x s y : Real) : Bool :=
+  y.bge ((-1) * Real.pi) && (y.ble Real.pi && (s == (⌊s⌋ : Real) &&
+    (cond (x.bge ((-1) * Real.pi) && x.ble Real.pi) (x == y) (x == y + 2 * s * Real.pi) &&
+      sin y == sin x)))
+
+theorem shiftBool_eq_true {x s y : Real} : (shiftBool x s y = true) = shift_prop x s y := by
+  have hc : (x.bge ((-1) * Real.pi) && x.ble Real.pi) = decide (x ≥ (-1) * Real.pi ∧ x ≤ Real.pi) := by
+    simp only [Real.bge, Real.ble, Bool.decide_and]
+  unfold shiftBool shift_prop
+  rw [hc]
+  by_cases h : x ≥ (-1) * Real.pi ∧ x ≤ Real.pi
+  · simp only [decide_eq_true h, Bool.cond_true, Bool.and_eq_true, Real.bge_eq_true, Real.ble_eq_true,
+      beq_iff_eq]
+    rw [ite_eq_left h]
+  · simp only [decide_eq_false h, Bool.cond_false, Bool.and_eq_true, Real.bge_eq_true, Real.ble_eq_true,
+      beq_iff_eq]
+    rw [ite_eq_right h]
+
 theorem arithTransSineShift₁ : ∀ (x : Real),
-    shift_prop x (epsilon (shift_prop_part x)) (epsilon (shift_prop x (epsilon (shift_prop_part x)))) := fun x =>
-  epsilon_spec (epsilon_spec (arithTransSineShift₀ x))
+    shiftBool x (epsilon (shift_prop_part x)) (epsilon (shift_prop x (epsilon (shift_prop_part x)))) = true :=
+  fun x => shiftBool_eq_true ▸ epsilon_spec (epsilon_spec (arithTransSineShift₀ x))
 
 end Smt.Reconstruct.Real.TransFns

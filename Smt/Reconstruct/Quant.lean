@@ -108,83 +108,88 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     let t  : Q($α) ← reconstructTerm pf.getResult[0]!
     addEqThm pf.getResult q(Eq.refl $t)
   | .EXISTS_ELIM =>
+    -- `(exists xs F) = (not (forall xs (not F)))`, one variable at a time from the innermost.
     let mut xs := #[]
     for x in pf.getResult[0]![0]! do
       xs := xs.push (getVariableName x, fun _ => reconstructSort x.getSort!)
-    let ((q : Q(Prop)), (p : Q(Prop)), (h : Q((¬$q) = $p))) ← Meta.withLocalDeclsD xs fun xs => withNewTermCache do
-      let b : Q(Prop) ← reconstructProp pf.getResult[0]![1]!
-      let h := q(Classical.not_not_eq $b)
-      let f := fun x (p, q, h) => do
-        let u ← Meta.getLevel (← Meta.inferType x)
-        let α : Q(Sort u) ← Meta.inferType x
-        let lp : Q($α → Prop) ← Meta.mkLambdaFVars #[x] p
-        let lq : Q($α → Prop) ← Meta.mkLambdaFVars #[x] q
-        let hx : Q(∀ x : $α, (¬$lp x) = $lq x) ← Meta.mkLambdaFVars #[x] h
-        let ap ← Meta.mkForallFVars #[x] p
-        let eq ← Meta.mkExistsFVars #[x] q
-        return (ap, eq, q(Eq.trans (Classical.not_forall_eq $lp) (congrArg Exists (funext $hx))))
-      xs.foldrM f (q(¬$b), b, h)
-    addPropThm pf.getResult q(@Eq.symm Prop (¬$q) $p $h)
+    let h ← Meta.withLocalDeclsD xs fun xs => withNewTermCache do
+      let b : Q(Bool) ← reconstructTerm pf.getResult[0]![1]!
+      -- `h : e = !a`, where `e` and `a` quantify `F` and `not F` over the variables seen so far.
+      let f := fun x (e, a, h) => do
+        let α ← Meta.inferType x
+        let u ← Meta.getLevel α
+        let le ← Meta.mkLambdaFVars #[x] e
+        let la ← Meta.mkLambdaFVars #[x] a
+        let hx ← Meta.mkLambdaFVars #[x] h
+        return (mkApp2 (.const ``Bool.exists [u]) α le, mkApp2 (.const ``Bool.forall [u]) α la,
+          mkAppN (.const ``Quant.exists_eq_not_forall [u]) #[α, le, la, hx])
+      let (_, _, h) ← xs.foldrM f (b, q(!$b), q((Bool.not_not $b).symm))
+      return h
+    addEqThm pf.getResult h
   | .QUANT_UNUSED_VARS =>
+    -- `(forall xs F) = (forall ys F)`, where `ys` are the variables of `xs` that occur in `F`.
     let mut ys := #[]
     if pf.getResult[1]!.getKind! == .FORALL then
       for y in pf.getResult[1]![0]! do
         ys := ys.push (getVariableName y, fun _ => reconstructSort y.getSort!)
-    let (_, p, q, h) ← Meta.withLocalDeclsD ys fun ys => withNewTermCache do
-      let b : Q(Prop) ← reconstructProp pf.getResult[0]![1]!
-      let h : Q($b = $b) := q(Eq.refl $b)
-      let f := fun i (j, p, q, (h : Q($p = $q))) => do
-        let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getResult[0]![0]![i]!.getSort!
+    let h ← Meta.withLocalDeclsD ys fun ys => withNewTermCache do
+      let b : Q(Bool) ← reconstructTerm pf.getResult[0]![1]!
+      -- `h : p = q`, where `p` quantifies `F` over the variables of `xs` seen so far, and `q` over
+      -- those of `ys`.
+      let f := fun i (j, p, q, h) => do
+        let (u, α) ← reconstructSortLevelAndSort pf.getResult[0]![0]![i]!.getSort!
         if let some j := j then
           if pf.getResult[0]![0]![i]! == pf.getResult[1]![0]![j]! then
-            let lp : Q($α → Prop) ← Meta.mkLambdaFVars #[ys[j]!] p
-            let lq : Q($α → Prop) ← Meta.mkLambdaFVars #[ys[j]!] q
-            let hx : Q(∀ x : $α, $lp x = $lq x) ← Meta.mkLambdaFVars #[ys[j]!] h
-            let ap ← Meta.mkForallFVars #[ys[j]!] p
-            let aq ← Meta.mkForallFVars #[ys[j]!] q
-            return (if j == 0 then none else some (j - 1), ap, aq, q(forall_congr $hx))
-        let hα : Q(Nonempty $α) ← Meta.synthInstance q(Nonempty $α)
-        let ap := .forallE (getVariableName pf.getResult[0]![0]![i]!) α p .default
-        return (j, ap, q, q(@forall_const_eq $α $hα $p $q $h))
+            let lp ← Meta.mkLambdaFVars #[ys[j]!] p
+            let lq ← Meta.mkLambdaFVars #[ys[j]!] q
+            let hx ← Meta.mkLambdaFVars #[ys[j]!] h
+            return (if j == 0 then none else some (j - 1), mkApp2 (.const ``Bool.forall [u]) α lp,
+              mkApp2 (.const ``Bool.forall [u]) α lq,
+              mkAppN (.const ``Quant.forall_congr_bool [u]) #[α, lp, lq, hx])
+        let hα ← Meta.synthInstance (mkApp (.const ``Nonempty [u]) α)
+        let lp := .lam (getVariableName pf.getResult[0]![0]![i]!) α p .default
+        return (j, mkApp2 (.const ``Bool.forall [u]) α lp, q,
+          mkAppN (.const ``Quant.forall_const_bool [u]) #[α, hα, p, q, h])
       let i := pf.getResult[0]![0]!.getNumChildren
       let j := if ys.isEmpty then none else some (ys.size - 1)
-      (List.range i).foldrM f (j, b, b, h)
-    let h : Q($p = $q) ← pure h
-    addPropThm pf.getResult h
+      let (_, _, _, h) ← (List.range i).foldrM f (j, b, b, q(Eq.refl $b))
+      return h
+    addEqThm pf.getResult h
   | .QUANT_MERGE_PRENEX =>
-    -- The propositions denoted by both sides are the same `∀ x₁ … xₙ, F`.
-    let p : Q(Prop) ← reconstructProp pf.getResult[0]!
-    addPropThm pf.getResult q(Eq.refl $p)
+    -- Both sides are reconstructed as `Bool.forall fun x₁ => ⋯ Bool.forall fun xₙ => F`.
+    let b : Q(Bool) ← reconstructTerm pf.getResult[0]!
+    addEqThm pf.getResult q(Eq.refl $b)
   | .QUANT_MINISCOPE_AND =>
+    -- `(forall xs (and F₁ … Fₙ)) = (and (forall xs F₁) … (forall xs Fₙ))`, one variable at a time
+    -- from the innermost.
     let mut xs := #[]
     for x in pf.getResult[0]![0]! do
       xs := xs.push (getVariableName x, fun _ => reconstructSort x.getSort!)
-    let (_, _, h) ← Meta.withLocalDeclsD xs fun xs => withNewTermCache do
-      let mut ps : Array Q(Prop) := #[]
-      for ct in pf.getResult[0]![1]! do
-        let p : Q(Prop) ← reconstructProp ct
-        ps := ps.push q($p)
-      let b : Q(Prop) ← reconstructProp pf.getResult[0]![1]!
-      let h : Q($b = $b) := q(Eq.refl $b)
-      let lf := fun x (u, (α : Q(Sort u))) p lps => do
-        let lp : Q($α → Prop) ← (return ← Meta.mkLambdaFVars #[x] p)
-        return .app q(PList.cons $lp) lps
-      let f := fun x (p, ps, h) => do
-        let u ← Meta.getLevel (← Meta.inferType x)
-        let α : Q(Sort u) ← Meta.inferType x
-        let lp : Q($α → Prop) ← Meta.mkLambdaFVars #[x] p
-        let (lps : Q(PList ($α → Prop))) ← ps.foldrM (lf x (u, α)) q(@PList.nil ($α → Prop))
-        let hx : Q(∀ x, $lp x = pAndN («$lps».map (· x))) ← Meta.mkLambdaFVars #[x] h
-        let ap ← Meta.mkForallFVars #[x] p
-        let aps ← liftM (ps.mapM (Meta.mkForallFVars #[x]))
-        return (ap, aps, q(Eq.trans (forall_congr $hx) (@miniscope_andN $α $lps)))
-      xs.foldrM f (b, ps, h)
-    addPropThm pf.getResult h
+    let h ← Meta.withLocalDeclsD xs fun xs => withNewTermCache do
+      let gs ← pf.getResult[0]![1]!.getChildren.mapM reconstructTerm
+      let b ← reconstructTerm pf.getResult[0]![1]!
+      let h ← Meta.mkExpectedTypeHint (← Meta.mkEqRefl b) (← Meta.mkEq b (← andN gs))
+      -- `h : p = andN gs`, where `p` and the conjuncts `gs` are quantified over the variables seen
+      -- so far.
+      let f := fun x (p, gs, h) => do
+        let α ← Meta.inferType x
+        let u ← Meta.getLevel α
+        let lgs ← gs.mapM (Meta.mkLambdaFVars #[x] ·)
+        let ps ← Meta.mkListLit (.forallE `x α (.const ``Bool []) .default) lgs.toList
+        let h₁ ← Meta.mkAppM ``Quant.forall_congr_bool #[← Meta.mkLambdaFVars #[x] h]
+        let h₂ := mkApp2 (.const ``Quant.forall_andN [← Meta.getDecLevel α]) α ps
+        let p := mkApp2 (.const ``Bool.forall [u]) α (← Meta.mkLambdaFVars #[x] p)
+        return (p, lgs.map (mkApp2 (.const ``Bool.forall [u]) α), ← Meta.mkEqTrans h₁ h₂)
+      let (_, _, h) ← xs.foldrM f (b, gs, h)
+      return h
+    addEqThm pf.getResult h
   | .QUANT_MINISCOPE_OR =>
+    -- `(forall xs (or F₁ … Fₙ)) = (or (forall xs₁ F₁) … (forall xsₙ Fₙ))`, where `xsᵢ` are the
+    -- variables of `Fᵢ`, one variable at a time from the innermost.
     let mut xs := #[]
     for x in pf.getResult[0]![0]! do
       xs := xs.push (getVariableName x, fun _ => reconstructSort x.getSort!)
-    let (_, _, _, _, h) ← Meta.withLocalDeclsD xs fun xs => withNewTermCache do
+    let h ← Meta.withLocalDeclsD xs fun xs => withNewTermCache do
       let mut xss := #[]
       let mut ci := 0
       for i in [0:pf.getResult[1]!.getNumChildren] do
@@ -195,25 +200,25 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
           ci := ci + xsF[0]!.getNumChildren
         else
           xss := xss.push xs[ci:ci]
-      let ps : List Q(Prop) := (← pf.getResult[0]![1]!.getChildren.mapM reconstructProp).toList
-      let b : Q(Prop) ← reconstructProp pf.getResult[0]![1]!
-      let h : Q($b = $b) := q(Eq.refl $b)
+      let ps := (← pf.getResult[0]![1]!.getChildren.mapM reconstructTerm).toList
+      let b ← reconstructTerm pf.getResult[0]![1]!
+      let h ← Meta.mkExpectedTypeHint (← Meta.mkEqRefl b) (← Meta.mkEq b (← orN ps))
+      -- `h : p = orN (ps ++ q :: rs)`, where `q` is the disjunct of the current variables.
       let fin := fun x (p, ps, q, rs, h) => do
-        let u ← Meta.getLevel (← Meta.inferType x)
-        let α : Q(Sort u) ← Meta.inferType x
-        let lp : Q($α → Prop) ← Meta.mkLambdaFVars #[x] p
-        let lq : Q($α → Prop) ← Meta.mkLambdaFVars #[x] q
-        let qps : Q(List Prop) ← pure (ps.foldr (fun (p : Q(Prop)) qps => q($p :: $qps)) q([]))
-        let qrs : Q(List Prop) ← pure (rs.foldr (fun (r : Q(Prop)) qrs => q($r :: $qrs)) q([]))
-        let hx : Q(∀ x, $lp x = orN ($qps ++ $lq x :: $qrs)) ← Meta.mkLambdaFVars #[x] h
-        let ap ← Meta.mkForallFVars #[x] p
-        let aq ← Meta.mkForallFVars #[x] q
-        return (ap, ps, aq, rs, q(Eq.trans (forall_congr $hx) (@miniscope_orN $α $qps $lq $qrs)))
+        let α ← Meta.inferType x
+        let u ← Meta.getLevel α
+        let lq ← Meta.mkLambdaFVars #[x] q
+        let h₁ ← Meta.mkAppM ``Quant.forall_congr_bool #[← Meta.mkLambdaFVars #[x] h]
+        let h₂ := mkAppN (.const ``Quant.forall_orN [u])
+          #[α, ← Meta.mkListLit (.const ``Bool []) ps, lq, ← Meta.mkListLit (.const ``Bool []) rs]
+        let p := mkApp2 (.const ``Bool.forall [u]) α (← Meta.mkLambdaFVars #[x] p)
+        return (p, ps, mkApp2 (.const ``Bool.forall [u]) α lq, rs, ← Meta.mkEqTrans h₁ h₂)
       let fout := fun xs (p, ps, q, rs, h) => do
         let (p, ps, q, rs, h) ← xs.foldrM fin (p, ps, q, rs, h)
-        return (p, ps.dropLast, ps.getLastD q(False), q :: rs, h)
-      xss.foldrM fout (b, ps.dropLast, ps.getLast!, [], h)
-    addPropThm pf.getResult h
+        return (p, ps.dropLast, ps.getLastD (.const ``Bool.false []), q :: rs, h)
+      let (_, _, _, _, h) ← xss.foldrM fout (b, ps.dropLast, ps.getLast!, [], h)
+      return h
+    addEqThm pf.getResult h
   | .QUANT_MINISCOPE_ITE =>
     -- `(forall xs (ite c F G)) = (ite c (forall xs F) (forall xs G))`, where `c` does not depend on
     -- `xs`, holds by cases on `c`.
@@ -228,11 +233,10 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     let lb := pf.getResult[0]![1]!
     let eq := if lb.getKind! == .OR then lb[0]![0]! else lb[0]!
     let α ← reconstructSort eq[0]!.getSort!
-    let v ← Meta.getLevel α
+    let v ← Meta.getDecLevel α
     let n : Name := getVariableName eq[0]!
     let t ← reconstructTerm eq[1]!
-    -- the instances of `Decidable (x = t)` of the Boolean formulas `x == t`
-    let insts ← Meta.withLocalDeclD n α fun x => do Meta.mkLambdaFVars #[x] (← Bool.eqInst α x t)
+    let inst ← Bool.decEqInst α
     if lb.getKind! == .OR then
       let b ← Meta.withLocalDeclD n α fun x => withNewTermCache do
         let mut b : Q(Bool) ← reconstructTerm lb[lb.getNumChildren - 1]!
@@ -240,10 +244,17 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
           let c : Q(Bool) ← reconstructTerm lb[lb.getNumChildren - i - 1]!
           b := q($c || $b)
         Meta.mkLambdaFVars #[x] b
-      addEqThm pf.getResult (mkAppN (.const ``Quant.var_elim_eq_or_bool [v]) #[α, t, insts, b])
+      addEqThm pf.getResult (mkAppN (.const ``Quant.var_elim_eq_or_bool [v]) #[α, inst, t, b])
     else
-      addEqThm pf.getResult (mkAppN (.const ``Quant.var_elim_eq_bool [v]) #[α, t, insts])
+      addEqThm pf.getResult (mkAppN (.const ``Quant.var_elim_eq_bool [v]) #[α, inst, t])
   | _ => return none
+where
+  /-- `Bool.andN [b₁, …, bₙ]`. -/
+  andN (bs : Array Expr) : MetaM Expr := do
+    return mkApp (.const ``Bool.andN []) (← Meta.mkListLit (.const ``Bool []) bs.toList)
+  /-- `Bool.orN [b₁, …, bₙ]`. -/
+  orN (bs : List Expr) : MetaM Expr := do
+    return mkApp (.const ``Bool.orN []) (← Meta.mkListLit (.const ``Bool []) bs)
 
 @[smt_proof_reconstruct] def reconstructQuantProof : ProofReconstructor := fun pf => do match pf.getRule with
   | .THEORY_REWRITE => reconstructRewrite pf
@@ -272,29 +283,31 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     let t : Q(Bool) ← reconstructTerm pf.getResult[0]!
     addEqThm pf.getResult q(Eq.refl $t)
   | .QUANT_VAR_REORDERING =>
+    -- `(forall xs F) = (forall ys F)`, where `ys` is a permutation of `xs`: eliminate the quantifiers
+    -- of one side and introduce those of the other.
     let xs := pf.getResult[0]![0]!.getChildren
     let ys := pf.getResult[1]![0]!.getChildren
-    let g xs := Id.run do
-      let mut is : Std.HashMap cvc5.Term Expr := {}
-      for h : i in [:xs.size] do
-        is := is.insert xs[i] (.bvar (xs.size - i - 1))
-      return is
-    let (is, js) := (g xs, g ys)
-    let (is, js) := (xs.map js.get!, ys.map is.get!)
-    let f x h := do
-      let n := getVariableName x
-      let α ← reconstructSort x.getSort!
-      return .lam n α h .default
-    -- The propositions `∀ xs, F` and `∀ ys, F` denoted by both sides.
-    let p : Q(Prop) ← reconstructProp pf.getResult[0]!
-    let q : Q(Prop) ← reconstructProp pf.getResult[1]!
-    let hpq ← ys.foldrM f (mkAppN (.bvar js.size) is)
-    let hpq : Q($p → $q) ← pure (.lam `hp p hpq .default)
-    let hqp ← xs.foldrM f (mkAppN (.bvar is.size) js)
-    let hqp : Q($q → $p) ← pure (.lam `hq q hqp .default)
-    addPropThm pf.getResult q(propext ⟨$hpq, $hqp⟩)
+    let p ← reconstructTerm pf.getResult[0]!
+    let q ← reconstructTerm pf.getResult[1]!
+    let hpq ← reorder p xs ys
+    let hqp ← reorder q ys xs
+    addEqThm pf.getResult (← Meta.mkAppM ``Quant.bool_eq_of_imp #[hpq, hqp])
   | _ => return none
 where
+  /-- A proof of `p = true → (forall ys F) = true`, where `p` is `(forall xs F)` and `ys` is a
+  permutation of `xs`. -/
+  reorder (p : Expr) (xs ys : Array cvc5.Term) : ReconstructM Expr := do
+    let decls := ys.map fun y => (getVariableName y, fun _ => reconstructSort y.getSort!)
+    Meta.withLocalDeclD `hp (← Meta.mkEq p (.const ``Bool.true [])) fun hp => do
+      let h ← Meta.withLocalDeclsD decls fun fvs => do
+        let mut h := hp
+        for x in xs do
+          let some i := ys.findIdx? (· == x) | throwError "[var_reordering]: unknown variable {x}"
+          h ← Meta.mkAppM ``Quant.forall_elim #[h, fvs[i]!]
+        for fv in fvs.reverse do
+          h ← Meta.mkAppM ``Quant.forall_intro #[← Meta.mkLambdaFVars #[fv] h]
+        return h
+      Meta.mkLambdaFVars #[hp] h
   /-- Congruence for `(forall xs F) = (forall xs G)` (and `exists`) from a proof of `F = G` under
   the bound variables `xs`. -/
   reconstructQuantCong (op : Name) (pf : cvc5.Proof) : ReconstructM Expr := do

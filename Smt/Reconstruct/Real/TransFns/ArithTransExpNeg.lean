@@ -13,6 +13,8 @@ https://cvc5.github.io/docs/cvc5-1.0.2/proofs/proof_rules.html#_CPPv4N4cvc58inte
 module
 
 public import Mathlib.Analysis.Complex.Exponential
+public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Real.Core
 
 @[expose] public section
 
@@ -21,7 +23,7 @@ namespace Smt.Reconstruct.Real.TransFns
 theorem arithTransExpNeg (t : ℝ) : t < 0 ↔ Real.exp t < 1 :=
   Iff.comm.mp Real.exp_lt_one_iff
 
-theorem arithTransExpNeg' (t : ℝ) : (t < 0) = (Real.exp t < 1) :=
-  propext (Iff.comm.mp Real.exp_lt_one_iff)
+theorem arithTransExpNeg' (t : ℝ) : t.blt 0 = (Real.exp t).blt 1 :=
+  decide_eq_decide.mpr (arithTransExpNeg t)
 
 end Smt.Reconstruct.Real.TransFns

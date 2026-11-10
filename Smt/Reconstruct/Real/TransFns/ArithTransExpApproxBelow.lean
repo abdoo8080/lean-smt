@@ -14,6 +14,8 @@ module
 
 public import Smt.Reconstruct.Real.TransFns.Utils
 public import Smt.Reconstruct.Real.TransFns.TaylorComp
+public import Smt.Reconstruct.Bool.Core
+public import Smt.Reconstruct.Real.Core
 
 @[expose] public section
 
@@ -145,7 +147,8 @@ theorem arithTransExpApproxBelow' (t : ℝ) (c : ℝ) (w : ℝ) (d n : ℕ) (hw 
       exact arithTransExpApproxBelow t c d n h ht
 
 theorem arithTransExpApproxBelowComp (t : ℝ) (c : ℝ) (w : ℝ) (d n : ℕ) (hw : expTaylor d c = w) (h : d = 2 * n + 1) :
-    t ≥ c → Real.exp t ≥ w := by
+    ((t.bge c).imp ((Real.exp t).bge w)) = true := by
+      simp only [Bool.imp_eq_true, Real.bge_eq_true]
       rw [<- expEmbedding] at hw
       exact fun a => arithTransExpApproxBelow' t c w d n hw h a
 

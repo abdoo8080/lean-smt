@@ -41,6 +41,7 @@ into Booleans in two steps (see `Smt.Preprocess.embedding`):
 | `∀ x, p x`     | `Bool.forall fun x => b x`               |
 | `∃ x, p x`     | `Bool.exists fun x => b x`               |
 | `if p then x else y` | `cond b x y`                       |
+| `x < y`, `x ≤ y`, `x > y`, `x ≥ y` | `x.blt y`, `x.ble y`, `x.bgt y`, `x.bge y` (`x.ult y`, … on bit-vectors) |
 | other atom `p` | `decide p`                               |
 
 The equalities `x == y` and the atoms `decide p` use the same instances as proof reconstruction (see
