@@ -54,7 +54,9 @@ structure Config where
       for SMT solving. -/
   normalize : Bool := true
   /-- Whether to embed types that the SMT solver does not understand (e.g., `Nat`, `Rat`, and `Prop`)
-      into ones it does (e.g., `Int`, `Real`, and `Bool`). -/
+      into ones it does (e.g., `Int`, `Real`, and `Bool`). Disable it only to trust the solver, or if
+      the goal needs no embeddings. The hypotheses are turned into Boolean formulas either way, as
+      proof reconstruction requires. -/
   embeddings : Bool := true
   /-- Whether to trust the result of the SMT solver. Closes the current goal with a `sorry` if the
       SMT solver returns `unsat`. **Warning**: use with caution, as this may lead to unsoundness.
@@ -98,7 +100,8 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
   let steps := if cfg.mono then #[Preprocess.mono] else #[Preprocess.pushHintsToCtx] ++
               (if cfg.intros then #[Preprocess.intros] else #[]) ++ #[Preprocess.negateGoal]
   let steps := if cfg.normalize then steps.push Preprocess.normalize else steps
-  let steps := if cfg.embeddings then steps.push Preprocess.embedding else steps
+  let steps := if cfg.embeddings then steps.push Preprocess.embedTypes else steps
+  let steps := steps.push Preprocess.embedProps
   let ⟨map, hs₁, mv₁⟩ ← Preprocess.applySteps mv₀ hs steps
   mv₁.withContext do
   -- 3. Generate the SMT query.
@@ -148,23 +151,13 @@ def smt (cfg : Config) (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.with
     let gs ← mv₃.apply (← Meta.mkAppOptM ``Reconstruct.Bool.implies_false_of_not_and #[listExpr ps q(Bool)])
     -- Close each goal with the hypothesis of the same type. `assumption` alone could pick another
     -- hypothesis, since closed Boolean formulas are definitionally equal if they evaluate to the
-    -- same value. Without the embedding (see `Config.embeddings`), the hypotheses are the
-    -- propositions that the Boolean formulas denote.
+    -- same value.
     mv₃.withContext do
       for g in gs do
-        let t ← instantiateMVars (← g.getType)
-        if let some h ← findHyp? t then
+        if let some h ← findHyp? (← instantiateMVars (← g.getType)) then
           g.assign h
-          continue
-        if ← g.assumptionCore then
-          continue
-        let some (_, b, _) := t.eq? | g.assumption
-        let (p, some e) ← Reconstruct.Bool.toProp b | g.assumption
-        let hp ← Meta.mkFreshExprMVar p
-        match ← findHyp? p with
-        | some h => hp.mvarId!.assign h
-        | none => hp.mvarId!.assumption
-        g.assign (← Meta.mkEqMPR e hp)
+        else
+          g.assumption
     mv.assign (.mvar mv₀)
     return .unsat mvs uc
   | .ok (.sat model) =>

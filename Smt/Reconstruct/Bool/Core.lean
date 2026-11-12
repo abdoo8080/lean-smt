@@ -37,23 +37,6 @@ synthesized instance of `Decidable p`, or a classical one.
 The theorems of proof reconstruction are stated over these Boolean formulas: a proof of a formula
 `b` is a proof of `b = true`, a proof of an equality `(= t s)` is usually a proof of `t = s`, and
 rewrites are equations between Booleans or terms.
-
-When the goal is not embedded into Booleans, the hypotheses are the propositions `p` denoted by the
-Boolean formulas `b`, with `(b = true) = p` (see `Smt.Reconstruct.Bool.toProp`):
-
-| Boolean formula     | proposition         |
-|---------------------|---------------------|
-| `true`, `false`     | `True`, `False`     |
-| `!b`                | `¬p`                |
-| `b₁ && b₂`          | `p₁ ∧ p₂`           |
-| `b₁ \|\| b₂`        | `p₁ ∨ p₂`           |
-| `b₁ ^^ b₂`          | `XOr p₁ p₂`         |
-| `b₁.imp b₂`         | `p₁ → p₂`           |
-| `decide (b₁ = b₂)`  | `p₁ = p₂`           |
-| `Bool.forall b`     | `∀ x, p x`          |
-| `Bool.exists b`     | `∃ x, p x`          |
-| `decide q`          | `q`, e.g., `x = y`  |
-| other `b`           | `b = true`          |
 -/
 
 universe u
@@ -139,11 +122,7 @@ end Bool
 
 namespace Smt.Reconstruct.Bool
 
-/-! ### From Boolean formulas to propositions -/
-
-theorem true_eq_true_eq : (true = true) = True := eq_self true
-
-theorem false_eq_true_eq : (false = true) = False := by simp
+/-! ### Boolean formulas as propositions -/
 
 theorem not_eq_true_eq_not {b : Bool} : ((!b) = true) = ¬(b = true) := by
   cases b <;> simp
@@ -151,46 +130,5 @@ theorem not_eq_true_eq_not {b : Bool} : ((!b) = true) = ¬(b = true) := by
 theorem decide_bool_eq_eq {a b : Bool} {h : Decidable (a = b)} :
     (@decide (a = b) h = true) = ((a = true) = (b = true)) := by
   cases a <;> cases b <;> simp
-
-theorem not_eq_true_eq {b : Bool} (h : (b = true) = p) : ((!b) = true) = ¬p := by
-  subst h; cases b <;> simp
-
-theorem and_eq_true_eq {b₁ b₂ : Bool} (h₁ : (b₁ = true) = p₁) (h₂ : (b₂ = true) = p₂) :
-    ((b₁ && b₂) = true) = (p₁ ∧ p₂) := by
-  subst h₁ h₂; simp
-
-theorem or_eq_true_eq {b₁ b₂ : Bool} (h₁ : (b₁ = true) = p₁) (h₂ : (b₂ = true) = p₂) :
-    ((b₁ || b₂) = true) = (p₁ ∨ p₂) := by
-  subst h₁ h₂; simp
-
-theorem xor_iff_not_iff {p q : Prop} : XOr p q ↔ ¬(p ↔ q) :=
-  ⟨fun h => h.elim (fun hp hnq h => hnq (h.mp hp)) (fun hnp hq h => hnp (h.mpr hq)),
-   fun h => (Classical.em p).elim
-     (fun hp => .inl hp (fun hq => h ⟨fun _ => hq, fun _ => hp⟩))
-     (fun hnp => .inr hnp (Classical.byContradiction fun hnq =>
-       h ⟨fun hp => absurd hp hnp, fun hq => absurd hq hnq⟩))⟩
-
-theorem xor_eq_true_eq {b₁ b₂ : Bool} (h₁ : (b₁ = true) = p₁) (h₂ : (b₂ = true) = p₂) :
-    ((xor b₁ b₂) = true) = XOr p₁ p₂ := by
-  subst h₁ h₂; apply propext; rw [xor_iff_not_iff]; cases b₁ <;> cases b₂ <;> simp
-
-theorem imp_eq_true_eq {b₁ b₂ : Bool} (h₁ : (b₁ = true) = p₁) (h₂ : (b₂ = true) = p₂) :
-    ((b₁.imp b₂) = true) = (p₁ → p₂) := by
-  subst h₁ h₂; simp
-
-theorem decide_bool_eq_true_eq {p₁ p₂ : Prop} {b₁ b₂ : Bool} {h : Decidable (b₁ = b₂)}
-    (h₁ : (b₁ = true) = p₁) (h₂ : (b₂ = true) = p₂) : (@decide (b₁ = b₂) h = true) = (p₁ = p₂) := by
-  subst h₁ h₂; cases b₁ <;> cases b₂ <;> simp
-
-theorem forall_eq_true_eq {α : Sort u} {f : α → Bool} {p : α → Prop}
-    (h : ∀ x, (f x = true) = p x) : (Bool.forall f = true) = ∀ x, p x := by
-  simp only [Bool.forall_eq_true]; exact forall_congr h
-
-theorem exists_eq_true_eq {α : Sort u} {f : α → Bool} {p : α → Prop}
-    (h : ∀ x, (f x = true) = p x) : (Bool.exists f = true) = ∃ x, p x := by
-  simp only [Bool.exists_eq_true]; exact propext (exists_congr (h · ▸ Iff.rfl))
-
-theorem exists_congr_eq {p q : α → Prop} (h : ∀ a, p a = q a) : (∃ a, p a) = (∃ a, q a) :=
-  propext (exists_congr (h · ▸ Iff.rfl))
 
 end Smt.Reconstruct.Bool

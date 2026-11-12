@@ -117,7 +117,9 @@ where
 open Qq in
 /-- Turn every hypothesis `h : p` in `hs` into a hypothesis `h' : b = true`, where `b` is the Boolean
 formula obtained from `p` with the `smt_decide` theorems (see `Smt.Preprocess.Embedding.Prop`).
-Hypotheses in `hs` that are not proofs (e.g., definitions) are kept as they are. -/
+Hypotheses in `hs` that are not proofs (e.g., definitions) are kept as they are. Proof
+reconstruction refutes these Boolean formulas, so `smt` runs this step even without the embedding
+of types (see `embedTypes`). -/
 def embedProps (mv : MVarId) (hs : Array Expr) : MetaM Result := do
   let some thmsExt ← Meta.getSimpExtension? `smt_decide | throwError "smt_decide simp extension not found"
   let some procsExt ← Meta.Simp.getSimprocExtension? `smt_decide
