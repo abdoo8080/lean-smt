@@ -38,7 +38,6 @@ theorem bgt_eq_true : (a.bgt b = true) = (a > b) := rfl
 theorem bge_eq_true : (a.bge b = true) = (a ≥ b) := decide_eq_true_eq
 theorem blt_eq_false : (a.blt b = false) = ¬(a < b) := by rw [← blt_eq_true, Bool.not_eq_true]
 theorem ble_eq_false : (a.ble b = false) = ¬(a ≤ b) := propext decide_eq_false_iff_not
-theorem bgt_eq_false : (a.bgt b = false) = ¬(a > b) := by rw [← bgt_eq_true, Bool.not_eq_true]
 theorem bge_eq_false : (a.bge b = false) = ¬(a ≥ b) := propext decide_eq_false_iff_not
 
 end

@@ -84,7 +84,6 @@ def sgt (x y : BitVec w) : Bool := y.slt x
 def sge (x y : BitVec w) : Bool := y.sle x
 
 theorem ugt_iff_gt {x y : BitVec w} : x.ugt y ↔ x > y := ult_iff_lt
-theorem uge_iff_ge {x y : BitVec w} : x.uge y ↔ x ≥ y := ule_iff_le
 
 /-! ### n-ary operators -/
 

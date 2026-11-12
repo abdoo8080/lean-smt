@@ -21,17 +21,6 @@ open Function
 
 -- https://github.com/cvc5/cvc5/blob/main/src/theory/bv/rewrites-elimination
 
-private theorem xor_iff_iff_not {p q : Prop} : XOr p q ↔ (p ↔ ¬q) := by
-  constructor
-  · intro h
-    cases h with
-    | inl hp hq => exact ⟨fun _ => hq, fun _ => hp⟩
-    | inr hp hq => exact ⟨fun h => absurd h hp, fun h => absurd hq h⟩
-  · intro h
-    by_cases hp : p
-    · exact XOr.inl hp (h.mp hp)
-    · exact XOr.inr hp (Classical.byContradiction fun hq => hp (h.mpr hq))
-
 private theorem testBit_eq_decide_le {m n : Nat} (h : m < 2 ^ (n + 1)) :
     m.testBit n = decide (2 ^ n ≤ m) := by
   rw [Nat.pow_succ] at h

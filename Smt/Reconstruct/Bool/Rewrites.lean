@@ -160,9 +160,6 @@ theorem eq_ite_lift {c : Bool} {t s r : α} {h : Decidable (cond c t s = r)}
     @decide (cond c t s = r) h = cond c (@decide (t = r) h₁) (@decide (s = r) h₂) := by
   cases c <;> exact decide_eq_decide.mpr Iff.rfl
 
-theorem distinct_binary_elim {t s : α} {h : Decidable (t = s)} :
-    (!@decide (t = s) h) = !@decide (t = s) h := rfl
-
 end
 
 end Smt.Reconstruct.Bool

@@ -19,12 +19,6 @@ public meta import Smt.Reconstruct.Bool.Bridge
 
 public meta section
 
-open Qq in
-def Lean.Meta.synthDecidableInstance (e : Q(Prop)) : MetaM Expr := do
-  let oh : Option Q(Decidable $e) ← Meta.synthInstance? q(Decidable $e)
-  let h : Q(Decidable $e) := oh.getD q(Classical.propDecidable $e)
-  return h
-
 namespace Smt
 
 open Lean
@@ -243,9 +237,10 @@ where
 /-- Return the type `α`, the sides `a` and `b`, and the instance of `Decidable (a = b)` of the Boolean
 formula `decide (a = b)` of an equality (see `Bool.mkDecideEq`). -/
 def getEq! (e : Expr) : MetaM (Expr × Expr × Expr × Expr) := do
-  let some r := Bool.getEq? e
-    | throwError "expected an equality `decide (a = b)`, got{indentExpr e}"
-  return r
+  if let some (p, inst) := e.app2? ``Decidable.decide then
+    if let some (α, a, b) := p.eq? then
+      return (α, a, b, inst)
+  throwError "expected an equality `decide (a = b)`, got{indentExpr e}"
 
 /-- A proof of `a = b` from the proof `pf` of the SMT formula `(= a b)`, which is a proof of
 `decide (a = b) = true`. -/

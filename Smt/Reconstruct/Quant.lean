@@ -16,21 +16,6 @@ public meta import Smt.Reconstruct.Quant.Lemmas
 
 public meta section
 
-/-- Takes an array `xs` of free variables or metavariables and a term `e` that may contain those variables, and abstracts and binds them as existential quantifiers.
-
-- if `usedOnly = true` then only variables that the expression body depends on will appear.
-- if `usedLetOnly = true` same as `usedOnly` except for let-bound variables. (That is, local constants which have been assigned a value.)
- -/
-def Lean.Meta.mkExistsFVars (xs : Array Expr) (e : Expr) (usedOnly : Bool := false) (usedLetOnly : Bool := true) (generalizeNondepLet := true) (binderInfoForMVars := BinderInfo.implicit) : MetaM Expr := do
-  let e ← if xs.isEmpty then return e else liftMkBindingM <| MetavarContext.mkLambda xs e usedOnly usedLetOnly (etaReduce := false) generalizeNondepLet binderInfoForMVars
-  addExists e xs.size
-where
-  addExists : Expr → Nat → MetaM Expr
-    | .lam n t b i, m + 1 => do
-      let b ← addExists b m
-      mkAppM ``Exists #[.lam n t b i]
-    | e, _ => pure e
-
 namespace Smt.Reconstruct.Quant
 
 open Lean Qq

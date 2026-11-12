@@ -243,6 +243,4 @@ theorem decide_eq_decide_of_eq {p q : Prop} {hp : Decidable p} {hq : Decidable q
     @decide p hp = @decide q hq :=
   decide_eq_decide.mpr (h ▸ Iff.rfl)
 
-theorem not_eq_true_of_not {b : Bool} (h : ¬b = true) : (!b) = true := by simpa using h
-
 end Smt.Reconstruct.Bool

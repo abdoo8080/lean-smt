@@ -50,12 +50,4 @@ def eqInst (α a b : Expr) : MetaM Expr := do
 def mkDecideEq (α a b : Expr) : MetaM Expr := do
   return mkApp2 (.const ``Decidable.decide []) (← Meta.mkEq a b) (← eqInst α a b)
 
-/-- The type `α`, the sides `a` and `b`, and the instance of `Decidable (a = b)` of the Boolean
-formula `decide (a = b)` of an equality (see `mkDecideEq`). -/
-def getEq? (e : Expr) : Option (Expr × Expr × Expr × Expr) := Id.run do
-  if let some (p, inst) := e.app2? ``Decidable.decide then
-    if let some (α, a, b) := p.eq? then
-      return some (α, a, b, inst)
-  return none
-
 end Smt.Reconstruct.Bool
