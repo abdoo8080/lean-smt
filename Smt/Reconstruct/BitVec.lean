@@ -1183,29 +1183,29 @@ def getCons! (x : Expr) : MetaM (Expr × Expr × Expr) := do
     | throwError "expected a bit-blasted bit-vector, got{indentExpr x}"
   return (n, a, xs)
 
-/-- A proof of `(x == y) = ((x₀ == y₀) && (… && (xₙ₋₁ == yₙ₋₁)))` for the bit-blasted bit-vectors `x`
-and `y`. -/
-partial def beqBits (x y : Expr) : MetaM Expr := do
+/-- A proof of `decide (x = y) = (decide (x₀ = y₀) && (… && decide (xₙ₋₁ = yₙ₋₁)))` for the
+bit-blasted bit-vectors `x` and `y`. -/
+partial def decideEqBits (x y : Expr) : MetaM Expr := do
   let (n, a, xs) ← getCons! x
   let (_, b, ys) ← getCons! y
   let a : Q(Bool) ← pure a
   let b : Q(Bool) ← pure b
-  -- `(x == y) = ((xs == ys) && (a == b))`
-  let h := mkApp5 (.const ``BitVec.beq_cons_cons []) n a b xs ys
-  go xs ys q($a == $b) h
+  -- `decide (x = y) = (decide (xs = ys) && decide (a = b))`
+  let h := mkApp5 (.const ``BitVec.decide_eq_cons_cons []) n a b xs ys
+  go xs ys q(decide ($a = $b)) h
 where
-  /-- Given a proof `h` of `(x == y) = ((xs == ys) && acc)`, prove the goal. -/
+  /-- Given a proof `h` of `decide (x = y) = (decide (xs = ys) && acc)`, prove the goal. -/
   go (xs ys : Expr) (acc : Q(Bool)) (h : Expr) : MetaM Expr := do
     if xs.isConstOf ``BitVec.nil then
-      -- `((nil == nil) && acc) = acc`
-      return ← Meta.mkEqTrans h q(BitVec.beq_nil_nil_and $acc)
+      -- `(decide (nil = nil) && acc) = acc`
+      return ← Meta.mkEqTrans h q(BitVec.decide_eq_nil_nil_and $acc)
     let (n, a, xs') ← getCons! xs
     let (_, b, ys') ← getCons! ys
     let a : Q(Bool) ← pure a
     let b : Q(Bool) ← pure b
-    -- `((xs == ys) && acc) = ((xs' == ys') && ((a == b) && acc))`
-    let h' := mkAppN (.const ``BitVec.beq_cons_cons_and []) #[n, a, b, acc, xs', ys']
-    go xs' ys' q(($a == $b) && $acc) (← Meta.mkEqTrans h h')
+    -- `(decide (xs = ys) && acc) = (decide (xs' = ys') && (decide (a = b) && acc))`
+    let h' := mkAppN (.const ``BitVec.decide_eq_cons_cons_and []) #[n, a, b, acc, xs', ys']
+    go xs' ys' q(decide ($a = $b) && $acc) (← Meta.mkEqTrans h h')
 
 /-- Prove the equation `e` by rewriting with the theorems `thms`, unfolding the definitions `defs`,
 and simplifying with the simprocs `procs`, and then by `rfl`. -/
@@ -1247,7 +1247,7 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     | .EQUAL =>
       -- `(= (= x y) (and (= x₀ y₀) … (= xₙ₋₁ yₙ₋₁)))`
       let (_, x, y, _) ← getEq! (← reconstructTerm pf.getResult[0]!)
-      addEqThm pf.getResult (← beqBits x y)
+      addEqThm pf.getResult (← decideEqBits x y)
     | .BITVECTOR_ADD =>
       if pf.getResult[0]!.getNumChildren != 2 then return none
       let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat

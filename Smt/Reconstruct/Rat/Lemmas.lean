@@ -121,9 +121,6 @@ namespace Smt.Reconstruct.Rat
 of an equality `(= t s)` is a proof of `t = s`. Since `a < b` is `a.blt b = true` and `a > b` is
 `a.bgt b = true` by definition, facts about `<` and `>` apply to `blt` and `bgt` as they are. -/
 
--- `==` is the reconstruction of SMT-LIB's `=` (see `Smt.Reconstruct.Bool.mkBEq`).
-attribute [local instance high] instBEqOfDecidableEq
-
 variable {a b c d x₁ x₂ y₁ y₂ : Rat}
 
 theorem add_nonneg : 0 ≤ a → 0 ≤ b → 0 ≤ a + b :=
@@ -225,8 +222,8 @@ theorem sum_ub₉ (h₁ : a = b) (h₂ : c = d) : a + c = b + d := by
 theorem ble_of_eq (h : a = b) : a.ble b = true := by
   rw [Rat.ble_eq_true, h]; exact Rat.le_refl
 
-theorem trichotomy₁ (h₁ : a.ble b = true) (h₂ : (!(a == b)) = true) : a.blt b = true := by
-  simp only [Rat.ble_eq_true, Rat.blt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *
+theorem trichotomy₁ (h₁ : a.ble b = true) (h₂ : (!decide (a = b)) = true) : a.blt b = true := by
+  simp only [Rat.ble_eq_true, Rat.blt_eq_true, Bool.not_eq_true', decide_eq_false_iff_not] at *
   refine Rat.not_le.mp ?_
   intro abs
   have h := Rat.le_antisymm h₁ abs
@@ -236,19 +233,19 @@ theorem trichotomy₂ (h₁ : a.ble b = true) (h₂ : a.bge b = true) : a = b :=
   simp only [Rat.ble_eq_true, Rat.bge_eq_true] at *
   exact Rat.le_antisymm h₁ h₂
 
-theorem trichotomy₃ (h₁ : (!(a == b)) = true) (h₂ : a.ble b = true) : a.blt b = true :=
+theorem trichotomy₃ (h₁ : (!decide (a = b)) = true) (h₂ : a.ble b = true) : a.blt b = true :=
   trichotomy₁ h₂ h₁
 
-theorem trichotomy₄ (h₁ : (!(a == b)) = true) (h₂ : a.bge b = true) : a.bgt b = true := by
-  simp only [Rat.bge_eq_true, Rat.bgt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *
+theorem trichotomy₄ (h₁ : (!decide (a = b)) = true) (h₂ : a.bge b = true) : a.bgt b = true := by
+  simp only [Rat.bge_eq_true, Rat.bgt_eq_true, Bool.not_eq_true', decide_eq_false_iff_not] at *
   exact Rat.not_le.mp fun h => h₁ (Rat.le_antisymm h h₂)
 
 theorem trichotomy₅ (h₁ : a.bge b = true) (h₂ : a.ble b = true) : a = b := by
   simp only [Rat.ble_eq_true, Rat.bge_eq_true] at *
   exact Rat.le_antisymm h₂ h₁
 
-theorem trichotomy₆ (h₁ : a.bge b = true) (h₂ : (!(a == b)) = true) : a.bgt b = true := by
-  simp only [Rat.bge_eq_true, Rat.bgt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *
+theorem trichotomy₆ (h₁ : a.bge b = true) (h₂ : (!decide (a = b)) = true) : a.bgt b = true := by
+  simp only [Rat.bge_eq_true, Rat.bgt_eq_true, Bool.not_eq_true', decide_eq_false_iff_not] at *
   exact Rat.not_le.mp fun h => h₂ (Rat.le_antisymm h h₁)
 
 theorem abs_eq_ite {x : Rat} : x.abs = if x < 0 then -x else x := by
@@ -354,9 +351,11 @@ theorem abs_mul (a b : Rat) : (a * b).abs = a.abs * b.abs := by
 theorem mul_abs₁ (h₁ : x₁.abs = y₁.abs) (h₂ : x₂.abs = y₂.abs) : (x₁ * x₂).abs = (y₁ * y₂).abs := by
   rw [Rat.abs_mul x₁ x₂, Rat.abs_mul y₁ y₂, h₁, h₂]
 
-theorem mul_abs₂ (h₁ : x₁.abs.bgt y₁.abs = true) (h₂ : (x₂.abs == y₂.abs && !(x₂.abs == 0)) = true) :
+theorem mul_abs₂ (h₁ : x₁.abs.bgt y₁.abs = true)
+    (h₂ : (decide (x₂.abs = y₂.abs) && !decide (x₂.abs = 0)) = true) :
     (x₁ * x₂).abs.bgt (y₁ * y₂).abs = true := by
-  simp only [Rat.bgt_eq_true, Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true', beq_eq_false_iff_ne] at *
+  simp only [Rat.bgt_eq_true, Bool.and_eq_true, decide_eq_true_eq, Bool.not_eq_true',
+    decide_eq_false_iff_not] at *
   obtain ⟨hxy, hx⟩ := h₂
   rw [Rat.abs_mul, Rat.abs_mul]
   rw [<- hxy]
@@ -609,9 +608,9 @@ theorem le_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : 
   · intro h2
     exact le_of_sub_eq_neg' (c₁ := c₂) (c₂ := c₁) (a₁ := b₁) (a₂ := b₂) (b₁ := a₁) (b₂ := a₂) hc₂ hc₁ (Eq.symm h) h2
 
-theorem eq_of_sub_eq {c₁ c₂ : Rat} (hc₁ : (!(c₁ == 0)) = true) (hc₂ : (!(c₂ == 0)) = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ == a₂) = (b₁ == b₂) := by
-  simp only [Bool.not_eq_true', beq_eq_false_iff_ne] at hc₁ hc₂
-  apply Bool.eq_iff_iff.mpr; rw [beq_iff_eq, beq_iff_eq]
+theorem eq_of_sub_eq {c₁ c₂ : Rat} (hc₁ : (!decide (c₁ = 0)) = true) (hc₂ : (!decide (c₂ = 0)) = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : decide (a₁ = a₂) = decide (b₁ = b₂) := by
+  simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hc₁ hc₂
+  apply Bool.eq_iff_iff.mpr; rw [decide_eq_true_eq, decide_eq_true_eq]
   apply Iff.intro
   · intro ha
     rw [ha] at h
@@ -676,8 +675,8 @@ theorem cast_bgt {a b : Int} : a.bgt b = (a : Rat).bgt b :=
 theorem cast_bge {a b : Int} : a.bge b = (a : Rat).bge b :=
   Bool.eq_iff_iff.mpr (by rw [Int.bge_eq_true, Rat.bge_eq_true]; exact Rat.cast_ge')
 
-theorem cast_beq {a b : Int} : (a == b) = ((a : Rat) == b) :=
-  Bool.eq_iff_iff.mpr (by rw [beq_iff_eq, beq_iff_eq]; exact Rat.cast_eq)
+theorem cast_decide_eq {a b : Int} : decide (a = b) = decide ((a : Rat) = b) :=
+  Bool.eq_iff_iff.mpr (by rw [decide_eq_true_eq, decide_eq_true_eq]; exact Rat.cast_eq)
 
 theorem lt_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
   rw [Rat.intCast_sub] at h
@@ -699,9 +698,9 @@ theorem le_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} 
   rw [cast_ble]
   exact le_of_sub_eq_neg hc₁ hc₂ h
 
-theorem eq_of_sub_eq_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : (!(c₁ == 0)) = true) (hc₂ : (!(c₂ == 0)) = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ == a₂) = (b₁ == b₂) := by
+theorem eq_of_sub_eq_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : (!decide (c₁ = 0)) = true) (hc₂ : (!decide (c₂ = 0)) = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : decide (a₁ = a₂) = decide (b₁ = b₂) := by
   rw [Rat.intCast_sub] at h
-  rw [cast_beq]
+  rw [cast_decide_eq]
   exact eq_of_sub_eq hc₁ hc₂ h
 
 theorem ge_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
@@ -744,9 +743,9 @@ theorem le_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c�
   rw [cast_ble]
   exact le_of_sub_eq_neg hc₁ hc₂ h
 
-theorem eq_of_sub_eq_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : (!(c₁ == 0)) = true) (hc₂ : (!(c₂ == 0)) = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : (a₁ == a₂) = (b₁ == b₂) := by
+theorem eq_of_sub_eq_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : (!decide (c₁ = 0)) = true) (hc₂ : (!decide (c₂ = 0)) = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : decide (a₁ = a₂) = decide (b₁ = b₂) := by
   rw [Rat.intCast_sub] at h
-  rw [cast_beq]
+  rw [cast_decide_eq]
   exact eq_of_sub_eq hc₁ hc₂ h
 
 theorem ge_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
@@ -791,8 +790,8 @@ theorem Int.square_pos {i : Int} : i ≠ 0 → 0 < i * i := by
   | inl h' => exact Int.mul_pos_of_neg_of_neg h' h'
   | inr h' => exact Int.mul_pos h' h'
 
-theorem mul_sign₀ (ha : (!(a == 0)) = true) : (a * a).bgt 0 = true := by
-  simp only [Bool.not_eq_true', beq_eq_false_iff_ne] at ha
+theorem mul_sign₀ (ha : (!decide (a = 0)) = true) : (a * a).bgt 0 = true := by
+  simp only [Bool.not_eq_true', decide_eq_false_iff_not] at ha
   exact (show a ≠ 0 → a * a > 0 from Rat.numDenCasesOn' a fun a_num a_den a_den_nz ha => by
     have : a_num ≠ 0 := (Rat.mkRat_ne_zero a_den_nz).mp ha
     have : 0 < a_num * a_num := Int.square_pos this
@@ -801,12 +800,14 @@ theorem mul_sign₀ (ha : (!(a == 0)) = true) : (a * a).bgt 0 = true := by
     rw [Rat.divInt_mul_divInt _ _]
     exact (Rat.divInt_pos_iff_of_pos_right foo).mpr this) ha
 
-theorem mul_sign₂ (ha : a.blt 0 = true) (hb : (!(b == 0)) = true) : (a * b * b).blt 0 = true := by
+theorem mul_sign₂ (ha : a.blt 0 = true) (hb : (!decide (b = 0)) = true) :
+    (a * b * b).blt 0 = true := by
   have := mul_sign₀ hb
   rw [Rat.mul_assoc]
   exact mul_sign₃ ha this
 
-theorem mul_sign₅ (ha : a.bgt 0 = true) (hb : (!(b == 0)) = true) : (a * b * b).bgt 0 = true := by
+theorem mul_sign₅ (ha : a.bgt 0 = true) (hb : (!decide (b = 0)) = true) :
+    (a * b * b).bgt 0 = true := by
   have := mul_sign₀ hb
   rw [Rat.mul_assoc]
   exact mul_sign₆ ha this
@@ -829,8 +830,8 @@ theorem mul_pos_gt : ((c.bgt 0 && a.bgt b).imp ((c * a).bgt (c * b))) = true :=
 theorem mul_pos_ge : ((c.bgt 0 && a.bge b).imp ((c * a).bge (c * b))) = true :=
   mul_pos_le (a := b) (b := a)
 
-theorem mul_pos_eq : ((c.bgt 0 && a == b).imp (c * a == c * b)) = true := by
-  simp only [Bool.imp_eq_true, Bool.and_eq_true, Rat.bgt_eq_true, beq_iff_eq]
+theorem mul_pos_eq : ((c.bgt 0 && decide (a = b)).imp (decide (c * a = c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Rat.bgt_eq_true, decide_eq_true_eq]
   intro h
   rw [h.2]
 
@@ -863,8 +864,8 @@ theorem mul_neg_lt : ((c.blt 0 && a.blt b).imp ((c * a).bgt (c * b))) = true := 
 theorem mul_neg_gt : ((c.blt 0 && a.bgt b).imp ((c * a).blt (c * b))) = true :=
   mul_neg_lt (a := b) (b := a)
 
-theorem mul_neg_eq : ((c.blt 0 && a == b).imp (c * a == c * b)) = true := by
-  simp only [Bool.imp_eq_true, Bool.and_eq_true, Rat.blt_eq_true, beq_iff_eq]
+theorem mul_neg_eq : ((c.blt 0 && decide (a = b)).imp (decide (c * a = c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Rat.blt_eq_true, decide_eq_true_eq]
   intro h
   rw [h.2]
 

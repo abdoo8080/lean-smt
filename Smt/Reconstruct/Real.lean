@@ -26,9 +26,6 @@ public meta section
 
 namespace Smt.Reconstruct.Real
 
--- `==` is the reconstruction of SMT-LIB's `=` (see `Smt.Reconstruct.Bool.mkBEq`).
-attribute [local instance high] instBEqOfDecidableEq
-
 open Lean Qq
 
 @[smt_sort_reconstruct] def reconstructRealSort : SortReconstructor := fun s => do match s.getKind! with
@@ -112,7 +109,7 @@ open Lean Qq
     return q(⌊$x⌋)
   | .IS_INTEGER =>
     let x : Q(Real) ← reconstructTerm t[0]!
-    Bool.mkBEq q(Real) x q((⌊$x⌋ : Real))
+    Bool.mkDecideEq q(Real) x q((⌊$x⌋ : Real))
   | .EXPONENTIAL =>
     if t.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm t[0]!
@@ -191,13 +188,13 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   | .ARITH_INT_EQ_CONFLICT =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let c : Q(Real) ← reconstructTerm pf.getArguments[2]!
-    let h : Q(((⌊$c⌋ : Real) == $c) = false) ← reconstructEqProof pf.getChildren[0]!
+    let h : Q(decide ((⌊$c⌋ : Real) = $c) = false) ← reconstructEqProof pf.getChildren[0]!
     addEqThm pf.getResult q(@Rewrite.eq_conflict $t $c $h)
   | .ARITH_INT_GEQ_TIGHTEN =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let c : Q(Real) ← reconstructTerm pf.getArguments[2]!
     let cc : Q(Int) ← reconstructTerm pf.getArguments[3]!
-    let hc : Q(((⌊$c⌋ : Real) == $c) = false) ← reconstructEqProof pf.getChildren[0]!
+    let hc : Q(decide ((⌊$c⌋ : Real) = $c) = false) ← reconstructEqProof pf.getChildren[0]!
     let hcc : Q($cc = ⌊$c⌋ + 1) ← reconstructEqProof pf.getChildren[1]!
     addEqThm pf.getResult q(@Rewrite.geq_tighten $t $c $cc $hc $hcc)
   | .ARITH_ABS_EQ =>
@@ -413,7 +410,7 @@ def reconstructArithPolyNormRel (pf : cvc5.Proof) : ReconstructM (Option Expr) :
       let h ← Meta.mkFreshExprMVar q($c ≠ 0)
       Real.normNum h.mvarId!
       let h : Q($c ≠ 0) := h
-      return q(Real.not_beq_of_ne $h)
+      return q(Real.not_decide_eq_of_ne $h)
     else if lcx > 0 then
       let h ← Meta.mkFreshExprMVar q($c > 0)
       Real.normNum h.mvarId!

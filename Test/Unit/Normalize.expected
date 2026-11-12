@@ -4,12 +4,12 @@ Map: []
 Map: []
 Before: [h]
 After: [h]
-Map: [(h, [_fvar.3081])]
-Map: [(_fvar.3100, [h])]
+Map: [(h, [_fvar.3075])]
+Map: [(_fvar.3094, [h])]
 Before: [hpqr, ht, ht', t]
 After: [hpqr, ht, ht', a✝]
-Map: [(ht', [_fvar.3837]), (a✝, [t]), (hpqr, [_fvar.3836]), (ht, [_fvar.3835])]
-Map: [(_fvar.3936, [ht']), (_fvar.3933, [t]), (_fvar.3935, [hpqr]), (_fvar.3934, [ht])]
+Map: [(a✝, [t]), (ht, [_fvar.3838]), (ht', [_fvar.3840]), (hpqr, [_fvar.3839])]
+Map: [(_fvar.3936, [t]), (_fvar.3937, [ht]), (_fvar.3939, [ht']), (_fvar.3938, [hpqr])]
 Test/Unit/Normalize.lean:54:22: warning: Variable name `h` is not explicitly referenced.
 
 Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:

@@ -40,18 +40,21 @@ def decEqInst (α : Expr) : MetaM Expr := do
   if let some inst ← Meta.synthInstance? (mkApp (.const ``DecidableEq [u]) α) then return inst
   return mkApp (.const ``Classical.typeDecidableEq [u]) α
 
-/-- The Boolean formula `a == b` of `a = b` for `a b : α`, with the instance `instBEqOfDecidableEq`
-of `decEqInst α`. -/
-def mkBEq (α a b : Expr) : MetaM Expr := do
-  let u ← Meta.getDecLevel α
-  return mkApp4 (.const ``BEq.beq [u]) α (mkApp2 (.const ``instBEqOfDecidableEq [u]) α (← decEqInst α)) a b
+/-- The instance `decEqInst α a b` of `Decidable (a = b)` with which Boolean formulas decide
+`a = b`. -/
+def eqInst (α a b : Expr) : MetaM Expr := do
+  return mkApp2 (← decEqInst α) a b
+
+/-- The Boolean formula `decide (a = b)` of `a = b` for `a b : α`, with the instance `decEqInst α a b`. -/
+def mkDecideEq (α a b : Expr) : MetaM Expr := do
+  return mkApp2 (.const ``Decidable.decide []) (← Meta.mkEq a b) (← eqInst α a b)
 
 /-- The type `α`, the sides `a` and `b`, and the instance of `Decidable (a = b)` of the Boolean
-formula `a == b` of an equality (see `mkBEq`). -/
+formula `decide (a = b)` of an equality (see `mkDecideEq`). -/
 def getEq? (e : Expr) : Option (Expr × Expr × Expr × Expr) := Id.run do
-  if let some (α, inst, a, b) := e.app4? ``BEq.beq then
-    if let some (_, d) := inst.app2? ``instBEqOfDecidableEq then
-      return some (α, a, b, mkApp2 d a b)
+  if let some (p, inst) := e.app2? ``Decidable.decide then
+    if let some (α, a, b) := p.eq? then
+      return some (α, a, b, inst)
   return none
 
 /-- Return the proposition `p` denoted by the Boolean formula `b` (see the table in
@@ -81,6 +84,12 @@ partial def toProp (b : Expr) : MetaM (Expr × Option Expr) := do
     let ⟨_, _, p, q, hx, hy⟩ ← binary x y
     return (q($p → $q), some q(imp_eq_true_eq $hx $hy))
   if let some (p, inst) := b.app2? ``decide then
+    -- An equality of Boolean formulas denotes the equality of their propositions.
+    if let some (α, x, y) := p.eq? then
+      if α.isConstOf ``Bool then
+        let ⟨_, _, p, q, hx, hy⟩ ← binary x y
+        return (q($p = $q),
+          some (mkAppN (.const ``decide_bool_eq_true_eq []) #[p, q, x, y, inst, hx, hy]))
     return (p, some (mkApp2 (.const ``decide_eq_true_eq []) p inst))
   if let some (x, y) := b.app2? `Int.blt then
     return ← comparison (mkApp2 (.const `Int.blt_eq_true []) x y)
@@ -114,13 +123,6 @@ partial def toProp (b : Expr) : MetaM (Expr × Option Expr) := do
     return ← comparison (mkApp (.const ``propext []) (mkApp3 (.const `BitVec.ugt_iff_gt []) w x y))
   if let some (w, x, y) := b.app3? `BitVec.uge then
     return ← comparison (mkApp (.const ``propext []) (mkApp3 (.const `BitVec.uge_iff_ge []) w x y))
-  if let some (α, inst, x, y) := b.app4? ``BEq.beq then
-    if let some (_, d) := inst.app2? ``instBEqOfDecidableEq then
-      if α.isConstOf ``Bool then
-        let ⟨_, _, p, q, hx, hy⟩ ← binary x y
-        return (q($p = $q), some q(beq_bool_eq_true_eq $hx $hy))
-      let u ← Meta.getDecLevel α
-      return (← Meta.mkEq x y, some (mkApp4 (.const ``beq_eq_true_eq [u]) α d x y))
   if b.isAppOfArity ``Bool.forall 2 || b.isAppOfArity ``Bool.exists 2 then
     let α := b.getArg! 0
     let u ← Meta.getLevel α

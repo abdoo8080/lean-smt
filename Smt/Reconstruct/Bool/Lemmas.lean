@@ -67,17 +67,17 @@ theorem not_implies_elim1 {p q : Bool} (h : (!p.imp q) = true) : p = true := by
 theorem not_implies_elim2 {p q : Bool} (h : (!p.imp q) = true) : (!q) = true := by
   cases p <;> cases q <;> simp_all [Bool.imp]
 
-theorem equiv_elim1 {p q : Bool} (h : (p == q) = true) : (!p || q) = true := by
+theorem equiv_elim1 {p q : Bool} (h : decide (p = q) = true) : (!p || q) = true := by
   cases p <;> cases q <;> simp_all
 
-theorem equiv_elim2 {p q : Bool} (h : (p == q) = true) : (p || !q) = true := by
+theorem equiv_elim2 {p q : Bool} (h : decide (p = q) = true) : (p || !q) = true := by
   cases p <;> cases q <;> simp_all
 
-theorem not_equiv_elim1 {p q : Bool} (h : (!(p == q)) = true) :
+theorem not_equiv_elim1 {p q : Bool} (h : (!decide (p = q)) = true) :
     (p || q) = true := by
   cases p <;> cases q <;> simp_all
 
-theorem not_equiv_elim2 {p q : Bool} (h : (!(p == q)) = true) :
+theorem not_equiv_elim2 {p q : Bool} (h : (!decide (p = q)) = true) :
     (!p || !q) = true := by
   cases p <;> cases q <;> simp_all
 
@@ -137,13 +137,13 @@ theorem cnf_implies_neg1 (p q : Bool) : (p.imp q || p) = true := by
 theorem cnf_implies_neg2 (p q : Bool) : (p.imp q || !q) = true := by
   cases p <;> cases q <;> rfl
 
-theorem cnf_equiv_pos1 (p q : Bool) : (!(p == q) || (!p || q)) = true := by
+theorem cnf_equiv_pos1 (p q : Bool) : (!decide (p = q) || (!p || q)) = true := by
   cases p <;> cases q <;> rfl
-theorem cnf_equiv_pos2 (p q : Bool) : (!(p == q) || (p || !q)) = true := by
+theorem cnf_equiv_pos2 (p q : Bool) : (!decide (p = q) || (p || !q)) = true := by
   cases p <;> cases q <;> rfl
-theorem cnf_equiv_neg1 (p q : Bool) : ((p == q) || (p || q)) = true := by
+theorem cnf_equiv_neg1 (p q : Bool) : (decide (p = q) || (p || q)) = true := by
   cases p <;> cases q <;> rfl
-theorem cnf_equiv_neg2 (p q : Bool) : ((p == q) || (!p || !q)) = true := by
+theorem cnf_equiv_neg2 (p q : Bool) : (decide (p = q) || (!p || !q)) = true := by
   cases p <;> cases q <;> rfl
 
 theorem cnf_xor_pos1 (p q : Bool) : (!xor p q || (p || q)) = true := by cases p <;> cases q <;> rfl
@@ -151,10 +151,10 @@ theorem cnf_xor_pos2 (p q : Bool) : (!xor p q || (!p || !q)) = true := by cases 
 theorem cnf_xor_neg1 (p q : Bool) : (xor p q || (!p || q)) = true := by cases p <;> cases q <;> rfl
 theorem cnf_xor_neg2 (p q : Bool) : (xor p q || (p || !q)) = true := by cases p <;> cases q <;> rfl
 
-theorem true_intro {p : Bool} (h : p = true) : (p == true) = true := by simp [h]
-theorem true_elim {p : Bool} (h : (p == true) = true) : p = true := by simpa using h
-theorem false_intro {p : Bool} (h : (!p) = true) : (p == false) = true := by simpa using h
-theorem false_elim {p : Bool} (h : (p == false) = true) : (!p) = true := by simpa using h
+theorem true_intro {p : Bool} (h : p = true) : decide (p = true) = true := by simp [h]
+theorem true_elim {p : Bool} (h : decide (p = true) = true) : p = true := by simpa using h
+theorem false_intro {p : Bool} (h : (!p) = true) : decide (p = false) = true := by simpa using h
+theorem false_elim {p : Bool} (h : decide (p = false) = true) : (!p) = true := by simpa using h
 
 theorem orN_append_left {ps qs : List Bool} (hps : Bool.orN ps = true) :
     Bool.orN (ps ++ qs) = true := by
@@ -201,8 +201,9 @@ theorem implies_false_of_not_and {ps : List Bool} (h : (!Bool.andN ps) = true) :
 
 /-! ### `ite` over `Bool` conditions, reconstructed as `cond` -/
 
-theorem ite_eq {α : Type u} [DecidableEq α] (c : Bool) (x y : α) :
-    cond c (@BEq.beq α instBEqOfDecidableEq (cond c x y) x) (@BEq.beq α instBEqOfDecidableEq (cond c x y) y) = true := by
+theorem ite_eq {α : Sort u} (c : Bool) (x y : α) {h₁ : Decidable (cond c x y = x)}
+    {h₂ : Decidable (cond c x y = y)} :
+    cond c (@decide (cond c x y = x) h₁) (@decide (cond c x y = y) h₂) = true := by
   cases c <;> simp
 
 theorem ite_elim1 {c p q : Bool} (h : cond c p q = true) : (!c || p) = true := by
@@ -229,9 +230,9 @@ theorem cnf_ite_neg3 (c p q : Bool) : (cond c p q || (!p || !q)) = true := by
 
 /-! ### Equality -/
 
-theorem not_beq_symm {α : Type u} [DecidableEq α] {a b : α}
-    (h : (!@BEq.beq α instBEqOfDecidableEq a b) = true) : (!@BEq.beq α instBEqOfDecidableEq b a) = true := by
-  simp only [Bool.not_eq_true', beq_eq_false_iff_ne] at h ⊢
+theorem not_decide_eq_symm {α : Sort u} {a b : α} {h₁ : Decidable (a = b)} {h₂ : Decidable (b = a)}
+    (h : (!@decide (a = b) h₁) = true) : (!@decide (b = a) h₂) = true := by
+  simp only [Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not] at h ⊢
   exact Ne.symm h
 
 theorem eq_of_decide_eq {p q : Prop} {hp : Decidable p} {hq : Decidable q}

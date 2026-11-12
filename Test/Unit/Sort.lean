@@ -1,6 +1,7 @@
 import Smt
 
-/-! Type variables in `Sort u` are lifted into `Type u` (see `Smt.Preprocess.Embedding.Sort`). -/
+/-! Goals about types in `Sort u`, whose equalities are decided with synthesized or classical
+instances. -/
 
 universe u v
 

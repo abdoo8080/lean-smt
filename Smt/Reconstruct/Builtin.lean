@@ -58,17 +58,17 @@ sort `Bool`. -/
 def toBoolIfProp (e : Expr) : MetaM Expr := do
   if (← Meta.inferType e).isProp then Bool.decideOf e else return e
 
-/-- The reconstruction of `(distinct x₁ … xₙ)` for `xᵢ : α`: the conjunction of `!(xᵢ == xⱼ)` for
-`i < j`, in the same order as cvc5's elimination of `distinct`. -/
+/-- The reconstruction of `(distinct x₁ … xₙ)` for `xᵢ : α`: the conjunction of `!decide (xᵢ = xⱼ)`
+for `i < j`, in the same order as cvc5's elimination of `distinct`. -/
 def buildDistinct (α : Expr) (xs : List Expr) : MetaM Expr :=
   go xs
 where
   go : List Expr → MetaM Expr
   | [] => return .const ``true []
   | [_] => return .const ``true []
-  | [x, y] => return mkApp (.const ``not []) (← Bool.mkBEq α x y)
+  | [x, y] => return mkApp (.const ``not []) (← Bool.mkDecideEq α x y)
   | x :: ys => do
-    ys.foldrM (fun y acc => do return mkApp2 (.const ``and []) (mkApp (.const ``not []) (← Bool.mkBEq α x y)) acc)
+    ys.foldrM (fun y acc => do return mkApp2 (.const ``and []) (mkApp (.const ``not []) (← Bool.mkDecideEq α x y)) acc)
       (← go ys)
 
 @[smt_term_reconstruct] def reconstructBuiltin : TermReconstructor := fun t => do match t.getKind! with
@@ -76,7 +76,7 @@ where
   | .CONSTANT => toBoolIfProp (← getFVarOrConstExpr! t.getSymbol!)
   | .EQUAL =>
     let α ← reconstructSort t[0]!.getSort!
-    Bool.mkBEq α (← reconstructTerm t[0]!) (← reconstructTerm t[1]!)
+    Bool.mkDecideEq α (← reconstructTerm t[0]!) (← reconstructTerm t[1]!)
   | .DISTINCT =>
     let α ← reconstructSort t[0]!.getSort!
     let xs ← t.getChildren.mapM reconstructTerm
@@ -187,7 +187,8 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       let t ← reconstructTerm pf.getResult[0]!
       addEqThm pf.getResult (← Meta.mkEqRefl t)
     else
-      -- `t == t'` evaluates to `true`, unless it involves noncomputable functions, e.g., of reals.
+      -- `decide (t = t')` evaluates to `true`, unless it involves noncomputable functions, e.g., of
+      -- reals.
       let b : Q(Bool) ← reconstructTerm pf.getResult
       if ← usesNoncomputable b then
         return none

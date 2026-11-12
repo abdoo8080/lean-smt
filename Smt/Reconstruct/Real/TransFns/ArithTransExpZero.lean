@@ -26,12 +26,10 @@ theorem arithTransExpZero (t : ℝ) :
   · intro h; rw [h]; simp
   · intro h; simp at h; assumption
 
--- `==` is the reconstruction of SMT-LIB's `=` (see `Smt.Reconstruct.Bool.mkBEq`).
-attribute [local instance high] instBEqOfDecidableEq in
 theorem arithTransExpZeroEq (t : ℝ) :
-    (t == 0) = (Real.exp t == 1) := by
+    decide (t = 0) = decide (Real.exp t = 1) := by
   apply Bool.eq_iff_iff.mpr
-  simp only [beq_iff_eq]
+  simp only [decide_eq_true_eq]
   exact arithTransExpZero t
 
 end Smt.Reconstruct.Real.TransFns

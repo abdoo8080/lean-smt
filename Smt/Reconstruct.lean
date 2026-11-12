@@ -241,13 +241,14 @@ where
     addTrust type pf
 
 /-- Return the type `α`, the sides `a` and `b`, and the instance of `Decidable (a = b)` of the Boolean
-formula `a == b` (or `decide (a = b)`) of an equality (see `Bool.mkBEq`). -/
+formula `decide (a = b)` of an equality (see `Bool.mkDecideEq`). -/
 def getEq! (e : Expr) : MetaM (Expr × Expr × Expr × Expr) := do
-  let some r := Bool.getEq? e | throwError "expected an equality `a == b`, got{indentExpr e}"
+  let some r := Bool.getEq? e
+    | throwError "expected an equality `decide (a = b)`, got{indentExpr e}"
   return r
 
 /-- A proof of `a = b` from the proof `pf` of the SMT formula `(= a b)`, which is a proof of
-`(a == b) = true`. -/
+`decide (a = b) = true`. -/
 def reconstructEqProof (pf : cvc5.Proof) : ReconstructM Expr := do
   let h ← reconstructProof pf
   let (_, a, b, inst) ← getEq! (← reconstructTerm pf.getResult)
@@ -259,14 +260,14 @@ def reconstructRelProof (pf : cvc5.Proof) : ReconstructM Expr :=
   if pf.getResult.getKind! == .EQUAL then reconstructEqProof pf else reconstructProof pf
 
 /-- Add the proof `h` of `a = b` as a proof of the SMT formula `t = (= a b)`, i.e., of
-`(a == b) = true`. -/
+`decide (a = b) = true`. -/
 def addEqThm (t : cvc5.Term) (h : Expr) : ReconstructM Expr := do
   let e ← reconstructTerm t
   let (_, a, b, inst) ← getEq! e
   addThm (← Meta.mkEq e (.const ``Bool.true [])) (mkApp3 (.const ``decide_eq_true []) (← Meta.mkEq a b) inst h)
 
 /-- Prove `a = b` with the tactic `tac` and add it as a proof of the SMT formula `t = (= a b)`, i.e.,
-of `(a == b) = true`. -/
+of `decide (a = b) = true`. -/
 def addEqTac (t : cvc5.Term) (tac : MVarId → MetaM Unit) : ReconstructM Expr := do
   let (_, a, b, _) ← getEq! (← reconstructTerm t)
   let h ← Meta.mkFreshExprMVar (← Meta.mkEq a b)
@@ -444,7 +445,7 @@ open Qq in
       `andN (b :: c :: bs) = b && andN (c :: bs)`.
     * `Bool.imp a b` is the Boolean implication `!a || b`.
     * `ds` is the list of user-supplied definitions from the query, in source order. Each
-      `(define-fun f (x₁ … xₙ) τ b)` contributes the conjunct `f == fun x₁ … xₙ => b`.
+      `(define-fun f (x₁ … xₙ) τ b)` contributes the conjunct `decide (f = fun x₁ … xₙ => b)`.
     * `as` is the list of assertions from the query, in the order they appear (one entry per
       `(assert φ)`).
 

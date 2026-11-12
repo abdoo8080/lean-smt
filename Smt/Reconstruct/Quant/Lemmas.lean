@@ -41,18 +41,11 @@ theorem forall_const_bool (α : Sort u) [Nonempty α] {b c : Bool} (h : b = c) :
   rw [Bool.forall_eq_true]
   exact ⟨fun h => h (Classical.ofNonempty), fun h _ => h⟩
 
-theorem forall_andN {α : Type u} {ps : List (α → Bool)} :
-    Bool.forall (fun x => Bool.andN (ps.map (· x))) = Bool.andN (ps.map Bool.forall) := by
+theorem forall_and_bool {α : Sort u} {p q : α → Bool} :
+    Bool.forall (fun x => p x && q x) = (Bool.forall p && Bool.forall q) := by
   apply Bool.eq_iff_iff.mpr
-  simp only [Bool.forall_eq_true, Bool.andN_eq_true, List.mem_map]
-  constructor
-  · rintro h _ ⟨p, hp, rfl⟩
-    rw [Bool.forall_eq_true]
-    exact fun x => h x _ ⟨p, hp, rfl⟩
-  · rintro h x _ ⟨p, hp, rfl⟩
-    have := h _ ⟨p, hp, rfl⟩
-    rw [Bool.forall_eq_true] at this
-    exact this x
+  simp only [Bool.forall_eq_true, Bool.and_eq_true]
+  exact forall_and
 
 theorem forall_orN {α : Sort u} {ps : List Bool} {q : α → Bool} {rs : List Bool} :
     Bool.forall (fun x => Bool.orN (ps ++ q x :: rs)) = Bool.orN (ps ++ Bool.forall q :: rs) := by
@@ -85,14 +78,14 @@ theorem forall_skolem {α : Sort u} [h : Nonempty α] {p : α → Bool} (hp : (!
   have hx : ∃ x, ¬p x = true := Classical.not_forall.mp hp
   simpa using Classical.epsilon_spec hx
 
-theorem var_elim_eq_bool {α : Type u} [DecidableEq α] {t : α} :
-    Bool.forall (fun x => !@BEq.beq α instBEqOfDecidableEq x t) = false := by
+theorem var_elim_eq_bool {α : Sort u} {t : α} {h : ∀ x, Decidable (x = t)} :
+    Bool.forall (fun x => !@decide (x = t) (h x)) = false := by
   rw [Bool.eq_false_iff]
   intro h
   simpa using forall_elim h t
 
-theorem var_elim_eq_or_bool {α : Type u} [DecidableEq α] {t : α} {b : α → Bool} :
-    Bool.forall (fun x => !@BEq.beq α instBEqOfDecidableEq x t || b x) = b t := by
+theorem var_elim_eq_or_bool {α : Sort u} {t : α} {h : ∀ x, Decidable (x = t)} {b : α → Bool} :
+    Bool.forall (fun x => !@decide (x = t) (h x) || b x) = b t := by
   apply Bool.eq_iff_iff.mpr
   rw [Bool.forall_eq_true]
   constructor

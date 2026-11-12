@@ -4,26 +4,28 @@ h : Int.blt 0 m = true
 a✝ : (!(n % m).blt m) = true
 ⊢ Int.blt 0 m = true →
     (!(n % m).blt m) = true →
-      (!(m + -1 * bif m == 0 then (fun x => x % 0) n else n % m).bge 1) = true →
-        (n == (bif m == 0 then (fun x => x % 0) n else n % m) + m * (n / m)) = true →
-          (m + -1 * n + m * (n / m)).bge 1 = true → (n % m == bif m == 0 then (fun x => x % 0) n else n % m) = true
-
-n m : Int
-h : Int.blt 0 m = true
-a✝ : (!(n % m).blt m) = true
-⊢ Int.blt 0 m = true →
-    (!(n % m).blt m) = true →
-      (n == (bif m == 0 then (fun x => x % 0) n else n % m) + m * (n / m)) = true →
-        (!(m + -1 * bif m == 0 then (fun x => x % 0) n else n % m).bge 1) = true →
+      (!(m + -1 * bif decide (m = 0) then (fun x => x % 0) n else n % m).bge 1) = true →
+        decide (n = (bif decide (m = 0) then (fun x => x % 0) n else n % m) + m * (n / m)) = true →
           (m + -1 * n + m * (n / m)).bge 1 = true →
-            (m + -1 * n + m * (n / m)).bge 1 = true → (n % m == bif m == 0 then (fun x => x % 0) n else n % m) = true
+            decide (n % m = bif decide (m = 0) then (fun x => x % 0) n else n % m) = true
 
 n m : Int
 h : Int.blt 0 m = true
 a✝ : (!(n % m).blt m) = true
 ⊢ Int.blt 0 m = true →
     (!(n % m).blt m) = true →
-      (n % m == n - m * (n / m) &&
+      decide (n = (bif decide (m = 0) then (fun x => x % 0) n else n % m) + m * (n / m)) = true →
+        (!(m + -1 * bif decide (m = 0) then (fun x => x % 0) n else n % m).bge 1) = true →
+          (m + -1 * n + m * (n / m)).bge 1 = true →
+            (m + -1 * n + m * (n / m)).bge 1 = true →
+              decide (n % m = bif decide (m = 0) then (fun x => x % 0) n else n % m) = true
+
+n m : Int
+h : Int.blt 0 m = true
+a✝ : (!(n % m).blt m) = true
+⊢ Int.blt 0 m = true →
+    (!(n % m).blt m) = true →
+      (decide (n % m = n - m * (n / m)) &&
           ((m.bgt 0).imp ((m * (n / m)).ble n && n.blt (m * (n / m + 1))) &&
             (m.blt 0).imp ((m * (n / m)).ble n && n.blt (m * (n / m + -1))))) =
         true
@@ -31,4 +33,5 @@ a✝ : (!(n % m).blt m) = true
 n m : Int
 h : Int.blt 0 m = true
 a✝ : (!(n % m).blt m) = true
-⊢ Int.blt 0 m = true → (!(n % m).blt m) = true → (n % m == bif m == 0 then (fun x => x % 0) n else n % m) = true
+⊢ Int.blt 0 m = true →
+    (!(n % m).blt m) = true → decide (n % m = bif decide (m = 0) then (fun x => x % 0) n else n % m) = true

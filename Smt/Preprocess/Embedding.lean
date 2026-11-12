@@ -21,8 +21,6 @@ public import Smt.Preprocess.Embedding.Ite
 public meta import Smt.Preprocess.Embedding.Ite
 public import Smt.Preprocess.Embedding.Prop
 public meta import Smt.Preprocess.Embedding.Prop
-public import Smt.Preprocess.Embedding.Sort
-public meta import Smt.Preprocess.Embedding.Sort
 
 public meta section
 
@@ -45,21 +43,17 @@ def hasReturnType (e : Expr) (p : Expr → Bool) : Bool :=
 
 /-- Embed the types that SMT-LIB lacks (e.g., `Nat` and `Prop`) into ones it has (e.g., `Int` and
 `Bool`) with the `embedding` theorems, which rewrite the goal after reverting the free variables and
-hypotheses `hs`. Type variables in `Sort u` are lifted into `Type u` first (see `liftSorts`). -/
+hypotheses `hs`. -/
 def embedTypes (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.withContext do
   -- Find all free vars to revert in `hs` and `mv`.
   let ts ← hs.mapM Meta.inferType
   let ⟨_, _, fvs⟩ := (ts.push (← mv.getType)).foldl Lean.collectFVars {}
-  -- Also revert the type variables in `Sort u` of their types, so that they can be lifted.
-  let ⟨_, _, tvs⟩ := (← fvs.mapM FVarId.getType).foldl Lean.collectFVars {}
-  let tvs ← tvs.filterM fun fv => return Embedding.isLiftableSort (← fv.getType)
-  let fvs ← Meta.sortFVarIds (fvs ++ tvs.filter (!fvs.contains ·))
+  let fvs ← Meta.sortFVarIds fvs
   -- Check if we need to do anything.
   let bts := if (← getEnv).contains `Real then  #[``Nat, ``Rat] else #[``Nat]
   let fvts ← fvs.mapM FVarId.getType
   let isEmbedded (e : Expr) := e.isProp || (bts.map (.const · [])).contains e
-  if !(fvts ++ ts.push (← mv.getType)).any (·.contains isEmbedded) &&
-      !fvts.any Embedding.isLiftableSort then
+  if !(fvts ++ ts.push (← mv.getType)).any (·.contains isEmbedded) then
     return ⟨{}, hs, mv⟩
   -- Find the embedding simp theorems.
   let some thmsExt ← Meta.getSimpExtension? `embedding | throwError "embedding simp extension not found"
@@ -79,7 +73,6 @@ def embedTypes (mv : MVarId) (hs : Array Expr) : MetaM Result := mv.withContext 
   -- Revert free vars in `hs` and `mv`.
   let fvs := fvs ++ hs₁.map Expr.fvarId! ++ fvs₂
   let (fvs, mv) ← mv.revert fvs true
-  let mv ← Embedding.liftSorts mv
   -- Simplify the goal using the embedding theorems.
   let congrTheorems ← Meta.getSimpCongrTheorems
   let ctx ← Meta.Simp.mkContext { zeta := false, singlePass := true } simpTheorems congrTheorems

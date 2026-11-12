@@ -70,12 +70,12 @@ private def getFVarOrConstExpr! (n : String) : ReconstructM Expr := do
     return curr
   | _ => return none
 
-/-- A proof of `(t == s) = F` for applications `t` and `s` of constructors, where `F` is the
+/-- A proof of `decide (t = s) = F` for applications `t` and `s` of constructors, where `F` is the
 conjunction of the equalities of their fields, by the injectivity of the constructors. Returns `none`
 if that fails. -/
 private def proveConsEq (l r : Expr) : MetaM (Option Expr) := do
   let mut thms : SimpTheorems := {}
-  for n in [``beq_iff_eq, ``decide_eq_true_eq, ``Bool.and_eq_true] do
+  for n in [``decide_eq_true_eq, ``Bool.and_eq_true] do
     thms ← thms.addConst n
   let env ← getEnv
   for c in l.getUsedConstants do
@@ -118,7 +118,7 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     if sort.getKind! == .DATATYPE_SORT && isBuiltinName sort.getDatatype!.getName!.toName then
       return none
     if result[1]!.getKind! == .CONST_BOOLEAN && !result[1]!.getBooleanValue! then
-      -- Distinct constructors: `(t == s) = false`.
+      -- Distinct constructors: `decide (t = s) = false`.
       let (_, t, s, inst) ← getEq! (← reconstructTerm result[0]!)
       addEqThm pf.getResult (mkApp3 (.const ``decide_eq_false []) (← mkEq t s) inst (← proveDistinctValues t s))
     else
@@ -136,7 +136,7 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     let sort := pf.getArguments[0]!.getSort!
     if sort.getKind! == .DATATYPE_SORT && isBuiltinName sort.getDatatype!.getName!.toName then
       return none
-    -- `(not (= t s))` is reconstructed as `!(t == s)`.
+    -- `(not (= t s))` is reconstructed as `!decide (t = s)`.
     let (_, t, s, inst) ← getEq! (← reconstructTerm pf.getResult[0]!)
     let p ← mkEq t s
     let h := mkApp3 (.const ``decide_eq_false []) p inst (← proveDistinctValues t s)

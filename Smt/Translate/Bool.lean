@@ -18,7 +18,7 @@ public meta section
 # Translation of Booleans
 
 Lean's `Bool` is SMT-LIB's `Bool`. Propositions are embedded into Booleans: a hypothesis `p` is
-turned into `b = true`, where `b` is a Boolean formula such as `x.blt y && (x == y)` (see
+turned into `b = true`, where `b` is a Boolean formula such as `x.blt y && decide (x = y)` (see
 `Smt.Preprocess.Embedding.Prop` and `Smt.Reconstruct.Bool.Core`). So `b = true` is translated as `b`,
 and `decide p` as `p`.
 -/

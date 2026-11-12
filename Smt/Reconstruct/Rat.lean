@@ -97,7 +97,7 @@ open Lean Qq
     return q(«$x».floor)
   | .IS_INTEGER =>
     let x : Q(Rat) ← reconstructTerm t[0]!
-    Bool.mkBEq q(Rat) x q((«$x».floor : Rat))
+    Bool.mkDecideEq q(Rat) x q((«$x».floor : Rat))
   | _ => return none
 where
   mkRatLit (n : Nat) : Q(Rat) :=
@@ -145,13 +145,13 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   | .ARITH_INT_EQ_CONFLICT =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let c : Q(Rat) ← reconstructTerm pf.getArguments[2]!
-    let h : Q(((«$c».floor : Rat) == $c) = false) ← reconstructEqProof pf.getChildren[0]!
+    let h : Q(decide ((«$c».floor : Rat) = $c) = false) ← reconstructEqProof pf.getChildren[0]!
     addEqThm pf.getResult q(@Rewrite.eq_conflict $t $c $h)
   | .ARITH_INT_GEQ_TIGHTEN =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let c : Q(Rat) ← reconstructTerm pf.getArguments[2]!
     let cc : Q(Int) ← reconstructTerm pf.getArguments[3]!
-    let hc : Q(((«$c».floor : Rat) == $c) = false) ← reconstructEqProof pf.getChildren[0]!
+    let hc : Q(decide ((«$c».floor : Rat) = $c) = false) ← reconstructEqProof pf.getChildren[0]!
     let hcc : Q($cc = «$c».floor + 1) ← reconstructEqProof pf.getChildren[1]!
     addEqThm pf.getResult q(@Rewrite.geq_tighten $t $c $cc $hc $hcc)
   | .ARITH_ABS_EQ =>

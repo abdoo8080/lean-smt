@@ -15,7 +15,7 @@ public import Smt.Reconstruct.Bool.Core
 # cvc5's Boolean, `ite`, and equality rewrite rules over `Bool`
 
 Each theorem states a rewrite `⟦lhs⟧ = ⟦rhs⟧` between the reconstructions of the two sides of a
-cvc5 rewrite rule. Reconstruction turns it into a proof of `(⟦lhs⟧ == ⟦rhs⟧) = true`.
+cvc5 rewrite rule. Reconstruction turns it into a proof of `decide (⟦lhs⟧ = ⟦rhs⟧) = true`.
 -/
 
 namespace Smt.Reconstruct.Bool
@@ -32,9 +32,9 @@ theorem bool_double_not_elim : (!!t) = t := Bool.not_not t
 theorem bool_not_true (h : t = false) : (!t) = true := by simp [h]
 theorem bool_not_false (h : t = true) : (!t) = false := by simp [h]
 
-theorem bool_eq_true : (t == true) = t := by cases t <;> rfl
-theorem bool_eq_false : (t == false) = !t := by cases t <;> rfl
-theorem bool_eq_nrefl : (t == !t) = false := by cases t <;> rfl
+theorem bool_eq_true : decide (t = true) = t := by cases t <;> rfl
+theorem bool_eq_false : decide (t = false) = !t := by cases t <;> rfl
+theorem bool_eq_nrefl : decide (t = !t) = false := by cases t <;> rfl
 
 theorem bool_impl_false1 : t.imp false = !t := by cases t <;> rfl
 theorem bool_impl_false2 : false.imp t = true := rfl
@@ -42,7 +42,7 @@ theorem bool_impl_true1 : t.imp true = true := by cases t <;> rfl
 theorem bool_impl_true2 : true.imp t = t := rfl
 theorem bool_impl_elim : t.imp s = (!t || s) := rfl
 
-theorem bool_dual_impl_eq : (t.imp s && s.imp t) = (t == s) := by
+theorem bool_dual_impl_eq : (t.imp s && s.imp t) = decide (t = s) := by
   cases t <;> cases s <;> rfl
 
 theorem bool_and_conf : Bool.andN (xs ++ w :: (ys ++ (!w) :: zs)) = false := by
@@ -83,13 +83,13 @@ theorem bool_xor_nrefl : xor x (!x) = true := by cases x <;> rfl
 theorem bool_xor_false : xor x false = x := by cases x <;> rfl
 theorem bool_xor_true : xor x true = !x := by cases x <;> rfl
 theorem bool_xor_comm : xor x y = xor y x := by cases x <;> cases y <;> rfl
-theorem bool_xor_elim : xor x y = ((!x) == y) := by cases x <;> cases y <;> rfl
-theorem bool_not_xor_elim : (!xor x y) = (x == y) := by cases x <;> cases y <;> rfl
+theorem bool_xor_elim : xor x y = decide ((!x) = y) := by cases x <;> cases y <;> rfl
+theorem bool_not_xor_elim : (!xor x y) = decide (x = y) := by cases x <;> cases y <;> rfl
 
-theorem bool_not_eq_elim1 : (!(x == y)) = ((!x) == y) := by cases x <;> cases y <;> rfl
-theorem bool_not_eq_elim2 : (!(x == y)) = (x == !y) := by cases x <;> cases y <;> rfl
+theorem bool_not_eq_elim1 : (!decide (x = y)) = decide ((!x) = y) := by cases x <;> cases y <;> rfl
+theorem bool_not_eq_elim2 : (!decide (x = y)) = decide (x = !y) := by cases x <;> cases y <;> rfl
 
-theorem ite_neg_branch (h : x = !y) : cond c x y = (c == x) := by
+theorem ite_neg_branch (h : x = !y) : cond c x y = decide (c = x) := by
   subst h; cases c <;> cases y <;> rfl
 
 theorem ite_then_true : cond c true x = (c || x) := by cases c <;> rfl
@@ -131,33 +131,37 @@ end
 
 -- https://github.com/cvc5/cvc5/blob/main/src/theory/uf/rewrites
 
-/-! The theorems about equalities are stated for `==` with `instBEqOfDecidableEq`, the
-reconstruction of SMT-LIB's `=` (see `Smt.Reconstruct.Bool.mkBEq`). -/
+/-! The theorems about equalities are stated for `decide (t = s)`, the reconstruction of SMT-LIB's
+`=` (see `Smt.Reconstruct.Bool.mkDecideEq`), with any instance of `Decidable (t = s)`. -/
 
 section
 
-attribute [local instance high] instBEqOfDecidableEq
+variable {α : Sort u}
 
-variable {α : Type u} [DecidableEq α]
+theorem eq_refl {t : α} {h : Decidable (t = t)} : @decide (t = t) h = true := decide_eq_true rfl
 
-theorem eq_refl {t : α} : (t == t) = true := beq_self_eq_true t
+theorem eq_symm {t s : α} {h₁ : Decidable (t = s)} {h₂ : Decidable (s = t)} :
+    @decide (t = s) h₁ = @decide (s = t) h₂ :=
+  decide_eq_decide.mpr ⟨Eq.symm, Eq.symm⟩
 
-theorem eq_symm {t s : α} : (t == s) = (s == t) :=
-  Bool.eq_iff_iff.mpr (by simp only [beq_iff_eq]; exact ⟨Eq.symm, Eq.symm⟩)
-
-theorem eq_cond_deq {t s r : α} (h : (s == r) = false) :
-    ((t == s) == (t == r)) = (!(t == s) && !(t == r)) := by
+theorem eq_cond_deq {t s r : α} {h₁ : Decidable (s = r)} {h₂ : Decidable (t = s)}
+    {h₃ : Decidable (t = r)} (h : @decide (s = r) h₁ = false) :
+    decide (@decide (t = s) h₂ = @decide (t = r) h₃) =
+      (!@decide (t = s) h₂ && !@decide (t = r) h₃) := by
   have hsr : s ≠ r := by simpa using h
   by_cases hts : t = s
-  · subst hts; simp [beq_eq_false_iff_ne.mpr hsr]
+  · subst hts; simp [hsr]
   · by_cases htr : t = r
-    · subst htr; simp [beq_eq_false_iff_ne.mpr hts]
-    · simp [beq_eq_false_iff_ne.mpr hts, beq_eq_false_iff_ne.mpr htr]
+    · subst htr; simp [hts]
+    · simp [hts, htr]
 
-theorem eq_ite_lift {c : Bool} {t s r : α} : (cond c t s == r) = cond c (t == r) (s == r) := by
-  cases c <;> rfl
+theorem eq_ite_lift {c : Bool} {t s r : α} {h : Decidable (cond c t s = r)}
+    {h₁ : Decidable (t = r)} {h₂ : Decidable (s = r)} :
+    @decide (cond c t s = r) h = cond c (@decide (t = r) h₁) (@decide (s = r) h₂) := by
+  cases c <;> exact decide_eq_decide.mpr Iff.rfl
 
-theorem distinct_binary_elim {t s : α} : (!(t == s)) = !(t == s) := rfl
+theorem distinct_binary_elim {t s : α} {h : Decidable (t = s)} :
+    (!@decide (t = s) h) = !@decide (t = s) h := rfl
 
 end
 

@@ -22,9 +22,6 @@ namespace Smt.Reconstruct.Int
 `Smt.Reconstruct.Int.Rewrite`): a proof of a formula `b` is a proof of `b = true`, except that a
 proof of an equality `(= t s)` is a proof of `t = s`. -/
 
--- `==` is the reconstruction of SMT-LIB's `=` (see `Smt.Reconstruct.Bool.mkBEq`).
-attribute [local instance high] instBEqOfDecidableEq
-
 variable {a b c d x₁ x₂ y₁ y₂ : Int}
 
 theorem sum_ub₁ (h₁ : a.blt b = true) (h₂ : c.blt d = true) : (a + c).blt (b + d) = true := by
@@ -60,13 +57,15 @@ theorem ble_of_eq (h : a = b) : a.ble b = true := by
 theorem mul_abs₁ (h₁ : x₁.abs = y₁.abs) (h₂ : x₂.abs = y₂.abs) : (x₁ * x₂).abs = (y₁ * y₂).abs := by
   rw [Int.abs_mul x₁ x₂, Int.abs_mul y₁ y₂, h₁, h₂]
 
-theorem mul_abs₂ (h₁ : x₁.abs.bgt y₁.abs = true) (h₂ : (x₂.abs == y₂.abs && !(x₂.abs == 0)) = true) :
+theorem mul_abs₂ (h₁ : x₁.abs.bgt y₁.abs = true)
+    (h₂ : (decide (x₂.abs = y₂.abs) && !decide (x₂.abs = 0)) = true) :
     (x₁ * x₂).abs.bgt (y₁ * y₂).abs = true := by
-  simp only [Int.bgt_eq_true, Bool.and_eq_true, beq_iff_eq, Bool.not_eq_true', beq_eq_false_iff_ne] at *
+  simp only [Int.bgt_eq_true, Bool.and_eq_true, decide_eq_true_eq, Bool.not_eq_true',
+    decide_eq_false_iff_not] at *
   rewrite [Int.abs_mul, Int.abs_mul]
   apply Int.mul_lt_mul h₁ (Int.le_of_eq h₂.left.symm) _ (Int.abs_nonneg x₁)
   rewrite [← h₂.left]
-  exact Int.lt_of_le_of_ne (Int.abs_nonneg x₂) h₂.right.symm
+  exact Int.lt_of_le_of_ne (Int.abs_nonneg x₂) (Ne.symm h₂.right)
 
 theorem mul_abs₃ (h₁ : x₁.abs.bgt y₁.abs = true) (h₂ : x₂.abs.bgt y₂.abs = true) :
     (x₁ * x₂).abs.bgt (y₁ * y₂).abs = true := by
@@ -83,23 +82,27 @@ theorem int_tight_ub {i : Int} (h : i.blt c = true) : i.ble (c - 1) = true := by
 theorem int_tight_lb {i : Int} (h : i.bgt c = true) : i.bge (c + 1) = true := by
   simp only [Int.bgt_eq_true, Int.bge_eq_true] at *; omega
 
-theorem trichotomy₁ (h₁ : a.ble b = true) (h₂ : (!(a == b)) = true) : a.blt b = true := by
-  simp only [Int.ble_eq_true, Int.blt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *; omega
+theorem trichotomy₁ (h₁ : a.ble b = true) (h₂ : (!decide (a = b)) = true) : a.blt b = true := by
+  simp only [Int.ble_eq_true, Int.blt_eq_true, Bool.not_eq_true', decide_eq_false_iff_not] at *
+  omega
 
 theorem trichotomy₂ (h₁ : a.ble b = true) (h₂ : a.bge b = true) : a = b := by
   simp only [Int.ble_eq_true, Int.bge_eq_true] at *; omega
 
-theorem trichotomy₃ (h₁ : (!(a == b)) = true) (h₂ : a.ble b = true) : a.blt b = true := by
-  simp only [Int.ble_eq_true, Int.blt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *; omega
+theorem trichotomy₃ (h₁ : (!decide (a = b)) = true) (h₂ : a.ble b = true) : a.blt b = true := by
+  simp only [Int.ble_eq_true, Int.blt_eq_true, Bool.not_eq_true', decide_eq_false_iff_not] at *
+  omega
 
-theorem trichotomy₄ (h₁ : (!(a == b)) = true) (h₂ : a.bge b = true) : a.bgt b = true := by
-  simp only [Int.bge_eq_true, Int.bgt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *; omega
+theorem trichotomy₄ (h₁ : (!decide (a = b)) = true) (h₂ : a.bge b = true) : a.bgt b = true := by
+  simp only [Int.bge_eq_true, Int.bgt_eq_true, Bool.not_eq_true', decide_eq_false_iff_not] at *
+  omega
 
 theorem trichotomy₅ (h₁ : a.bge b = true) (h₂ : a.ble b = true) : a = b := by
   simp only [Int.ble_eq_true, Int.bge_eq_true] at *; omega
 
-theorem trichotomy₆ (h₁ : a.bge b = true) (h₂ : (!(a == b)) = true) : a.bgt b = true := by
-  simp only [Int.bge_eq_true, Int.bgt_eq_true, Bool.not_eq_true', beq_eq_false_iff_ne] at *; omega
+theorem trichotomy₆ (h₁ : a.bge b = true) (h₂ : (!decide (a = b)) = true) : a.bgt b = true := by
+  simp only [Int.bge_eq_true, Int.bgt_eq_true, Bool.not_eq_true', decide_eq_false_iff_not] at *
+  omega
 
 theorem abs_elim {x : Int} : x.abs = cond (x.blt 0) (-x) x := by
   rw [Int.blt, Bool.cond_decide]; rfl
@@ -155,10 +158,10 @@ theorem le_of_sub_eq_neg {c₁ c₂ : Int} (hc₁ : c₁.blt 0 = true) (hc₂ : 
   rewrite [← Int.mul_eq_mul_left_iff (by decide : -1 ≠ 0), ← Int.mul_assoc (-1), ← Int.mul_assoc (-1)] at h
   apply le_of_sub_eq_pos (by simp only [Int.bgt_eq_true]; omega) (by simp only [Int.bgt_eq_true]; omega) h
 
-theorem eq_of_sub_eq {c₁ c₂ : Int} (hc₁ : (!(c₁ == 0)) = true) (hc₂ : (!(c₂ == 0)) = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : (a₁ == a₂) = (b₁ == b₂) := by
-  simp only [Bool.not_eq_true', beq_eq_false_iff_ne] at hc₁ hc₂
+theorem eq_of_sub_eq {c₁ c₂ : Int} (hc₁ : (!decide (c₁ = 0)) = true) (hc₂ : (!decide (c₂ = 0)) = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : decide (a₁ = a₂) = decide (b₁ = b₂) := by
+  simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hc₁ hc₂
   apply Bool.eq_iff_iff.mpr
-  simp only [beq_iff_eq]
+  simp only [decide_eq_true_eq]
   apply Iff.intro
   · intro ha
     rewrite [ha, Int.sub_self, Int.mul_zero, eq_comm, Int.mul_eq_zero] at h
@@ -215,22 +218,24 @@ theorem mul_sign₆ (ha : a.bgt 0 = true) (hb : b.bgt 0 = true) : (a * b).bgt 0 
   simp at h
   exact h
 
-theorem mul_sign₀ (ha : (!(a == 0)) = true) : (a * a).bgt 0 = true := by
-  simp only [Bool.not_eq_true', beq_eq_false_iff_ne] at ha
+theorem mul_sign₀ (ha : (!decide (a = 0)) = true) : (a * a).bgt 0 = true := by
+  simp only [Bool.not_eq_true', decide_eq_false_iff_not] at ha
   match Int.lt_trichotomy a 0 with
   | .inl hn         => exact mul_sign₁ (by simpa using hn) (by simpa using hn)
   | .inr (.inl hz)  => exact absurd hz ha
   | .inr (.inr hp)  => exact mul_sign₆ (by simpa using hp) (by simpa using hp)
 
-theorem mul_sign₂ (ha : a.blt 0 = true) (hb : (!(b == 0)) = true) : (a * b * b).blt 0 = true := by
-  simp only [Bool.not_eq_true', beq_eq_false_iff_ne] at hb
+theorem mul_sign₂ (ha : a.blt 0 = true) (hb : (!decide (b = 0)) = true) :
+    (a * b * b).blt 0 = true := by
+  simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hb
   match Int.lt_trichotomy b 0 with
   | .inl hn         => exact mul_sign₄ (mul_sign₁ ha (by simpa using hn)) (by simpa using hn)
   | .inr (.inl hz)  => exact absurd hz hb
   | .inr (.inr hp)  => exact mul_sign₃ (mul_sign₃ ha (by simpa using hp)) (by simpa using hp)
 
-theorem mul_sign₅ (ha : a.bgt 0 = true) (hb : (!(b == 0)) = true) : (a * b * b).bgt 0 = true := by
-  simp only [Bool.not_eq_true', beq_eq_false_iff_ne] at hb
+theorem mul_sign₅ (ha : a.bgt 0 = true) (hb : (!decide (b = 0)) = true) :
+    (a * b * b).bgt 0 = true := by
+  simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hb
   match Int.lt_trichotomy b 0 with
   | .inl hn         => exact mul_sign₁ (mul_sign₄ ha (by simpa using hn)) (by simpa using hn)
   | .inr (.inl hz)  => exact absurd hz hb
@@ -252,8 +257,8 @@ theorem mul_pos_ge : ((c.bgt 0 && a.bge b).imp ((c * a).bge (c * b))) = true := 
   simp only [Bool.imp_eq_true, Bool.and_eq_true, Int.bgt_eq_true, Int.bge_eq_true]
   exact fun h => Int.mul_le_mul_of_nonneg_left h.2 (Int.le_of_lt h.1)
 
-theorem mul_pos_eq : ((c.bgt 0 && a == b).imp (c * a == c * b)) = true := by
-  simp only [Bool.imp_eq_true, Bool.and_eq_true, Int.bgt_eq_true, beq_iff_eq]
+theorem mul_pos_eq : ((c.bgt 0 && decide (a = b)).imp (decide (c * a = c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Int.bgt_eq_true, decide_eq_true_eq]
   exact fun h => by rw [h.2]
 
 theorem mul_neg_lt : ((c.blt 0 && a.blt b).imp ((c * a).bgt (c * b))) = true := by
@@ -272,8 +277,8 @@ theorem mul_neg_ge : ((c.blt 0 && a.bge b).imp ((c * a).ble (c * b))) = true := 
   simp only [Bool.imp_eq_true, Bool.and_eq_true, Int.blt_eq_true, Int.bge_eq_true, Int.ble_eq_true]
   exact fun h => Int.mul_le_mul_of_nonpos_left (Int.le_of_lt h.1) h.2
 
-theorem mul_neg_eq : ((c.blt 0 && a == b).imp (c * a == c * b)) = true := by
-  simp only [Bool.imp_eq_true, Bool.and_eq_true, Int.blt_eq_true, beq_iff_eq]
+theorem mul_neg_eq : ((c.blt 0 && decide (a = b)).imp (decide (c * a = c * b))) = true := by
+  simp only [Bool.imp_eq_true, Bool.and_eq_true, Int.blt_eq_true, decide_eq_true_eq]
   exact fun h => by rw [h.2]
 
 end Smt.Reconstruct.Int

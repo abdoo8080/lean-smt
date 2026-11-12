@@ -35,17 +35,17 @@ into Booleans in two steps (see `Smt.Preprocess.embedding`):
 |----------------|------------------------------------------|
 | `¬p`, `p ∧ q`, `p ∨ q` | `!b`, `b₁ && b₂`, `b₁ \|\| b₂`   |
 | `p → q`        | `b₁.imp b₂`                              |
-| `p ↔ q`, `p = q` | `b₁ == b₂`                             |
+| `p ↔ q`, `p = q` | `decide (b₁ = b₂)`                     |
 | `b = true`     | `b`                                      |
-| `x = y`, `x ≠ y` | `x == y`, `!(x == y)`                  |
+| `x = y`, `x ≠ y` | `decide (x = y)`, `!decide (x = y)`    |
 | `∀ x, p x`     | `Bool.forall fun x => b x`               |
 | `∃ x, p x`     | `Bool.exists fun x => b x`               |
 | `if p then x else y` | `cond b x y`                       |
 | `x < y`, `x ≤ y`, `x > y`, `x ≥ y` | `x.blt y`, `x.ble y`, `x.bgt y`, `x.bge y` (`x.ult y`, … on bit-vectors) |
 | other atom `p` | `decide p`                               |
 
-The equalities `x == y` and the atoms `decide p` use the same instances as proof reconstruction (see
-`Smt.Reconstruct.Bool.mkBEq` and `Smt.Reconstruct.Bool.decideOf`).
+The equalities `decide (x = y)` and the atoms `decide p` use the same instances as proof
+reconstruction (see `Smt.Reconstruct.Bool.mkDecideEq` and `Smt.Reconstruct.Bool.decideOf`).
 
 These are the Boolean formulas that proof reconstruction builds from SMT-LIB terms, so that the
 formulas it reconstructs from cvc5's proofs are syntactically equal to the hypotheses.
@@ -214,7 +214,7 @@ theorem forall_prop_out_as_bool₆ {p : (α₁ → α₂ → α₃ → α₄ →
 
 The theorems push `decide` into propositions. Their right-hand sides decide propositions classically;
 then the simproc `decideInstance` replaces the classical instances by synthesized ones, and the
-simproc `decideEq` decides equalities with `==`. -/
+simproc `decideEq` decides equalities with the instances of proof reconstruction. -/
 
 universe u
 
@@ -236,11 +236,11 @@ variable {p q : Prop} {α : Sort u}
     @decide (p → q) h = (@decide p (Classical.propDecidable p)).imp (@decide q (Classical.propDecidable q)) := by
   apply Bool.eq_iff_iff.mpr; simp
 @[smt_decide ↓] theorem decide_iff' {h : Decidable (p ↔ q)} :
-    @decide (p ↔ q) h = (@decide p (Classical.propDecidable p) == @decide q (Classical.propDecidable q)) := by
+    @decide (p ↔ q) h = decide (@decide p (Classical.propDecidable p) = @decide q (Classical.propDecidable q)) := by
   apply Bool.eq_iff_iff.mpr; simp
 @[smt_decide ↓ high] theorem decide_prop_eq {h : Decidable (p = q)} :
-    @decide (p = q) h = (@decide p (Classical.propDecidable p) == @decide q (Classical.propDecidable q)) := by
-  apply Bool.eq_iff_iff.mpr; simp only [decide_eq_true_eq, beq_iff_eq, decide_eq_decide]
+    @decide (p = q) h = decide (@decide p (Classical.propDecidable p) = @decide q (Classical.propDecidable q)) := by
+  apply Bool.eq_iff_iff.mpr; simp only [decide_eq_true_eq, decide_eq_decide]
   exact ⟨fun h => h ▸ Iff.rfl, propext⟩
 
 @[smt_decide ↓ high] theorem decide_bool_eq_true {b : Bool} {h : Decidable (b = true)} :
@@ -317,12 +317,12 @@ variable {w : Nat} {x y : BitVec w}
 
 end
 
-theorem decide_eq_beq {β : Type u} [inst : DecidableEq β] {a b : β} {h : Decidable (a = b)} :
-    @decide (a = b) h = @BEq.beq β (@instBEqOfDecidableEq β inst) a b := by
-  apply Bool.eq_iff_iff.mpr; simp
-
 theorem decide_instance {p : Prop} (h h' : Decidable p) : @decide p h = @decide p h' :=
   congrArg (@decide p) (Subsingleton.elim h h')
+
+theorem decide_eq_congr {a a' b b' : α} (h : Decidable (a = b)) (h' : Decidable (a' = b'))
+    (ha : a = a') (hb : b = b') : @decide (a = b) h = @decide (a' = b') h' := by
+  subst ha hb; exact decide_instance h h'
 
 theorem ite_eq_cond {c : Prop} {h : Decidable c} {x y : α} :
     @ite α c h x y = cond (@decide c h) x y :=
@@ -372,9 +372,12 @@ simproc ↓ [smt_decide] decideExists (decide (Exists _)) := fun e => do
   return .visit { expr := mkApp2 (.const ``Bool.exists [u]) t lb,
                   proof? := mkApp3 (.const ``decide_exists' [u]) t lp h }
 
-/-- Decide equalities `a = b` of data with `a == b`, with the same instances as proof reconstruction
-(see `Smt.Reconstruct.Bool.mkBEq`). Equalities of propositions and Booleans `b = true` are handled by
-the theorems above. -/
+/-- Decide equalities `a = b` of data with the same instances as proof reconstruction (see
+`Smt.Reconstruct.Bool.mkDecideEq`). Equalities of propositions and Booleans `b = true` are handled by
+the theorems above.
+
+The sides are simplified here: the instance depends on them, so `simp` itself can only rewrite them
+when it can synthesize an instance for the new sides, which fails for classical instances. -/
 simproc ↓ [smt_decide] decideEq (decide (_ = _)) := fun e => do
   let_expr Decidable.decide p h := e | return .continue
   let_expr Eq β a b := p | return .continue
@@ -382,16 +385,21 @@ simproc ↓ [smt_decide] decideEq (decide (_ = _)) := fun e => do
   if β.isConstOf ``Bool && (a.isConstOf ``true || a.isConstOf ``false || b.isConstOf ``true ||
       b.isConstOf ``false) then
     return .continue
-  -- `decide (a = b)` for `β : Sort u`, see `decideInstance`
-  let some u := (← getLevel β).dec | return .continue
-  let inst ← Smt.Reconstruct.Bool.decEqInst β
-  return .visit { expr := ← Smt.Reconstruct.Bool.mkBEq β a b,
-                  proof? := mkAppN (.const ``decide_eq_beq [u]) #[β, inst, a, b, h] }
+  let ra ← simp a
+  let rb ← simp b
+  let inst := mkApp2 (← Smt.Reconstruct.Bool.decEqInst β) ra.expr rb.expr
+  if ra.expr == a && rb.expr == b && inst == h then return .done { expr := e }
+  let u ← getLevel β
+  return .done { expr := mkApp2 (.const ``Decidable.decide []) (← mkEq ra.expr rb.expr) inst,
+                 proof? := mkAppN (.const ``decide_eq_congr [u])
+                   #[β, a, ra.expr, b, rb.expr, h, inst, ← ra.getProof, ← rb.getProof] }
 
 /-- Replace the instance of an atom `decide p` by a synthesized one, as in proof reconstruction (see
-`Smt.Reconstruct.Bool.decideOf`). -/
+`Smt.Reconstruct.Bool.decideOf`). The equalities of data are left to `decideEq`. -/
 simproc ↑ [smt_decide] decideInstance (decide _) := fun e => do
   let_expr Decidable.decide p h := e | return .continue
+  if let some (β, _, _) := p.eq? then
+    if !(β.isProp || (← isProp β)) then return .continue
   let some inst ← synthInstance? (mkApp (.const ``Decidable []) p) | return .continue
   if inst == h then return .continue
   return .done { expr := mkApp2 (.const ``Decidable.decide []) p inst,

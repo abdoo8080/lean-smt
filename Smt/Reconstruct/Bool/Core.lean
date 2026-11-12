@@ -23,16 +23,16 @@ so that closed formulas evaluate unless they involve reals, quantifiers, or unde
 | `true`, `false`             | `true`, `false`                 |
 | `not`, `and`, `or`, `xor`   | `!`, `&&`, `\|\|`, `^^`         |
 | `=>`                        | `Bool.imp`                      |
-| `=`, `distinct`             | `==`, `!(· == ·)`               |
+| `=`, `distinct`             | `decide (a = b)`, `!decide (a = b)` |
 | `<`, `<=`, `>`, `>=`        | `x.blt y`, `x.ble y`, `x.bgt y`, `x.bge y` |
 | `ite`                       | `cond`                          |
 | `forall`, `exists`          | `Bool.forall`, `Bool.exists`    |
 | other atoms                 | `decide p`                      |
 
-`a == b` is `@BEq.beq α (@instBEqOfDecidableEq α inst) a b`, where `inst` is the `DecidableEq`
-instance of SMT-LIB's builtin sorts, and otherwise a synthesized or classical one. The comparisons are
-`Int.blt` and friends on integers, rationals, and reals, and `BitVec.ult` and friends on bit-vectors.
-`decide p` uses a synthesized instance of `Decidable p`, or a classical one.
+`decide (a = b)` uses `inst a b`, where `inst` is the `DecidableEq` instance of SMT-LIB's builtin
+sorts, and otherwise a synthesized or classical one. The comparisons are `Int.blt` and friends on
+integers, rationals, and reals, and `BitVec.ult` and friends on bit-vectors. `decide p` uses a
+synthesized instance of `Decidable p`, or a classical one.
 
 The theorems of proof reconstruction are stated over these Boolean formulas: a proof of a formula
 `b` is a proof of `b = true`, a proof of an equality `(= t s)` is usually a proof of `t = s`, and
@@ -49,11 +49,10 @@ Boolean formulas `b`, with `(b = true) = p` (see `Smt.Reconstruct.Bool.toProp`):
 | `b₁ \|\| b₂`        | `p₁ ∨ p₂`           |
 | `b₁ ^^ b₂`          | `XOr p₁ p₂`         |
 | `b₁.imp b₂`         | `p₁ → p₂`           |
-| `b₁ == b₂`          | `p₁ = p₂`           |
-| `x == y`            | `x = y`             |
+| `decide (b₁ = b₂)`  | `p₁ = p₂`           |
 | `Bool.forall b`     | `∀ x, p x`          |
 | `Bool.exists b`     | `∃ x, p x`          |
-| `decide q`          | `q`                 |
+| `decide q`          | `q`, e.g., `x = y`  |
 | other `b`           | `b = true`          |
 -/
 
@@ -82,16 +81,6 @@ variable {α : Sort u} {f : α → Bool}
   propext (@decide_eq_false_iff_not _ (Classical.propDecidable _))
 
 end
-
-namespace Smt.Reconstruct.Bool
-
-/-! `a == b` with `instBEqOfDecidableEq` decides `a = b`. -/
-
-variable {α : Type u} [DecidableEq α] {a b : α}
-
-theorem beq_eq_true_eq : ((a == b) = true) = (a = b) := propext beq_iff_eq
-
-end Smt.Reconstruct.Bool
 
 namespace Bool
 
@@ -159,7 +148,8 @@ theorem false_eq_true_eq : (false = true) = False := by simp
 theorem not_eq_true_eq_not {b : Bool} : ((!b) = true) = ¬(b = true) := by
   cases b <;> simp
 
-theorem beq_eq_true_eq_eq {a b : Bool} : ((a == b) = true) = ((a = true) = (b = true)) := by
+theorem decide_bool_eq_eq {a b : Bool} {h : Decidable (a = b)} :
+    (@decide (a = b) h = true) = ((a = true) = (b = true)) := by
   cases a <;> cases b <;> simp
 
 theorem not_eq_true_eq {b : Bool} (h : (b = true) = p) : ((!b) = true) = ¬p := by
@@ -188,8 +178,8 @@ theorem imp_eq_true_eq {b₁ b₂ : Bool} (h₁ : (b₁ = true) = p₁) (h₂ : 
     ((b₁.imp b₂) = true) = (p₁ → p₂) := by
   subst h₁ h₂; simp
 
-theorem beq_bool_eq_true_eq {b₁ b₂ : Bool} (h₁ : (b₁ = true) = p₁) (h₂ : (b₂ = true) = p₂) :
-    ((b₁ == b₂) = true) = (p₁ = p₂) := by
+theorem decide_bool_eq_true_eq {p₁ p₂ : Prop} {b₁ b₂ : Bool} {h : Decidable (b₁ = b₂)}
+    (h₁ : (b₁ = true) = p₁) (h₂ : (b₂ = true) = p₂) : (@decide (b₁ = b₂) h = true) = (p₁ = p₂) := by
   subst h₁ h₂; cases b₁ <;> cases b₂ <;> simp
 
 theorem forall_eq_true_eq {α : Sort u} {f : α → Bool} {p : α → Prop}

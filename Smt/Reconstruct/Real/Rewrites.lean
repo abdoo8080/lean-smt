@@ -24,9 +24,6 @@ open Function
 /-! The rewrites are stated over the reconstructions of SMT-LIB terms (see
 `Smt.Reconstruct.Int.Rewrite`). -/
 
--- `==` is the reconstruction of SMT-LIB's `=` (see `Smt.Reconstruct.Bool.mkBEq`).
-attribute [local instance high] instBEqOfDecidableEq
-
 variable {t s x y : Real}
 
 theorem div_total_zero : x / 0 = 0 :=
@@ -44,11 +41,11 @@ theorem elim_leq : t.ble s = s.bge t :=
 theorem geq_norm1 : t.bge s = (t - s).bge 0 :=
   decide_eq_decide.mpr ⟨sub_nonneg_of_le, le_of_sub_nonneg⟩
 
-theorem eq_elim : (t == s) = (t.bge s && t.ble s) := by
+theorem eq_elim : decide (t = s) = (t.bge s && t.ble s) := by
   simp only [Real.bge, Real.ble, ← Bool.decide_and]; exact decide_eq_decide.mpr (Iff.symm antisymm_iff)
 
-theorem eq_conflict {t : Int} {c : Real} (hcc : ((⌊c⌋ : Real) == c) = false) : ((t : Real) == c) = false := by
-  simp only [beq_eq_false_iff_ne] at *
+theorem eq_conflict {t : Int} {c : Real} (hcc : decide ((⌊c⌋ : Real) = c) = false) : decide ((t : Real) = c) = false := by
+  simp only [decide_eq_false_iff_not] at *
   intro htc
   have hcc : ⌊c⌋ < c := (le_iff_eq_or_lt.mp (Int.floor_le c)).resolve_left hcc
   cases Int.lt_trichotomy t ⌊c⌋ <;> rename_i htcf
@@ -63,7 +60,7 @@ theorem eq_conflict {t : Int} {c : Real} (hcc : ((⌊c⌋ : Real) == c) = false)
           exact htcf
       simp_all
 
-theorem geq_tighten {t : Int} {c : Real} {cc : Int} (hc : ((⌊c⌋ : Real) == c) = false) (hcc : cc = ⌊c⌋ + 1) : (t : Real).bge c = t.bge cc := by
+theorem geq_tighten {t : Int} {c : Real} {cc : Int} (hc : decide ((⌊c⌋ : Real) = c) = false) (hcc : cc = ⌊c⌋ + 1) : (t : Real).bge c = t.bge cc := by
   apply Bool.eq_iff_iff.mpr
   rw [Real.bge_eq_true, Int.bge_eq_true]
   simp only [hcc, ge_iff_le, le_iff_eq_or_lt, ← Int.floor_lt]
@@ -75,9 +72,9 @@ theorem geq_tighten {t : Int} {c : Real} {cc : Int} (hc : ((⌊c⌋ : Real) == c
 
 -- Absolute value comparisons
 
-theorem abs_eq : (|x| == |y|) = (x == y || x == -y) := by
+theorem abs_eq : decide (|x| = |y|) = (decide (x = y) || decide (x = -y)) := by
   apply Bool.eq_iff_iff.mpr
-  simp only [beq_iff_eq, Bool.or_eq_true]
+  simp only [decide_eq_true_eq, Bool.or_eq_true]
   exact abs_eq_abs
 
 theorem abs_gt : |x|.bgt |y| =

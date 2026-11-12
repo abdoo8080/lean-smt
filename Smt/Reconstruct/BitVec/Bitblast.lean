@@ -38,19 +38,19 @@ theorem cons_eq_cons {a b : Bool} {xs ys : BitVec w} : (cons a xs = cons b ys) =
     rw [hxy, hab]
 
 /-! cvc5 compares bit-vectors bit by bit from their least significant bits:
-`(x == y) = ((x₀ == y₀) && (… && (xₙ₋₁ == yₙ₋₁)))`. -/
+`decide (x = y) = (decide (x₀ = y₀) && (… && decide (xₙ₋₁ = yₙ₋₁)))`. -/
 
-theorem beq_cons_cons (a b : Bool) (xs ys : BitVec w) :
-    (cons a xs == cons b ys) = ((xs == ys) && (a == b)) := by
+theorem decide_eq_cons_cons (a b : Bool) (xs ys : BitVec w) :
+    decide (cons a xs = cons b ys) = (decide (xs = ys) && decide (a = b)) := by
   apply Bool.eq_iff_iff.mpr
-  simp only [beq_iff_eq, Bool.and_eq_true, cons_eq_cons]
+  simp only [decide_eq_true_eq, Bool.and_eq_true, cons_eq_cons]
 
-theorem beq_cons_cons_and (a b acc : Bool) (xs ys : BitVec w) :
-    ((cons a xs == cons b ys) && acc) = ((xs == ys) && ((a == b) && acc)) := by
-  rw [beq_cons_cons, Bool.and_assoc]
+theorem decide_eq_cons_cons_and (a b acc : Bool) (xs ys : BitVec w) :
+    (decide (cons a xs = cons b ys) && acc) = (decide (xs = ys) && (decide (a = b) && acc)) := by
+  rw [decide_eq_cons_cons, Bool.and_assoc]
 
-theorem beq_nil_nil_and (acc : Bool) : ((nil == nil) && acc) = acc := by
-  rw [beq_self_eq_true, Bool.true_and]
+theorem decide_eq_nil_nil_and (acc : Bool) : (decide (nil = nil) && acc) = acc := by
+  rw [decide_eq_true rfl, Bool.true_and]
 
 /-- Carry function for bitwise addition. -/
 def adcb' (x y c : Bool) : Bool × Bool := (x && y || Bool.xor x y && c, (Bool.xor (Bool.xor x y) c))

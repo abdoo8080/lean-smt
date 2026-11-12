@@ -124,11 +124,11 @@ partial def smtCongr (mv : MVarId) (hs : Array Expr) : MetaM Unit := mv.withCont
     smtCongr h.mvarId! hs
     mv.assign (mkAppN (.const ``Smt.Reconstruct.Bool.decide_eq_decide_of_eq []) #[p, q, hp, hq, h])
   else if l.isAppOfArity ``not 1 && hs.size == 2 then
-    -- `(distinct a b)` is reconstructed as `!(a == b)`.
+    -- `(distinct a b)` is reconstructed as `!decide (a = b)`.
     let b₁ : Q(Bool) ← pure l.appArg!
     let b₂ : Q(Bool) ← pure r.appArg!
     let h : Q($b₁ = $b₂) ← Meta.mkFreshExprMVar q($b₁ = $b₂)
-    smtCongrUF h.mvarId! b₁ b₂ hs
+    smtCongr h.mvarId! hs
     mv.assign q(congrArg not $h)
   else if l.isAppOf ``ite then
     smtCongrIte mv l r hs

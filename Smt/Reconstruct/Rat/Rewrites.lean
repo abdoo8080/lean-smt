@@ -21,9 +21,6 @@ open Function
 /-! The rewrites are stated over the reconstructions of SMT-LIB terms (see
 `Smt.Reconstruct.Int.Rewrite`). -/
 
--- `==` is the reconstruction of SMT-LIB's `=` (see `Smt.Reconstruct.Bool.mkBEq`).
-attribute [local instance high] instBEqOfDecidableEq
-
 variable {t s x y : Rat}
 
 theorem div_total_zero : t / 0 = 0 :=
@@ -47,13 +44,13 @@ theorem geq_norm1 : t.bge s = (t - s).bge 0 := by
   rw [Rat.bge_eq_true, Rat.bge_eq_true]
   exact Rat.le_iff_sub_nonneg s t
 
-theorem eq_elim : (t == s) = (t.bge s && t.ble s) := by
+theorem eq_elim : decide (t = s) = (t.bge s && t.ble s) := by
   apply Bool.eq_iff_iff.mpr
-  rw [beq_iff_eq, Bool.and_eq_true, Rat.bge_eq_true, Rat.ble_eq_true, ge_iff_le, And.comm]
+  rw [decide_eq_true_eq, Bool.and_eq_true, Rat.bge_eq_true, Rat.ble_eq_true, ge_iff_le, And.comm]
   exact Rat.le_antisymm_iff
 
-theorem eq_conflict {t : Int} {c : Rat} (hcc : ((c.floor : Rat) == c) = false) : ((t : Rat) == c) = false := by
-  simp only [beq_eq_false_iff_ne] at *
+theorem eq_conflict {t : Int} {c : Rat} (hcc : decide ((c.floor : Rat) = c) = false) : decide ((t : Rat) = c) = false := by
+  simp only [decide_eq_false_iff_not] at *
   intro htc
   have hcc : c.floor < c := (Rat.le_iff_eq_or_lt.mp (Rat.floor_le_self c)).resolve_right hcc
   cases Int.lt_trichotomy t c.floor <;> rename_i htcf
@@ -68,12 +65,12 @@ theorem eq_conflict {t : Int} {c : Rat} (hcc : ((c.floor : Rat) == c) = false) :
       simp_all [Rat.lt_irrefl]
 
 set_option warn.sorry false in
-theorem geq_tighten {t : Int} {c : Rat} {cc : Int} (hc : ((c.floor : Rat) == c) = false) (hcc : cc = c.floor + 1) : (t : Rat).bge c = t.bge cc := by
+theorem geq_tighten {t : Int} {c : Rat} {cc : Int} (hc : decide ((c.floor : Rat) = c) = false) (hcc : cc = c.floor + 1) : (t : Rat).bge c = t.bge cc := by
   have Int.floor_lt {z : Int} {a : Rat} : a.floor < z ↔ a < ↑z := sorry
   apply Bool.eq_iff_iff.mpr
   rw [Rat.bge_eq_true, Int.bge_eq_true]
   simp only [hcc, ge_iff_le, Rat.le_iff_eq_or_lt, ← Int.floor_lt]
-  have h : ↑t ≠ c := by simpa [beq_eq_false_iff_ne] using eq_conflict (t := t) hc
+  have h : ↑t ≠ c := by simpa [decide_eq_false_iff_not] using eq_conflict (t := t) hc
   apply Iff.intro <;> intro hct
   · have h := hct.resolve_right h.symm
     omega
@@ -82,9 +79,9 @@ theorem geq_tighten {t : Int} {c : Rat} {cc : Int} (hc : ((c.floor : Rat) == c) 
 -- Absolute value comparisons
 
 set_option warn.sorry false in
-theorem abs_eq : (x.abs == y.abs) = (x == y || x == -y) := by
+theorem abs_eq : decide (x.abs = y.abs) = (decide (x = y) || decide (x = -y)) := by
   apply Bool.eq_iff_iff.mpr
-  simp only [beq_iff_eq, Bool.or_eq_true]
+  simp only [decide_eq_true_eq, Bool.or_eq_true]
   cases hx : decide (x < 0) <;> cases hy : decide (y < 0) <;> simp_all [Rat.abs] <;> sorry
 
 set_option warn.sorry false in
