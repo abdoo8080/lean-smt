@@ -1,9 +1,5 @@
 import Smt
 
--- SMT-LIB sorts are reconstructed as types.
-universe u
-variable {U : Type u}
-
 example {p q r : U → Prop} : (∀ x, p x ∧ q x ∧ r x) = ((∀ x, p x) ∧ (∀ x, q x) ∧ (∀ x, r x)) := by
   smt
 
