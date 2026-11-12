@@ -68,7 +68,7 @@ theorem miniscope_andN {α : Sort u} {ps : PList (α → Bool)} :
     simp only [Bool.forall_eq_true, Bool.and_eq_true]
     exact forall_and
 
-theorem forall_orN {α : Sort u} {ps : List Bool} {q : α → Bool} {rs : List Bool} :
+theorem miniscope_orN {α : Sort u} {ps : List Bool} {q : α → Bool} {rs : List Bool} :
     Bool.forall (fun x => Bool.orN (ps ++ q x :: rs)) = Bool.orN (ps ++ Bool.forall q :: rs) := by
   apply Bool.eq_iff_iff.mpr
   simp only [Bool.forall_eq_true, Bool.orN_eq_true, List.mem_append, List.mem_cons]

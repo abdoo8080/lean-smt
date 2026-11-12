@@ -209,7 +209,7 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
         let u ← Meta.getLevel α
         let lq ← Meta.mkLambdaFVars #[x] q
         let h₁ ← Meta.mkAppM ``Quant.forall_congr_bool #[← Meta.mkLambdaFVars #[x] h]
-        let h₂ := mkAppN (.const ``Quant.forall_orN [u])
+        let h₂ := mkAppN (.const ``Quant.miniscope_orN [u])
           #[α, ← Meta.mkListLit (.const ``Bool []) ps, lq, ← Meta.mkListLit (.const ``Bool []) rs]
         let p := mkApp2 (.const ``Bool.forall [u]) α (← Meta.mkLambdaFVars #[x] p)
         return (p, ps, mkApp2 (.const ``Bool.forall [u]) α lq, rs, ← Meta.mkEqTrans h₁ h₂)
