@@ -1,1 +1,1 @@
-Test/String/Contains.lean:4:2: error: cannot translate fun x => x == 'a', SMT-LIB does not support lambdas
+Test/String/Contains.lean:4:2: error: cannot translate fun x => decide (x = 'a'), SMT-LIB does not support lambdas

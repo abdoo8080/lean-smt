@@ -45,7 +45,8 @@ into Booleans in two steps (see `Smt.Preprocess.embedding`):
 | other atom `p` | `decide p`                               |
 
 The equalities `decide (x = y)` and the atoms `decide p` use the same instances as proof
-reconstruction (see `Smt.Reconstruct.Bool.mkDecideEq` and `Smt.Reconstruct.Bool.decideOf`).
+reconstruction: the default ones, or classical ones if there are none (see
+`Smt.Reconstruct.Bool.mkDecideEq` and `Smt.Reconstruct.Bool.decideInst`).
 
 These are the Boolean formulas that proof reconstruction builds from SMT-LIB terms, so that the
 formulas it reconstructs from cvc5's proofs are syntactically equal to the hypotheses.
@@ -212,9 +213,11 @@ theorem forall_prop_out_as_bool₆ {p : (α₁ → α₂ → α₃ → α₄ →
 
 /-! ### Propositions as Boolean formulas
 
-The theorems push `decide` into propositions. Their right-hand sides decide propositions classically;
-then the simproc `decideInstance` replaces the classical instances by synthesized ones, and the
-simproc `decideEq` decides equalities with the instances of proof reconstruction. -/
+The theorems push `decide` into propositions and decide the parts with the given instances. The
+simprocs below apply them with the default instances of the parts, or classical ones if there are
+none, as proof reconstruction does (see `Smt.Reconstruct.Bool.decideInst`). The simproc
+`decideInstance` replaces the instances of the remaining atoms in the same way, and `decideEq` decides
+equalities of data with the instances of proof reconstruction. -/
 
 universe u
 
@@ -223,23 +226,22 @@ variable {p q : Prop} {α : Sort u}
 @[smt_decide ↓] theorem decide_True' {h : Decidable True} : @decide True h = true := by simp
 @[smt_decide ↓] theorem decide_False' {h : Decidable False} : @decide False h = false := by simp
 
-@[smt_decide ↓] theorem decide_not' {h : Decidable (¬p)} :
-    @decide (¬p) h = !@decide p (Classical.propDecidable p) := by
+theorem decide_not' {h : Decidable (¬p)} (hp : Decidable p) : @decide (¬p) h = !@decide p hp := by
   apply Bool.eq_iff_iff.mpr; simp
-@[smt_decide ↓] theorem decide_and' {h : Decidable (p ∧ q)} :
-    @decide (p ∧ q) h = (@decide p (Classical.propDecidable p) && @decide q (Classical.propDecidable q)) := by
+theorem decide_and' {h : Decidable (p ∧ q)} (hp : Decidable p) (hq : Decidable q) :
+    @decide (p ∧ q) h = (@decide p hp && @decide q hq) := by
   apply Bool.eq_iff_iff.mpr; simp
-@[smt_decide ↓] theorem decide_or' {h : Decidable (p ∨ q)} :
-    @decide (p ∨ q) h = (@decide p (Classical.propDecidable p) || @decide q (Classical.propDecidable q)) := by
+theorem decide_or' {h : Decidable (p ∨ q)} (hp : Decidable p) (hq : Decidable q) :
+    @decide (p ∨ q) h = (@decide p hp || @decide q hq) := by
   apply Bool.eq_iff_iff.mpr; simp
-@[smt_decide ↓] theorem decide_imp' {h : Decidable (p → q)} :
-    @decide (p → q) h = (@decide p (Classical.propDecidable p)).imp (@decide q (Classical.propDecidable q)) := by
+theorem decide_imp' {h : Decidable (p → q)} (hp : Decidable p) (hq : Decidable q) :
+    @decide (p → q) h = (@decide p hp).imp (@decide q hq) := by
+  apply Bool.eq_iff_iff.mpr; simp only [decide_eq_true_eq, Bool.imp_eq_true]
+theorem decide_iff' {h : Decidable (p ↔ q)} (hp : Decidable p) (hq : Decidable q) :
+    @decide (p ↔ q) h = decide (@decide p hp = @decide q hq) := by
   apply Bool.eq_iff_iff.mpr; simp
-@[smt_decide ↓] theorem decide_iff' {h : Decidable (p ↔ q)} :
-    @decide (p ↔ q) h = decide (@decide p (Classical.propDecidable p) = @decide q (Classical.propDecidable q)) := by
-  apply Bool.eq_iff_iff.mpr; simp
-@[smt_decide ↓ high] theorem decide_prop_eq {h : Decidable (p = q)} :
-    @decide (p = q) h = decide (@decide p (Classical.propDecidable p) = @decide q (Classical.propDecidable q)) := by
+theorem decide_prop_eq {h : Decidable (p = q)} (hp : Decidable p) (hq : Decidable q) :
+    @decide (p = q) h = decide (@decide p hp = @decide q hq) := by
   apply Bool.eq_iff_iff.mpr; simp only [decide_eq_true_eq, decide_eq_decide]
   exact ⟨fun h => h ▸ Iff.rfl, propext⟩
 
@@ -256,31 +258,33 @@ variable {p q : Prop} {α : Sort u}
     @decide (false = b) h = !b := by
   cases b <;> simp
 
-@[smt_decide ↓] theorem decide_ne' {a b : α} {h : Decidable (a ≠ b)} :
-    @decide (a ≠ b) h = !@decide (a = b) (Classical.propDecidable (a = b)) := by
+theorem decide_ne' {a b : α} {h : Decidable (a ≠ b)} (h' : Decidable (a = b)) :
+    @decide (a ≠ b) h = !@decide (a = b) h' := by
   apply Bool.eq_iff_iff.mpr; simp
 
-@[smt_decide ↓] theorem decide_ite' {c : Prop} {hc : Decidable c} {h : Decidable (@ite Prop c hc p q)} :
-    @decide (@ite Prop c hc p q) h =
-      cond (@decide c hc) (@decide p (Classical.propDecidable p)) (@decide q (Classical.propDecidable q)) := by
+theorem decide_ite' {c : Prop} {hc : Decidable c} {h : Decidable (@ite Prop c hc p q)}
+    (hp : Decidable p) (hq : Decidable q) :
+    @decide (@ite Prop c hc p q) h = cond (@decide c hc) (@decide p hp) (@decide q hq) := by
   by_cases hc : c
   · simp [hc]
   · simp [hc]
 
-theorem decide_forall' {P : α → Prop} {h : Decidable (∀ x, P x)} :
-    @decide (∀ x, P x) h = Bool.forall fun x => @decide (P x) (Classical.propDecidable _) := by
+theorem decide_forall' {P : α → Prop} {h : Decidable (∀ x, P x)} (hP : ∀ x, Decidable (P x)) :
+    @decide (∀ x, P x) h = Bool.forall fun x => @decide (P x) (hP x) := by
   apply Bool.eq_iff_iff.mpr; simp only [decide_eq_true_eq, Bool.forall_eq_true]
 
-theorem decide_exists' {P : α → Prop} {h : Decidable (∃ x, P x)} :
-    @decide (∃ x, P x) h = Bool.exists fun x => @decide (P x) (Classical.propDecidable _) := by
+theorem decide_exists' {P : α → Prop} {h : Decidable (∃ x, P x)} (hP : ∀ x, Decidable (P x)) :
+    @decide (∃ x, P x) h = Bool.exists fun x => @decide (P x) (hP x) := by
   apply Bool.eq_iff_iff.mpr; simp only [decide_eq_true_eq, Bool.exists_eq_true]
 
-theorem decide_forall_prop {P : Prop → Prop} {h : Decidable (∀ x, P x)} :
-    @decide (∀ x, P x) h = @decide (∀ x : Bool, P (x = true)) (Classical.propDecidable _) := by
+theorem decide_forall_prop {P : Prop → Prop} {h : Decidable (∀ x, P x)}
+    (h' : Decidable (∀ x : Bool, P (x = true))) :
+    @decide (∀ x, P x) h = @decide (∀ x : Bool, P (x = true)) h' := by
   apply Bool.eq_iff_iff.mpr; simp only [decide_eq_true_eq]; exact forall_prop_as_bool
 
-theorem decide_exists_prop {P : Prop → Prop} {h : Decidable (∃ x, P x)} :
-    @decide (∃ x, P x) h = @decide (∃ x : Bool, P (x = true)) (Classical.propDecidable _) := by
+theorem decide_exists_prop {P : Prop → Prop} {h : Decidable (∃ x, P x)}
+    (h' : Decidable (∃ x : Bool, P (x = true))) :
+    @decide (∃ x, P x) h = @decide (∃ x : Bool, P (x = true)) h' := by
   apply Bool.eq_iff_iff.mpr; simp only [decide_eq_true_eq]; exact exists_prop_as_bool
 
 /-! Comparisons are decided with the Boolean comparisons that reconstruct SMT-LIB's comparisons. The
@@ -335,25 +339,127 @@ public meta section
 namespace Smt.Preprocess.Embedding
 
 open Lean Meta Simp Qq
+open Smt.Reconstruct.Bool (decideInst)
+
+/-- Turn `decide (¬p)` into `!decide p`. -/
+simproc ↓ [smt_decide] decideNot (decide (¬_)) := fun e => do
+  let_expr Decidable.decide np h := e | return .continue
+  let_expr Not p := np | return .continue
+  let p : Q(Prop) ← pure p
+  let h : Q(Decidable (¬$p)) ← pure h
+  let hp : Q(Decidable $p) ← decideInst p
+  return .visit { expr := q(!@decide $p $hp), proof? := q(@decide_not' $p $h $hp) }
+
+/-- Turn `decide (p ∧ q)` into `decide p && decide q`. -/
+simproc ↓ [smt_decide] decideAnd (decide (_ ∧ _)) := fun e => do
+  let_expr Decidable.decide pq h := e | return .continue
+  let_expr And p q := pq | return .continue
+  let p : Q(Prop) ← pure p
+  let q : Q(Prop) ← pure q
+  let h : Q(Decidable ($p ∧ $q)) ← pure h
+  let hp : Q(Decidable $p) ← decideInst p
+  let hq : Q(Decidable $q) ← decideInst q
+  return .visit { expr := q(@decide $p $hp && @decide $q $hq),
+                  proof? := q(@decide_and' $p $q $h $hp $hq) }
+
+/-- Turn `decide (p ∨ q)` into `decide p || decide q`. -/
+simproc ↓ [smt_decide] decideOr (decide (_ ∨ _)) := fun e => do
+  let_expr Decidable.decide pq h := e | return .continue
+  let_expr Or p q := pq | return .continue
+  let p : Q(Prop) ← pure p
+  let q : Q(Prop) ← pure q
+  let h : Q(Decidable ($p ∨ $q)) ← pure h
+  let hp : Q(Decidable $p) ← decideInst p
+  let hq : Q(Decidable $q) ← decideInst q
+  return .visit { expr := q(@decide $p $hp || @decide $q $hq),
+                  proof? := q(@decide_or' $p $q $h $hp $hq) }
+
+/-- Turn the implication `decide (p → q)` into `(decide p).imp (decide q)`. -/
+simproc ↓ [smt_decide] decideImp (decide _) := fun e => do
+  let_expr Decidable.decide pq h := e | return .continue
+  let .forallE _ p q _ := pq | return .continue
+  if q.hasLooseBVars || !(← isProp p) then return .continue
+  let p : Q(Prop) ← pure p
+  let q : Q(Prop) ← pure q
+  let h : Q(Decidable ($p → $q)) ← pure h
+  let hp : Q(Decidable $p) ← decideInst p
+  let hq : Q(Decidable $q) ← decideInst q
+  return .visit { expr := q((@decide $p $hp).imp (@decide $q $hq)),
+                  proof? := q(@decide_imp' $p $q $h $hp $hq) }
+
+/-- Turn `decide (p ↔ q)` into `decide (decide p = decide q)`. -/
+simproc ↓ [smt_decide] decideIff (decide (_ ↔ _)) := fun e => do
+  let_expr Decidable.decide pq h := e | return .continue
+  let_expr Iff p q := pq | return .continue
+  let p : Q(Prop) ← pure p
+  let q : Q(Prop) ← pure q
+  let h : Q(Decidable ($p ↔ $q)) ← pure h
+  let hp : Q(Decidable $p) ← decideInst p
+  let hq : Q(Decidable $q) ← decideInst q
+  return .visit { expr := q(decide (@decide $p $hp = @decide $q $hq)),
+                  proof? := q(@decide_iff' $p $q $h $hp $hq) }
+
+/-- Turn `decide (p = q)` for propositions `p` and `q` into `decide (decide p = decide q)`. -/
+simproc ↓ [smt_decide] decidePropEq (decide (_ = _)) := fun e => do
+  let_expr Decidable.decide pq h := e | return .continue
+  let_expr Eq β p q := pq | return .continue
+  if !β.isProp then return .continue
+  let p : Q(Prop) ← pure p
+  let q : Q(Prop) ← pure q
+  let h : Q(Decidable ($p = $q)) ← pure h
+  let hp : Q(Decidable $p) ← decideInst p
+  let hq : Q(Decidable $q) ← decideInst q
+  return .visit { expr := q(decide (@decide $p $hp = @decide $q $hq)),
+                  proof? := q(@decide_prop_eq $p $q $h $hp $hq) }
+
+/-- Turn `decide (a ≠ b)` into `!decide (a = b)`. -/
+simproc ↓ [smt_decide] decideNe (decide (_ ≠ _)) := fun e => do
+  let_expr Decidable.decide p h := e | return .continue
+  let_expr Ne α a b := p | return .continue
+  let u ← getLevel α
+  let ab ← mkEq a b
+  let hab ← decideInst ab
+  return .visit { expr := mkApp (.const ``not []) (mkApp2 (.const ``Decidable.decide []) ab hab),
+                  proof? := mkAppN (.const ``decide_ne' [u]) #[α, a, b, h, hab] }
+
+/-- Turn `decide (if c then p else q)` for propositions `p` and `q` into
+`cond (decide c) (decide p) (decide q)`. -/
+simproc ↓ [smt_decide] decideIte (decide (ite _ _ _)) := fun e => do
+  let_expr Decidable.decide pq h := e | return .continue
+  let_expr ite α c hc p q := pq | return .continue
+  if !α.isProp then return .continue
+  let c : Q(Prop) ← pure c
+  let hc : Q(Decidable $c) ← pure hc
+  let p : Q(Prop) ← pure p
+  let q : Q(Prop) ← pure q
+  let h : Q(Decidable (@ite Prop $c $hc $p $q)) ← pure h
+  let hp : Q(Decidable $p) ← decideInst p
+  let hq : Q(Decidable $q) ← decideInst q
+  return .visit { expr := q(cond (@decide $c $hc) (@decide $p $hp) (@decide $q $hq)),
+                  proof? := q(@decide_ite' $p $q $c $hc $h $hp $hq) }
 
 /-- Turn `decide (∀ x, p x)` into `Bool.forall fun x => decide (p x)`. Propositional variables
 `x : Prop` become Boolean ones, and quantifiers over proofs are atoms. -/
 simproc ↓ [smt_decide] decideForall (decide _) := fun e => do
   let_expr Decidable.decide p h := e | return .continue
   let .forallE n t body bi := p | return .continue
-  -- `p → q` is an implication, see `decide_imp'`.
+  -- `p → q` is an implication, see `decideImp`.
   if !body.hasLooseBVars && (← isProp t) then return .continue
   let lp := Expr.lam n t body bi
   if t.isProp then
     let lp : Q(Prop → Prop) ← pure lp
-    return .visit { expr := q(@decide (∀ x : Bool, $lp (x = true)) (Classical.propDecidable _)),
-                    proof? := mkApp2 (.const ``decide_forall_prop []) lp h }
+    let h' : Q(Decidable (∀ x : Bool, $lp (x = true))) ← decideInst q(∀ x : Bool, $lp (x = true))
+    return .visit { expr := q(@decide (∀ x : Bool, $lp (x = true)) $h'),
+                    proof? := mkApp3 (.const ``decide_forall_prop []) lp h h' }
   if ← isProp t then return .continue
   let u ← getLevel t
-  let lb := Expr.lam n t (mkApp2 (.const ``Decidable.decide []) body
-    (mkApp (.const ``Classical.propDecidable []) body)) bi
+  -- `fun x => decide (p x)` and the instances `fun x => decideInst (p x)`
+  let (lb, hp) ← withLocalDecl n bi t fun x => do
+    let px := body.instantiate1 x
+    let hx ← decideInst px
+    return (← mkLambdaFVars #[x] (mkApp2 (.const ``Decidable.decide []) px hx), ← mkLambdaFVars #[x] hx)
   return .visit { expr := mkApp2 (.const ``Bool.forall [u]) t lb,
-                  proof? := mkApp3 (.const ``decide_forall' [u]) t lp h }
+                  proof? := mkApp4 (.const ``decide_forall' [u]) t lp h hp }
 
 /-- Turn `decide (∃ x, p x)` into `Bool.exists fun x => decide (p x)`. Propositional variables
 `x : Prop` become Boolean ones, and quantifiers over proofs are atoms. -/
@@ -363,14 +469,18 @@ simproc ↓ [smt_decide] decideExists (decide (Exists _)) := fun e => do
   let .lam n _ body bi := lp | return .continue
   if t.isProp then
     let lp : Q(Prop → Prop) ← pure lp
-    return .visit { expr := q(@decide (∃ x : Bool, $lp (x = true)) (Classical.propDecidable _)),
-                    proof? := mkApp2 (.const ``decide_exists_prop []) lp h }
+    let h' : Q(Decidable (∃ x : Bool, $lp (x = true))) ← decideInst q(∃ x : Bool, $lp (x = true))
+    return .visit { expr := q(@decide (∃ x : Bool, $lp (x = true)) $h'),
+                    proof? := mkApp3 (.const ``decide_exists_prop []) lp h h' }
   if ← isProp t then return .continue
   let u ← getLevel t
-  let lb := Expr.lam n t (mkApp2 (.const ``Decidable.decide []) body
-    (mkApp (.const ``Classical.propDecidable []) body)) bi
+  -- `fun x => decide (p x)` and the instances `fun x => decideInst (p x)`
+  let (lb, hp) ← withLocalDecl n bi t fun x => do
+    let px := body.instantiate1 x
+    let hx ← decideInst px
+    return (← mkLambdaFVars #[x] (mkApp2 (.const ``Decidable.decide []) px hx), ← mkLambdaFVars #[x] hx)
   return .visit { expr := mkApp2 (.const ``Bool.exists [u]) t lb,
-                  proof? := mkApp3 (.const ``decide_exists' [u]) t lp h }
+                  proof? := mkApp4 (.const ``decide_exists' [u]) t lp h hp }
 
 /-- Decide equalities `a = b` of data with the same instances as proof reconstruction (see
 `Smt.Reconstruct.Bool.mkDecideEq`). Equalities of propositions and Booleans `b = true` are handled by
@@ -394,13 +504,14 @@ simproc ↓ [smt_decide] decideEq (decide (_ = _)) := fun e => do
                  proof? := mkAppN (.const ``decide_eq_congr [u])
                    #[β, a, ra.expr, b, rb.expr, h, inst, ← ra.getProof, ← rb.getProof] }
 
-/-- Replace the instance of an atom `decide p` by a synthesized one, as in proof reconstruction (see
-`Smt.Reconstruct.Bool.decideOf`). The equalities of data are left to `decideEq`. -/
+/-- Replace the instance of an atom `decide p`, e.g., one of the problem, by the default one, or a
+classical one if there is none, as in proof reconstruction (see `Smt.Reconstruct.Bool.decideInst`).
+The equalities of data are left to `decideEq`. -/
 simproc ↑ [smt_decide] decideInstance (decide _) := fun e => do
   let_expr Decidable.decide p h := e | return .continue
   if let some (β, _, _) := p.eq? then
     if !(β.isProp || (← isProp β)) then return .continue
-  let some inst ← synthInstance? (mkApp (.const ``Decidable []) p) | return .continue
+  let inst ← decideInst p
   if inst == h then return .continue
   return .done { expr := mkApp2 (.const ``Decidable.decide []) p inst,
                  proof? := mkApp3 (.const ``decide_instance []) p h inst }

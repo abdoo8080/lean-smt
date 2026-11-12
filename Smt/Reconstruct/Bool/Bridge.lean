@@ -20,13 +20,16 @@ namespace Smt.Reconstruct.Bool
 
 open Lean Qq
 
-/-- The Boolean atom `decide p` of the proposition `p`, with a synthesized instance of `Decidable p`, or a
-classical one. -/
+/-- The instance of `Decidable p` that Boolean formulas decide `p` with: the default one, i.e., a
+synthesized one, or a classical one if there is none. -/
+def decideInst (p : Expr) : MetaM Expr := do
+  match ← Meta.synthInstance? (mkApp (.const ``Decidable []) p) with
+  | some inst => return inst
+  | none => return mkApp (.const ``Classical.propDecidable []) p
+
+/-- The Boolean atom `decide p` of the proposition `p`, with the instance `decideInst p`. -/
 def decideOf (p : Expr) : MetaM Expr := do
-  let inst ← match ← Meta.synthInstance? (mkApp (.const ``Decidable []) p) with
-    | some inst => pure inst
-    | none => pure (mkApp (.const ``Classical.propDecidable []) p)
-  return mkApp2 (.const ``Decidable.decide []) p inst
+  return mkApp2 (.const ``Decidable.decide []) p (← decideInst p)
 
 /-- The instance of `DecidableEq α` that Boolean formulas decide `a = b` with for `a b : α`: the exact
 one for SMT-LIB's builtin sorts, and otherwise a synthesized one, or a classical one. -/
