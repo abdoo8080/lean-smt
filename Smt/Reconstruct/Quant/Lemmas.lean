@@ -41,11 +41,32 @@ theorem forall_const_bool (α : Sort u) [Nonempty α] {b c : Bool} (h : b = c) :
   rw [Bool.forall_eq_true]
   exact ⟨fun h => h (Classical.ofNonempty), fun h _ => h⟩
 
-theorem forall_and_bool {α : Sort u} {p q : α → Bool} :
-    Bool.forall (fun x => p x && q x) = (Bool.forall p && Bool.forall q) := by
-  apply Bool.eq_iff_iff.mpr
-  simp only [Bool.forall_eq_true, Bool.and_eq_true]
-  exact forall_and
+/-- A list in any universe: `List (α → Bool)` needs `α : Type u`, but the variables of quantifiers
+may be in `Sort u`. Mainly for `miniscope_andN`. -/
+inductive PList (α : Sort u) where
+  | nil : PList α
+  | cons (head : α) (tail : PList α) : PList α
+
+def PList.map {α : Sort u} {β : Sort v} (f : α → β) : PList α → PList β
+  | .nil      => .nil
+  | .cons h t => .cons (f h) (map f t)
+
+def PList.toList {α : Type u} : PList α → List α
+  | .nil      => []
+  | .cons h t => h :: toList t
+
+theorem miniscope_andN {α : Sort u} {ps : PList (α → Bool)} :
+    Bool.forall (fun x => Bool.andN (ps.map (· x)).toList) =
+      Bool.andN (ps.map Bool.forall).toList := by
+  induction ps with
+  | nil =>
+    apply Bool.eq_iff_iff.mpr
+    simp [PList.map, PList.toList, Bool.andN]
+  | cons p ps ih =>
+    simp only [PList.map, PList.toList, Bool.andN_cons_append, ← ih]
+    apply Bool.eq_iff_iff.mpr
+    simp only [Bool.forall_eq_true, Bool.and_eq_true]
+    exact forall_and
 
 theorem forall_orN {α : Sort u} {ps : List Bool} {q : α → Bool} {rs : List Bool} :
     Bool.forall (fun x => Bool.orN (ps ++ q x :: rs)) = Bool.orN (ps ++ Bool.forall q :: rs) := by

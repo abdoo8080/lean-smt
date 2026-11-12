@@ -175,8 +175,9 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
         let α ← Meta.inferType x
         let u ← Meta.getLevel α
         let lgs ← gs.mapM (Meta.mkLambdaFVars #[x] ·)
+        let ps ← mkPListLit (.forallE `x α (.const ``Bool []) .default) lgs.toList
         let h₁ ← Meta.mkAppM ``Quant.forall_congr_bool #[← Meta.mkLambdaFVars #[x] h]
-        let h₂ ← forallAndN u α lgs.toList
+        let h₂ := mkApp2 (.const ``Quant.miniscope_andN [u]) α ps
         let p := mkApp2 (.const ``Bool.forall [u]) α (← Meta.mkLambdaFVars #[x] p)
         return (p, lgs.map (mkApp2 (.const ``Bool.forall [u]) α), ← Meta.mkEqTrans h₁ h₂)
       let (_, _, h) ← xs.foldrM f (b, gs, h)
@@ -249,22 +250,11 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       addEqThm pf.getResult (mkAppN (.const ``Quant.var_elim_eq_bool [v]) #[α, t, insts])
   | _ => return none
 where
-  /-- A proof of
-  `Bool.forall (fun x => andN [p₁ x, …, pₙ x]) = andN [Bool.forall p₁, …, Bool.forall pₙ]` for
-  `pᵢ : α → Bool` and `n > 0`, one conjunct at a time. -/
-  forallAndN (u : Level) (α : Expr) : List Expr → MetaM Expr
-    | [] => throwError "[miniscope_and]: expected a conjunct"
-    | [p] => Meta.mkEqRefl (mkApp2 (.const ``Bool.forall [u]) α p)
-    | p :: ps => do
-      -- `q := fun x => andN [p₂ x, …, pₙ x]`
-      let q ← Meta.withLocalDeclD `x α fun x => do
-        Meta.mkLambdaFVars #[x] (← andN (ps.map (·.beta #[x])).toArray)
-      -- `Bool.forall (fun x => p x && q x) = (Bool.forall p && Bool.forall q)`
-      let h₁ := mkApp3 (.const ``Quant.forall_and_bool [u]) α p q
-      -- `Bool.forall q = andN [Bool.forall p₂, …, Bool.forall pₙ]`
-      let h₂ ← forallAndN u α ps
-      let fp := mkApp2 (.const ``Bool.forall [u]) α p
-      Meta.mkEqTrans h₁ (← Meta.mkCongrArg (mkApp (.const ``and []) fp) h₂)
+  /-- The `PList` literal of the elements `es` of type `α`. -/
+  mkPListLit (α : Expr) (es : List Expr) : MetaM Expr := do
+    let u ← Meta.getLevel α
+    let nil := mkApp (.const ``Quant.PList.nil [u]) α
+    return es.foldr (mkApp3 (.const ``Quant.PList.cons [u]) α) nil
   /-- `Bool.andN [b₁, …, bₙ]`. -/
   andN (bs : Array Expr) : MetaM Expr := do
     return mkApp (.const ``Bool.andN []) (← Meta.mkListLit (.const ``Bool []) bs.toList)
