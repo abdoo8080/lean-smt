@@ -447,15 +447,17 @@ simproc ↓ [smt_decide] decideForall (decide _) := fun e => do
   if !body.hasLooseBVars && (← isProp t) then return .continue
   let lp := Expr.lam n t body bi
   if t.isProp then
-    let lp : Q(Prop → Prop) ← pure lp
-    let h' : Q(Decidable (∀ x : Bool, $lp (x = true))) ← decideInst q(∀ x : Bool, $lp (x = true))
-    return .visit { expr := q(@decide (∀ x : Bool, $lp (x = true)) $h'),
-                    proof? := mkApp3 (.const ``decide_forall_prop []) lp h h' }
+    -- `∀ x : Bool, p (x = true)`
+    let pb ← withLocalDecl n bi (.const ``Bool []) fun x => do
+      mkForallFVars #[x] (body.instantiate1 (← mkEq x (.const ``true [])))
+    let hb ← decideInst pb
+    return .visit { expr := mkApp2 (.const ``Decidable.decide []) pb hb,
+                    proof? := mkApp3 (.const ``decide_forall_prop []) lp h hb }
   if ← isProp t then return .continue
   let u ← getLevel t
   -- `fun x => decide (p x)` and the instances `fun x => decideInst (p x)`
   let (lb, hp) ← withLocalDecl n bi t fun x => do
-    let px := body.instantiate1 x
+    let px := (body.instantiate1 x).headBeta
     let hx ← decideInst px
     return (← mkLambdaFVars #[x] (mkApp2 (.const ``Decidable.decide []) px hx), ← mkLambdaFVars #[x] hx)
   return .visit { expr := mkApp2 (.const ``Bool.forall [u]) t lb,
@@ -468,15 +470,17 @@ simproc ↓ [smt_decide] decideExists (decide (Exists _)) := fun e => do
   let_expr Exists t lp := p | return .continue
   let .lam n _ body bi := lp | return .continue
   if t.isProp then
-    let lp : Q(Prop → Prop) ← pure lp
-    let h' : Q(Decidable (∃ x : Bool, $lp (x = true))) ← decideInst q(∃ x : Bool, $lp (x = true))
-    return .visit { expr := q(@decide (∃ x : Bool, $lp (x = true)) $h'),
-                    proof? := mkApp3 (.const ``decide_exists_prop []) lp h h' }
+    -- `∃ x : Bool, p (x = true)`
+    let pb ← withLocalDecl n bi (.const ``Bool []) fun x => do
+      mkAppM ``Exists #[← mkLambdaFVars #[x] (body.instantiate1 (← mkEq x (.const ``true [])))]
+    let hb ← decideInst pb
+    return .visit { expr := mkApp2 (.const ``Decidable.decide []) pb hb,
+                    proof? := mkApp3 (.const ``decide_exists_prop []) lp h hb }
   if ← isProp t then return .continue
   let u ← getLevel t
   -- `fun x => decide (p x)` and the instances `fun x => decideInst (p x)`
   let (lb, hp) ← withLocalDecl n bi t fun x => do
-    let px := body.instantiate1 x
+    let px := (body.instantiate1 x).headBeta
     let hx ← decideInst px
     return (← mkLambdaFVars #[x] (mkApp2 (.const ``Decidable.decide []) px hx), ← mkLambdaFVars #[x] hx)
   return .visit { expr := mkApp2 (.const ``Bool.exists [u]) t lb,
@@ -504,17 +508,18 @@ simproc ↓ [smt_decide] decideEq (decide (_ = _)) := fun e => do
                  proof? := mkAppN (.const ``decide_eq_congr [u])
                    #[β, a, ra.expr, b, rb.expr, h, inst, ← ra.getProof, ← rb.getProof] }
 
-/-- Replace the instance of an atom `decide p`, e.g., one of the problem, by the default one, or a
-classical one if there is none, as in proof reconstruction (see `Smt.Reconstruct.Bool.decideInst`).
-The equalities of data are left to `decideEq`. -/
-simproc ↑ [smt_decide] decideInstance (decide _) := fun e => do
+/-- Replace the instance of `decide p`, e.g., one of the problem, by the default one, or a classical
+one if there is none, as in proof reconstruction (see `Smt.Reconstruct.Bool.decideInst`). The
+equalities of data are left to `decideEq`. The result is visited again, so that the simprocs above
+still turn compound propositions into Boolean formulas, whichever runs first. -/
+simproc ↓ [smt_decide] decideInstance (decide _) := fun e => do
   let_expr Decidable.decide p h := e | return .continue
   if let some (β, _, _) := p.eq? then
     if !(β.isProp || (← isProp β)) then return .continue
   let inst ← decideInst p
   if inst == h then return .continue
-  return .done { expr := mkApp2 (.const ``Decidable.decide []) p inst,
-                 proof? := mkApp3 (.const ``decide_instance []) p h inst }
+  return .visit { expr := mkApp2 (.const ``Decidable.decide []) p inst,
+                  proof? := mkApp3 (.const ``decide_instance []) p h inst }
 
 /-- Replace `if c then x else y` by `cond (decide c) x y` for non-propositional `x` and `y`. -/
 simproc ↓ [smt_decide] iteToCond (ite _ _ _) := fun e => do

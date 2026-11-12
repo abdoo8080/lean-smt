@@ -124,7 +124,8 @@ def embedProps (mv : MVarId) (hs : Array Expr) : MetaM Result := do
     | throwError "smt_decide simproc extension not found"
   let simprocs := #[← procsExt.getSimprocs]
   let ctx ← mv.withContext do
-    Meta.Simp.mkContext { zeta := false, beta := true, eta := true, proj := false, iota := false }
+    Meta.Simp.mkContext
+      { zeta := false, beta := true, eta := true, proj := false, iota := false, singlePass := true }
       (simpTheorems := #[← thmsExt.getTheorems]) (congrTheorems := ← Meta.getSimpCongrTheorems)
   let mut mv := mv
   let mut map : Std.HashMap Expr (Array Expr) := {}
