@@ -17,8 +17,6 @@ public import Smt.Reconstruct.Bool.Rewrites
 public meta import Smt.Reconstruct.Bool.Rewrites
 public import Smt.Reconstruct.Builtin.AC
 public meta import Smt.Reconstruct.Builtin.AC
-public import Smt.Reconstruct.Builtin.Lemmas
-public meta import Smt.Reconstruct.Builtin.Lemmas
 public import Smt.Reconstruct.Builtin.Tactic
 public meta import Smt.Reconstruct.Builtin.Tactic
 

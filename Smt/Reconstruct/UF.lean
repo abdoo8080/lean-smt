@@ -15,8 +15,6 @@ public import Smt.Reconstruct.Bool.Lemmas
 public meta import Smt.Reconstruct.Bool.Lemmas
 public import Smt.Reconstruct.Bool.Rewrites
 public meta import Smt.Reconstruct.Bool.Rewrites
-public import Smt.Reconstruct.UF.Rewrites
-public meta import Smt.Reconstruct.UF.Rewrites
 
 public meta section
 

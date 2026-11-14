@@ -10,9 +10,6 @@ module
 public import Lean
 public meta import Lean
 
-public import Smt.Reconstruct.Prop.Rewrites
-public meta import Smt.Reconstruct.Prop.Rewrites
-
 @[expose] public section
 
 theorem Eq.trans₂ {α} {a b c d : α} (h₁ : a = b) (h₂ : b = c) (h₃ : c = d) : a = d :=
@@ -23,7 +20,6 @@ public meta section
 namespace Smt.Reconstruct.Tactic
 
 open Lean Elab.Tactic
-open Smt.Reconstruct.Prop
 
 def traceSmtRw (r : Except Exception Unit) : MetaM MessageData :=
   return match r with
