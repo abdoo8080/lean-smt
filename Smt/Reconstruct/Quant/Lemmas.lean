@@ -22,20 +22,28 @@ theorem forall_elim {α : Sort u} {p : α → Bool} (h : Bool.forall p = true) (
 theorem forall_intro {α : Sort u} {p : α → Bool} (h : ∀ x, p x = true) : Bool.forall p = true :=
   Bool.forall_eq_true ▸ h
 
-theorem forall_congr_bool {α : Sort u} {p q : α → Bool} (h : ∀ x, p x = q x) :
-    Bool.forall p = Bool.forall q :=
-  congrArg Bool.forall (funext h)
+theorem forall_congr_bool {α : Sort u} {p q : α → Bool} (h : ∀ x, Bool.eq (p x) (q x)) :
+    Bool.eq (Bool.forall p) (Bool.forall q) :=
+  Bool.eq.of_eq (congrArg Bool.forall (funext fun x => (h x).to_eq))
 
-theorem bool_eq_of_imp {a b : Bool} (h₁ : a = true → b = true) (h₂ : b = true → a = true) : a = b :=
-  Bool.eq_iff_iff.mpr ⟨h₁, h₂⟩
+theorem exists_congr_bool {α : Sort u} {p q : α → Bool} (h : ∀ x, Bool.eq (p x) (q x)) :
+    Bool.eq (Bool.exists p) (Bool.exists q) :=
+  Bool.eq.of_eq (congrArg Bool.exists (funext fun x => (h x).to_eq))
 
-theorem exists_eq_not_forall {α : Sort u} {p q : α → Bool} (h : ∀ x, p x = !q x) :
-    Bool.exists p = !Bool.forall q := by
+theorem bool_eq_of_imp {a b : Bool} (h₁ : a = true → b = true) (h₂ : b = true → a = true) :
+    Bool.eq a b :=
+  Bool.eq.of_eq (Bool.eq_iff_iff.mpr ⟨h₁, h₂⟩)
+
+theorem exists_eq_not_forall {α : Sort u} {p q : α → Bool} (h : ∀ x, Bool.eq (p x) (!q x)) :
+    Bool.eq (Bool.exists p) (!Bool.forall q) := by
+  apply Bool.eq.of_eq
   apply Bool.eq_iff_iff.mpr
-  simp [Bool.exists_eq_true, Bool.forall_eq_false, h]
+  simp [Bool.exists_eq_true, Bool.forall_eq_false, fun x => (h x).to_eq]
 
-theorem forall_const_bool (α : Sort u) [Nonempty α] {b c : Bool} (h : b = c) :
-    Bool.forall (fun _ : α => b) = c := by
+theorem forall_const_bool (α : Sort u) [Nonempty α] {b c : Bool} (h : Bool.eq b c) :
+    Bool.eq (Bool.forall (fun _ : α => b)) c := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   subst h
   apply Bool.eq_iff_iff.mpr
   rw [Bool.forall_eq_true]
@@ -56,8 +64,9 @@ def PList.toList {α : Type u} : PList α → List α
   | .cons h t => h :: toList t
 
 theorem miniscope_andN {α : Sort u} {ps : PList (α → Bool)} :
-    Bool.forall (fun x => Bool.andN (ps.map (· x)).toList) =
-      Bool.andN (ps.map Bool.forall).toList := by
+    Bool.eq (Bool.forall (fun x => Bool.andN (ps.map (· x)).toList))
+      (Bool.andN (ps.map Bool.forall).toList) := by
+  apply Bool.eq.of_eq
   induction ps with
   | nil =>
     apply Bool.eq_iff_iff.mpr
@@ -69,7 +78,9 @@ theorem miniscope_andN {α : Sort u} {ps : PList (α → Bool)} :
     exact forall_and
 
 theorem miniscope_orN {α : Sort u} {ps : List Bool} {q : α → Bool} {rs : List Bool} :
-    Bool.forall (fun x => Bool.orN (ps ++ q x :: rs)) = Bool.orN (ps ++ Bool.forall q :: rs) := by
+    Bool.eq (Bool.forall (fun x => Bool.orN (ps ++ q x :: rs)))
+      (Bool.orN (ps ++ Bool.forall q :: rs)) := by
+  apply Bool.eq.of_eq
   apply Bool.eq_iff_iff.mpr
   simp only [Bool.forall_eq_true, Bool.orN_eq_true, List.mem_append, List.mem_cons]
   constructor
@@ -99,14 +110,16 @@ theorem forall_skolem {α : Sort u} [h : Nonempty α] {p : α → Bool} (hp : (!
   have hx : ∃ x, ¬p x = true := Classical.not_forall.mp hp
   simpa using Classical.epsilon_spec hx
 
-theorem var_elim_eq_bool {α : Sort u} {t : α} {h : ∀ x, Decidable (x = t)} :
-    Bool.forall (fun x => !@decide (x = t) (h x)) = false := by
+theorem var_elim_eq_bool {α : Sort u} [DecidableEq α] {t : α} :
+    Bool.eq (Bool.forall (fun x => !decide (x = t))) false := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_false_iff]
   intro h
   simpa using forall_elim h t
 
-theorem var_elim_eq_or_bool {α : Sort u} {t : α} {h : ∀ x, Decidable (x = t)} {b : α → Bool} :
-    Bool.forall (fun x => !@decide (x = t) (h x) || b x) = b t := by
+theorem var_elim_eq_or_bool {α : Sort u} [DecidableEq α] {t : α} {b : α → Bool} :
+    Bool.eq (Bool.forall (fun x => !decide (x = t) || b x)) (b t) := by
+  apply Bool.eq.of_eq
   apply Bool.eq_iff_iff.mpr
   rw [Bool.forall_eq_true]
   constructor

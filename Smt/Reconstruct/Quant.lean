@@ -11,6 +11,8 @@ public import Smt.Reconstruct
 public meta import Smt.Reconstruct
 public import Smt.Reconstruct.Bool.Lemmas
 public meta import Smt.Reconstruct.Bool.Lemmas
+public import Smt.Reconstruct.Bool.Rewrites
+public meta import Smt.Reconstruct.Bool.Rewrites
 public import Smt.Reconstruct.Quant.Lemmas
 public meta import Smt.Reconstruct.Quant.Lemmas
 
@@ -90,8 +92,9 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   match pf.getRewriteRule! with
   | .BETA_REDUCE =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getResult[0]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
     let t  : Q($α) ← reconstructTerm pf.getResult[0]!
-    addEqThm pf.getResult q(Eq.refl $t)
+    addThm (← reconstructProofType pf.getResult) q(Bool.eq.refl $t)
   | .EXISTS_ELIM =>
     -- `(exists xs F) = (not (forall xs (not F)))`, one variable at a time from the innermost.
     let mut xs := #[]
@@ -99,7 +102,8 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       xs := xs.push (getVariableName x, fun _ => reconstructSort x.getSort!)
     let h ← Meta.withLocalDeclsD xs fun xs => withNewTermCache do
       let b : Q(Bool) ← reconstructTerm pf.getResult[0]![1]!
-      -- `h : e = !a`, where `e` and `a` quantify `F` and `not F` over the variables seen so far.
+      -- `h : Bool.eq e (!a)`, where `e` and `a` quantify `F` and `not F` over the variables seen so
+      -- far.
       let f := fun x (e, a, h) => do
         let α ← Meta.inferType x
         let u ← Meta.getLevel α
@@ -108,9 +112,9 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
         let hx ← Meta.mkLambdaFVars #[x] h
         return (mkApp2 (.const ``Bool.exists [u]) α le, mkApp2 (.const ``Bool.forall [u]) α la,
           mkAppN (.const ``Quant.exists_eq_not_forall [u]) #[α, le, la, hx])
-      let (_, _, h) ← xs.foldrM f (b, q(!$b), q((Bool.not_not $b).symm))
+      let (_, _, h) ← xs.foldrM f (b, q(!$b), q(Bool.eq.symm (Bool.bool_double_not_elim (t := $b))))
       return h
-    addEqThm pf.getResult h
+    addThm (← reconstructProofType pf.getResult) h
   | .QUANT_UNUSED_VARS =>
     -- `(forall xs F) = (forall ys F)`, where `ys` are the variables of `xs` that occur in `F`.
     let mut ys := #[]
@@ -119,8 +123,8 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
         ys := ys.push (getVariableName y, fun _ => reconstructSort y.getSort!)
     let h ← Meta.withLocalDeclsD ys fun ys => withNewTermCache do
       let b : Q(Bool) ← reconstructTerm pf.getResult[0]![1]!
-      -- `h : p = q`, where `p` quantifies `F` over the variables of `xs` seen so far, and `q` over
-      -- those of `ys`.
+      -- `h : Bool.eq p q`, where `p` quantifies `F` over the variables of `xs` seen so far, and `q`
+      -- over those of `ys`.
       let f := fun i (j, p, q, h) => do
         let (u, α) ← reconstructSortLevelAndSort pf.getResult[0]![0]![i]!.getSort!
         if let some j := j then
@@ -137,13 +141,13 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
           mkAppN (.const ``Quant.forall_const_bool [u]) #[α, hα, p, q, h])
       let i := pf.getResult[0]![0]!.getNumChildren
       let j := if ys.isEmpty then none else some (ys.size - 1)
-      let (_, _, _, h) ← (List.range i).foldrM f (j, b, b, q(Eq.refl $b))
+      let (_, _, _, h) ← (List.range i).foldrM f (j, b, b, q(Bool.eq.refl $b))
       return h
-    addEqThm pf.getResult h
+    addThm (← reconstructProofType pf.getResult) h
   | .QUANT_MERGE_PRENEX =>
     -- Both sides are reconstructed as `Bool.forall fun x₁ => ⋯ Bool.forall fun xₙ => F`.
     let b : Q(Bool) ← reconstructTerm pf.getResult[0]!
-    addEqThm pf.getResult q(Eq.refl $b)
+    addThm (← reconstructProofType pf.getResult) q(Bool.eq.refl $b)
   | .QUANT_MINISCOPE_AND =>
     -- `(forall xs (and F₁ … Fₙ)) = (and (forall xs F₁) … (forall xs Fₙ))`, one variable at a time
     -- from the innermost.
@@ -152,10 +156,11 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       xs := xs.push (getVariableName x, fun _ => reconstructSort x.getSort!)
     let h ← Meta.withLocalDeclsD xs fun xs => withNewTermCache do
       let gs ← pf.getResult[0]![1]!.getChildren.mapM reconstructTerm
-      let b ← reconstructTerm pf.getResult[0]![1]!
-      let h ← Meta.mkExpectedTypeHint (← Meta.mkEqRefl b) (← Meta.mkEq b (← andN gs))
-      -- `h : p = andN gs`, where `p` and the conjuncts `gs` are quantified over the variables seen
-      -- so far.
+      let b : Q(Bool) ← reconstructTerm pf.getResult[0]![1]!
+      let g : Q(Bool) ← andN gs
+      let h ← Meta.mkExpectedTypeHint q(Bool.eq.refl $b) q(Bool.eq $b $g)
+      -- `h : Bool.eq p (andN gs)`, where `p` and the conjuncts `gs` are quantified over the variables
+      -- seen so far.
       let f := fun x (p, gs, h) => do
         let α ← Meta.inferType x
         let u ← Meta.getLevel α
@@ -164,10 +169,11 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
         let h₁ ← Meta.mkAppM ``Quant.forall_congr_bool #[← Meta.mkLambdaFVars #[x] h]
         let h₂ := mkApp2 (.const ``Quant.miniscope_andN [u]) α ps
         let p := mkApp2 (.const ``Bool.forall [u]) α (← Meta.mkLambdaFVars #[x] p)
-        return (p, lgs.map (mkApp2 (.const ``Bool.forall [u]) α), ← Meta.mkEqTrans h₁ h₂)
+        let h ← Meta.mkAppM ``Bool.eq.trans #[h₁, h₂]
+        return (p, lgs.map (mkApp2 (.const ``Bool.forall [u]) α), h)
       let (_, _, h) ← xs.foldrM f (b, gs, h)
       return h
-    addEqThm pf.getResult h
+    addThm (← reconstructProofType pf.getResult) h
   | .QUANT_MINISCOPE_OR =>
     -- `(forall xs (or F₁ … Fₙ)) = (or (forall xs₁ F₁) … (forall xsₙ Fₙ))`, where `xsᵢ` are the
     -- variables of `Fᵢ`, one variable at a time from the innermost.
@@ -186,9 +192,10 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
         else
           xss := xss.push xs[ci:ci]
       let ps := (← pf.getResult[0]![1]!.getChildren.mapM reconstructTerm).toList
-      let b ← reconstructTerm pf.getResult[0]![1]!
-      let h ← Meta.mkExpectedTypeHint (← Meta.mkEqRefl b) (← Meta.mkEq b (← orN ps))
-      -- `h : p = orN (ps ++ q :: rs)`, where `q` is the disjunct of the current variables.
+      let b : Q(Bool) ← reconstructTerm pf.getResult[0]![1]!
+      let o : Q(Bool) ← orN ps
+      let h ← Meta.mkExpectedTypeHint q(Bool.eq.refl $b) q(Bool.eq $b $o)
+      -- `h : Bool.eq p (orN (ps ++ q :: rs))`, where `q` is the disjunct of the current variables.
       let fin := fun x (p, ps, q, rs, h) => do
         let α ← Meta.inferType x
         let u ← Meta.getLevel α
@@ -197,18 +204,19 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
         let h₂ := mkAppN (.const ``Quant.miniscope_orN [u])
           #[α, ← Meta.mkListLit (.const ``Bool []) ps, lq, ← Meta.mkListLit (.const ``Bool []) rs]
         let p := mkApp2 (.const ``Bool.forall [u]) α (← Meta.mkLambdaFVars #[x] p)
-        return (p, ps, mkApp2 (.const ``Bool.forall [u]) α lq, rs, ← Meta.mkEqTrans h₁ h₂)
+        let h ← Meta.mkAppM ``Bool.eq.trans #[h₁, h₂]
+        return (p, ps, mkApp2 (.const ``Bool.forall [u]) α lq, rs, h)
       let fout := fun xs (p, ps, q, rs, h) => do
         let (p, ps, q, rs, h) ← xs.foldrM fin (p, ps, q, rs, h)
         return (p, ps.dropLast, ps.getLastD (.const ``Bool.false []), q :: rs, h)
       let (_, _, _, _, h) ← xss.foldrM fout (b, ps.dropLast, ps.getLast!, [], h)
       return h
-    addEqThm pf.getResult h
+    addThm (← reconstructProofType pf.getResult) h
   | .QUANT_MINISCOPE_ITE =>
     -- `(forall xs (ite c F G)) = (ite c (forall xs F) (forall xs G))`, where `c` does not depend on
     -- `xs`, holds by cases on `c`.
     let c : Q(Bool) ← reconstructTerm pf.getResult[1]![0]!
-    addEqTac pf.getResult fun mv => do
+    addTac (← reconstructProofType pf.getResult) <| decideTac fun mv => do
       let (fvs, mv) ← mv.generalize #[{ expr := c }]
       for g in ← mv.cases fvs[0]! do
         g.mvarId.refl
@@ -221,8 +229,7 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     let v ← Meta.getLevel α
     let n : Name := getVariableName eq[0]!
     let t ← reconstructTerm eq[1]!
-    -- the instances of `Decidable (x = t)` of the Boolean formulas `decide (x = t)`
-    let insts ← Meta.withLocalDeclD n α fun x => do Meta.mkLambdaFVars #[x] (← Bool.eqInst α x t)
+    let inst ← Bool.decEqInst α
     if lb.getKind! == .OR then
       let b ← Meta.withLocalDeclD n α fun x => withNewTermCache do
         let mut b : Q(Bool) ← reconstructTerm lb[lb.getNumChildren - 1]!
@@ -230,9 +237,11 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
           let c : Q(Bool) ← reconstructTerm lb[lb.getNumChildren - i - 1]!
           b := q($c || $b)
         Meta.mkLambdaFVars #[x] b
-      addEqThm pf.getResult (mkAppN (.const ``Quant.var_elim_eq_or_bool [v]) #[α, t, insts, b])
+      addThm (← reconstructProofType pf.getResult)
+        (mkAppN (.const ``Quant.var_elim_eq_or_bool [v]) #[α, inst, t, b])
     else
-      addEqThm pf.getResult (mkAppN (.const ``Quant.var_elim_eq_bool [v]) #[α, t, insts])
+      addThm (← reconstructProofType pf.getResult)
+        (mkAppN (.const ``Quant.var_elim_eq_bool [v]) #[α, inst, t])
   | _ => return none
 where
   /-- The `PList` literal of the elements `es` of type `α`. -/
@@ -253,9 +262,9 @@ where
     let k := pf.getResult[0]!.getKind!
     -- This rule needs more care for closures.
     if k == .FORALL then
-      reconstructQuantCong ``Bool.forall pf
+      reconstructQuantCong ``Bool.forall ``Quant.forall_congr_bool pf
     else if k == .EXISTS then
-      reconstructQuantCong ``Bool.exists pf
+      reconstructQuantCong ``Bool.exists ``Quant.exists_congr_bool pf
     else
       return none
   | .SKOLEMIZE => reconstructSkolemize pf
@@ -272,7 +281,7 @@ where
     addThm (← reconstructProofType pf.getResult) h
   | .ALPHA_EQUIV =>
     let t : Q(Bool) ← reconstructTerm pf.getResult[0]!
-    addEqThm pf.getResult q(Eq.refl $t)
+    addThm (← reconstructProofType pf.getResult) q(Bool.eq.refl $t)
   | .QUANT_VAR_REORDERING =>
     -- `(forall xs F) = (forall ys F)`, where `ys` is a permutation of `xs`: eliminate the quantifiers
     -- of one side and introduce those of the other.
@@ -282,7 +291,7 @@ where
     let q ← reconstructTerm pf.getResult[1]!
     let hpq ← reorder p xs ys
     let hqp ← reorder q ys xs
-    addEqThm pf.getResult (← Meta.mkAppM ``Quant.bool_eq_of_imp #[hpq, hqp])
+    addThm (← reconstructProofType pf.getResult) (← Meta.mkAppM ``Quant.bool_eq_of_imp #[hpq, hqp])
   | _ => return none
 where
   /-- A proof of `p = true → (forall ys F) = true`, where `p` is `(forall xs F)` and `ys` is a
@@ -300,22 +309,22 @@ where
         return h
       Meta.mkLambdaFVars #[hp] h
   /-- Congruence for `(forall xs F) = (forall xs G)` (and `exists`) from a proof of `F = G` under
-  the bound variables `xs`. -/
-  reconstructQuantCong (op : Name) (pf : cvc5.Proof) : ReconstructM Expr := do
+  the bound variables `xs`, with the congruence theorem `congr` of the quantifier `op`. -/
+  reconstructQuantCong (op congr : Name) (pf : cvc5.Proof) : ReconstructM Expr := do
     let mut xs := #[]
     for x in pf.getResult[0]![0]! do
       xs := xs.push (getVariableName x, fun _ => reconstructSort x.getSort!)
     let (_, _, h) ← Meta.withLocalDeclsD xs fun xs => withNewTermCache <| withNewProofCache <| withAssums xs do
       let b₁ ← reconstructTerm pf.getResult[0]![1]!
       let b₂ ← reconstructTerm pf.getResult[1]![1]!
-      let h ← reconstructEqProof pf.getChildren[0]!
+      let h ← reconstructProof pf.getChildren[0]!
       let f := fun x (b₁, b₂, h) => do
         let α ← Meta.inferType x
         let q := mkApp (.const op [← Meta.getLevel α]) α
-        let hq ← Meta.mkCongrArg q (← Meta.mkFunExt (← Meta.mkLambdaFVars #[x] h))
+        let hq ← Meta.mkAppM congr #[← Meta.mkLambdaFVars #[x] h]
         return (mkApp q (← Meta.mkLambdaFVars #[x] b₁), mkApp q (← Meta.mkLambdaFVars #[x] b₂), hq)
       xs.foldrM f (b₁, b₂, h)
-    addEqThm pf.getResult h
+    addThm (← reconstructProofType pf.getResult) h
   /-- From `(not (forall xs F))`, conclude `(not F[sk/xs])` with the skolems `sk` of `xs`. -/
   reconstructSkolemize (pf : cvc5.Proof) : ReconstructM Expr := do
     let chRes := pf.getChildren[0]!.getResult

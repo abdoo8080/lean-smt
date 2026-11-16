@@ -26,25 +26,31 @@ open Function
 
 variable {t s x y : Real}
 
-theorem div_total_zero : x / 0 = 0 :=
-  div_zero x
+theorem div_total_zero : Bool.eq (x / 0) 0 :=
+  Bool.eq.of_eq <| div_zero x
 
 -- Eliminations
 
-theorem elim_gt : t.bgt s = !t.ble s := by
+theorem elim_gt : Bool.eq (t.bgt s) (!t.ble s) := by
+  apply Bool.eq.of_eq
   simp only [Real.bgt, Real.ble, ← decide_not]; exact decide_eq_decide.mpr not_le.symm
-theorem elim_lt : t.blt s = !t.bge s := by
+theorem elim_lt : Bool.eq (t.blt s) (!t.bge s) := by
+  apply Bool.eq.of_eq
   simp only [Real.blt, Real.bge, ← decide_not]; exact decide_eq_decide.mpr not_le.symm
-theorem elim_leq : t.ble s = s.bge t :=
-  decide_eq_decide.mpr Iff.rfl
+theorem elim_leq : Bool.eq (t.ble s) (s.bge t) :=
+  Bool.eq.of_eq <| decide_eq_decide.mpr Iff.rfl
 
-theorem geq_norm1 : t.bge s = (t - s).bge 0 :=
-  decide_eq_decide.mpr ⟨sub_nonneg_of_le, le_of_sub_nonneg⟩
+theorem geq_norm1 : Bool.eq (t.bge s) ((t - s).bge 0) :=
+  Bool.eq.of_eq <| decide_eq_decide.mpr ⟨sub_nonneg_of_le, le_of_sub_nonneg⟩
 
-theorem eq_elim : decide (t = s) = (t.bge s && t.ble s) := by
+theorem eq_elim : Bool.eq (decide (t = s)) (t.bge s && t.ble s) := by
+  apply Bool.eq.of_eq
   simp only [Real.bge, Real.ble, ← Bool.decide_and]; exact decide_eq_decide.mpr (Iff.symm antisymm_iff)
 
-theorem eq_conflict {t : Int} {c : Real} (hcc : decide ((⌊c⌋ : Real) = c) = false) : decide ((t : Real) = c) = false := by
+theorem eq_conflict {t : Int} {c : Real} (hcc : Bool.eq (decide ((⌊c⌋ : Real) = c)) false) :
+    Bool.eq (decide ((t : Real) = c)) false := by
+  apply Bool.eq.of_eq
+  have hcc := hcc.to_eq
   simp only [decide_eq_false_iff_not] at *
   intro htc
   have hcc : ⌊c⌋ < c := (le_iff_eq_or_lt.mp (Int.floor_le c)).resolve_left hcc
@@ -60,11 +66,14 @@ theorem eq_conflict {t : Int} {c : Real} (hcc : decide ((⌊c⌋ : Real) = c) = 
           exact htcf
       simp_all
 
-theorem geq_tighten {t : Int} {c : Real} {cc : Int} (hc : decide ((⌊c⌋ : Real) = c) = false) (hcc : cc = ⌊c⌋ + 1) : (t : Real).bge c = t.bge cc := by
+theorem geq_tighten {t : Int} {c : Real} {cc : Int} (hc : Bool.eq (decide ((⌊c⌋ : Real) = c)) false)
+    (hcc : Bool.eq cc (⌊c⌋ + 1)) : Bool.eq ((t : Real).bge c) (t.bge cc) := by
+  apply Bool.eq.of_eq
+  have hcc := hcc.to_eq
   apply Bool.eq_iff_iff.mpr
   rw [Real.bge_eq_true, Int.bge_eq_true]
   simp only [hcc, ge_iff_le, le_iff_eq_or_lt, ← Int.floor_lt]
-  have h : ↑t ≠ c := by simpa using eq_conflict (t := t) hc
+  have h : ↑t ≠ c := by simpa using (eq_conflict (t := t) hc).to_eq
   apply Iff.intro <;> intro hct
   · have h := hct.resolve_left h.symm
     omega
@@ -72,13 +81,16 @@ theorem geq_tighten {t : Int} {c : Real} {cc : Int} (hc : decide ((⌊c⌋ : Rea
 
 -- Absolute value comparisons
 
-theorem abs_eq : decide (|x| = |y|) = (decide (x = y) || decide (x = -y)) := by
+theorem abs_eq : Bool.eq (decide (|x| = |y|)) (decide (x = y) || decide (x = -y)) := by
+  apply Bool.eq.of_eq
   apply Bool.eq_iff_iff.mpr
   simp only [decide_eq_true_eq, Bool.or_eq_true]
   exact abs_eq_abs
 
-theorem abs_gt : |x|.bgt |y| =
-    cond (x.bge 0) (cond (y.bge 0) (x.bgt y) (x.bgt (-y))) (cond (y.bge 0) ((-x).bgt y) ((-x).bgt (-y))) := by
+theorem abs_gt : Bool.eq (|x|.bgt |y|)
+    (cond (x.bge 0) (cond (y.bge 0) (x.bgt y) (x.bgt (-y)))
+      (cond (y.bge 0) ((-x).bgt y) ((-x).bgt (-y)))) := by
+  apply Bool.eq.of_eq
   cases hx : x.bge 0 <;> cases hy : y.bge 0 <;>
     simp only [Real.bge_eq_true, Real.bge_eq_false, Bool.cond_true, Bool.cond_false] at hx hy ⊢
   · rw [abs_eq_neg_self.mpr (le_of_not_ge hx), abs_eq_neg_self.mpr (le_of_not_ge hy)]
@@ -88,39 +100,51 @@ theorem abs_gt : |x|.bgt |y| =
 
 -- ITE lifting
 
-theorem geq_ite_lift {c : Bool} {t s r : Real} : (cond c t s).bge r = cond c (t.bge r) (s.bge r) := by
+theorem geq_ite_lift {c : Bool} {t s r : Real} :
+    Bool.eq ((cond c t s).bge r) (cond c (t.bge r) (s.bge r)) := by
+  apply Bool.eq.of_eq
   cases c <;> rfl
 
-theorem leq_ite_lift {c : Bool} {t s r : Real} : (cond c t s).ble r = cond c (t.ble r) (s.ble r) := by
+theorem leq_ite_lift {c : Bool} {t s r : Real} :
+    Bool.eq ((cond c t s).ble r) (cond c (t.ble r) (s.ble r)) := by
+  apply Bool.eq.of_eq
   cases c <;> rfl
 
 -- min/max rules
 
-theorem min_lt1 : (cond (t.blt s) t s).ble t = true := by
+theorem min_lt1 : Bool.eq ((cond (t.blt s) t s).ble t) true := by
+  apply Bool.eq.of_eq
   cases h : t.blt s <;> simp_all
 
-theorem min_lt2 : (cond (t.blt s) t s).ble s = true := by
+theorem min_lt2 : Bool.eq ((cond (t.blt s) t s).ble s) true := by
+  apply Bool.eq.of_eq
   cases h : t.blt s <;> simp_all [le_of_lt]
 
-theorem max_geq1 : (cond (t.bge s) t s).bge t = true := by
+theorem max_geq1 : Bool.eq ((cond (t.bge s) t s).bge t) true := by
+  apply Bool.eq.of_eq
   cases h : t.bge s <;> simp_all [le_of_lt]
 
-theorem max_geq2 : (cond (t.bge s) t s).bge s = true := by
+theorem max_geq2 : Bool.eq ((cond (t.bge s) t s).bge s) true := by
+  apply Bool.eq.of_eq
   cases h : t.bge s <;> simp_all
 
-theorem arith_sine_zero : Real.sin 0 = 0 := Real.sin_zero
-theorem arith_sine_pi2 : Real.sin ((1/2) * Real.pi) = 1 := by
+theorem arith_sine_zero : Bool.eq (Real.sin 0) 0 := Bool.eq.of_eq <| Real.sin_zero
+theorem arith_sine_pi2 : Bool.eq (Real.sin ((1/2) * Real.pi)) 1 := by
+  apply Bool.eq.of_eq
   have : 1 / 2 * Real.pi = Real.pi / 2 := one_div_mul_eq_div 2 Real.pi
   rw [this]
   exact Real.sin_pi_div_two
 
-theorem arith_cosine_elim (x : Real) : Real.cos x = Real.sin ((1/2) * Real.pi - x) := by
+theorem arith_cosine_elim (x : Real) : Bool.eq (Real.cos x) (Real.sin ((1/2) * Real.pi - x)) := by
+  apply Bool.eq.of_eq
   have : 1 / 2 * Real.pi = Real.pi / 2 := one_div_mul_eq_div 2 Real.pi
   rw [this]
   exact Eq.symm (Real.sin_pi_div_two_sub x)
 
-theorem arith_tangent_elim (x : Real) : Real.tan x = Real.sin x / Real.cos x := Real.tan_eq_sin_div_cos x
-theorem arith_cotangent_elim (x : Real) : Real.cot x = Real.cos x / Real.sin x := Real.cot_eq_cos_div_sin x
+theorem arith_tangent_elim (x : Real) : Bool.eq (Real.tan x) (Real.sin x / Real.cos x) :=
+  Bool.eq.of_eq <| Real.tan_eq_sin_div_cos x
+theorem arith_cotangent_elim (x : Real) : Bool.eq (Real.cot x) (Real.cos x / Real.sin x) :=
+  Bool.eq.of_eq <| Real.cot_eq_cos_div_sin x
 
 -- TODO: Secant and cosecant. There is no definition for those in mathlib. Should we define our own?
 

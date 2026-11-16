@@ -109,133 +109,133 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     if !pf.getResult[0]![0]!.getSort!.isInteger then return none
     let x : Q(Int) ← reconstructTerm pf.getResult[0]![0]!
     let c : Q(Nat) ← reconstructTerm pf.getResult[0]![1]!
-    addEqThm pf.getResult q(Eq.refl ($x ^ $c))
+    addThm (← reconstructProofType pf.getResult) q(Bool.eq.refl ($x ^ $c))
   | .ARITH_INT_DIV_TOTAL =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    let h : Q(($s == 0) = false) ← reconstructEqProof pf.getChildren[0]!
-    addEqThm pf.getResult q(@Rewrite.div_total $t $s $h)
+    let h : Q(Bool.eq (decide ($s = 0)) false) ← reconstructProof pf.getChildren[0]!
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.div_total $t $s $h)
   | .ARITH_INT_DIV_TOTAL_ONE =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(@Rewrite.div_total_one $t)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.div_total_one $t)
   | .ARITH_INT_DIV_TOTAL_ZERO =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(@Rewrite.div_total_zero $t)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.div_total_zero $t)
   | .ARITH_INT_DIV_TOTAL_NEG =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    let h : Q(Int.blt $s 0 = true) ← reconstructEqProof pf.getChildren[0]!
-    addEqThm pf.getResult q(@Rewrite.div_total_neg $t $s $h)
+    let h : Q(Bool.eq (Int.blt $s 0) true) ← reconstructProof pf.getChildren[0]!
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.div_total_neg $t $s $h)
   | .ARITH_INT_MOD_TOTAL =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    let h : Q(($s == 0) = false) ← reconstructEqProof pf.getChildren[0]!
-    addEqThm pf.getResult q(@Rewrite.mod_total $t $s $h)
+    let h : Q(Bool.eq (decide ($s = 0)) false) ← reconstructProof pf.getChildren[0]!
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.mod_total $t $s $h)
   | .ARITH_INT_MOD_TOTAL_ONE =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(@Rewrite.mod_total_one $t)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.mod_total_one $t)
   | .ARITH_INT_MOD_TOTAL_ZERO =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(@Rewrite.mod_total_zero $t)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.mod_total_zero $t)
   | .ARITH_INT_MOD_TOTAL_NEG =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    let h : Q(Int.blt $s 0 = true) ← reconstructEqProof pf.getChildren[0]!
-    addEqThm pf.getResult q(@Rewrite.mod_total_neg $t $s $h)
+    let h : Q(Bool.eq (Int.blt $s 0) true) ← reconstructProof pf.getChildren[0]!
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.mod_total_neg $t $s $h)
   | .ARITH_ELIM_GT =>
     if !pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.elim_gt $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.elim_gt $t $s)
   | .ARITH_ELIM_LT =>
     if !pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.elim_lt $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.elim_lt $t $s)
   | .ARITH_ELIM_INT_GT =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.elim_gt_add_one $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.elim_gt_add_one $t $s)
   | .ARITH_ELIM_INT_LT =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.elim_lt_add_one $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.elim_lt_add_one $t $s)
   | .ARITH_ELIM_LEQ =>
     if !pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.elim_leq $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.elim_leq $t $s)
   | .ARITH_LEQ_NORM =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.leq_norm $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.leq_norm $t $s)
   | .ARITH_GEQ_TIGHTEN =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.geq_tighten $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.geq_tighten $t $s)
   | .ARITH_GEQ_NORM1_INT =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.geq_norm1 $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.geq_norm1 $t $s)
   | .ARITH_EQ_ELIM_INT =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.eq_elim $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.eq_elim $t $s)
   | .ARITH_MOD_OVER_MOD =>
     let c : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let ts : Q(List Int) ← reconstructTerms pf.getArguments[2]!.getChildren
     let r : Q(Int) ← reconstructTerm pf.getArguments[3]!
     let ss : Q(List Int) ← reconstructTerms pf.getArguments[4]!.getChildren
-    let h : Q(($c == 0) = false) ← reconstructEqProof pf.getChildren[0]!
-    addEqThm pf.getResult q(@Rewrite.mod_over_mod $c $ts $r $ss $h)
+    let h : Q(Bool.eq (decide ($c = 0)) false) ← reconstructProof pf.getChildren[0]!
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.mod_over_mod $c $ts $r $ss $h)
   | .ARITH_DIVISIBLE_ELIM =>
     let n : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let t : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    let h : Q(($n == 0) = false) ← reconstructEqProof pf.getChildren[0]!
-    addEqThm pf.getResult q(@Rewrite.divisible_elim $n $t $h)
+    let h : Q(Bool.eq (decide ($n = 0)) false) ← reconstructProof pf.getChildren[0]!
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.divisible_elim $n $t $h)
   | .ARITH_ABS_EQ =>
     if !pf.getArguments[1]!.getSort!.isInteger then return none
     let x : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let y : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.abs_eq $x $y)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.abs_eq $x $y)
   | .ARITH_ABS_INT_GT =>
     let x : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let y : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.abs_gt $x $y)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.abs_gt $x $y)
   | .ARITH_GEQ_ITE_LIFT =>
     if !pf.getArguments[2]!.getSort!.isInteger then return none
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let t : Q(Int) ← reconstructTerm pf.getArguments[2]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[3]!
     let r : Q(Int) ← reconstructTerm pf.getArguments[4]!
-    addEqThm pf.getResult q(@Rewrite.geq_ite_lift $c $t $s $r)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.geq_ite_lift $c $t $s $r)
   | .ARITH_LEQ_ITE_LIFT =>
     if !pf.getArguments[2]!.getSort!.isInteger then return none
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let t : Q(Int) ← reconstructTerm pf.getArguments[2]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[3]!
     let r : Q(Int) ← reconstructTerm pf.getArguments[4]!
-    addEqThm pf.getResult q(@Rewrite.leq_ite_lift $c $t $s $r)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.leq_ite_lift $c $t $s $r)
   | .ARITH_MIN_LT1 =>
     if !pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.min_lt1 $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.min_lt1 $t $s)
   | .ARITH_MIN_LT2 =>
     if !pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.min_lt2 $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.min_lt2 $t $s)
   | .ARITH_MAX_GEQ1 =>
     if !pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.max_geq1 $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.max_geq1 $t $s)
   | .ARITH_MAX_GEQ2 =>
     if !pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Int) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.max_geq2 $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.max_geq2 $t $s)
   | _ => return none
 
 def reconstructSumUB (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
@@ -255,7 +255,7 @@ def reconstructSumUB (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       return (.LT, lsl, rsr, q(Int.sum_ub₂ $hs $h))
     else if ks == .LT && k == .EQUAL then
       let hs : Q(Int.blt $ls $rs = true) := hs
-      let h : Q($l = $r) ← reconstructEqProof p
+      let h : Q(Bool.eq $l $r) ← reconstructProof p
       return (.LT, lsl, rsr, q(Int.sum_ub₃ $hs $h))
     else if ks == .LEQ && k == .LT then
       let hs : Q(Int.ble $ls $rs = true) := hs
@@ -267,29 +267,29 @@ def reconstructSumUB (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       return (.LEQ, lsl, rsr, q(Int.sum_ub₅ $hs $h))
     else if ks == .LEQ && k == .EQUAL then
       let hs : Q(Int.ble $ls $rs = true) := hs
-      let h : Q($l = $r) ← reconstructEqProof p
+      let h : Q(Bool.eq $l $r) ← reconstructProof p
       return (.LEQ, lsl, rsr, q(Int.sum_ub₆ $hs $h))
     else if ks == .EQUAL && k == .LT then
-      let hs : Q($ls = $rs) := hs
+      let hs : Q(Bool.eq $ls $rs) := hs
       let h : Q(Int.blt $l $r = true) ← reconstructProof p
       return (.LT, lsl, rsr, q(Int.sum_ub₇ $hs $h))
     else if ks == .EQUAL && k == .LEQ then
-      let hs : Q($ls = $rs) := hs
+      let hs : Q(Bool.eq $ls $rs) := hs
       let h : Q(Int.ble $l $r = true) ← reconstructProof p
       return (.LEQ, lsl, rsr, q(Int.sum_ub₈ $hs $h))
     else if ks == .EQUAL && k == .EQUAL then
-      let hs : Q($ls = $rs) := hs
-      let h : Q($l = $r) ← reconstructEqProof p
+      let hs : Q(Bool.eq $ls $rs) := hs
+      let h : Q(Bool.eq $l $r) ← reconstructProof p
       return (.EQUAL, lsl, rsr, q(Int.sum_ub₉ $hs $h))
     else
       throwError "[sum_ub]: invalid kinds: {ks}, {k}"
   let k := pf.getChildren[0]!.getResult.getKind!
   let ls : Q(Int) ← reconstructTerm pf.getChildren[0]!.getResult[0]!
   let rs : Q(Int) ← reconstructTerm pf.getChildren[0]!.getResult[1]!
-  let hs ← reconstructRelProof pf.getChildren[0]!
+  let hs ← reconstructProof pf.getChildren[0]!
   let (ks, ls, rs, hs) ← pf.getChildren[1:].foldlM f (k, ls, rs, hs)
   if ks == .EQUAL then
-    let hs : Q($ls = $rs) := hs
+    let hs : Q(Bool.eq $ls $rs) := hs
     addThm (← reconstructProofType pf.getResult) q(Int.ble_of_eq $hs)
   else
     addThm (← reconstructProofType pf.getResult) hs
@@ -300,8 +300,8 @@ def reconstructMulAbsComparison (pf : cvc5.Proof) : ReconstructM (Option Expr) :
     if ks == .EQUAL && k == .EQUAL then
       let l : Q(Int) ← reconstructTerm p.getResult[0]![0]!
       let r : Q(Int) ← reconstructTerm p.getResult[1]![0]!
-      let hs : Q(«$ls».abs = «$rs».abs) := hs
-      let h : Q(«$l».abs = «$r».abs) ← reconstructEqProof p
+      let hs : Q(Bool.eq «$ls».abs «$rs».abs) := hs
+      let h : Q(Bool.eq «$l».abs «$r».abs) ← reconstructProof p
       return (.EQUAL, q($ls * $l), q($rs * $r), q(Int.mul_abs₁ $hs $h))
     else if ks == .GT && k == .AND then
       let l : Q(Int) ← reconstructTerm p.getResult[0]![0]![0]!
@@ -320,12 +320,9 @@ def reconstructMulAbsComparison (pf : cvc5.Proof) : ReconstructM (Option Expr) :
   let k := pf.getChildren[0]!.getResult.getKind!
   let ls : Q(Int) ← reconstructTerm pf.getChildren[0]!.getResult[0]![0]!
   let rs : Q(Int) ← reconstructTerm pf.getChildren[0]!.getResult[1]![0]!
-  let hs ← reconstructRelProof pf.getChildren[0]!
+  let hs ← reconstructProof pf.getChildren[0]!
   let (ks, _, _, hs) ← pf.getChildren[1:].foldlM f (k, ls, rs, hs)
-  if ks == .EQUAL then
-    addEqThm pf.getResult hs
-  else
-    addThm (← reconstructProofType pf.getResult) hs
+  addThm (← reconstructProofType pf.getResult) hs
 
 def reconstructMulSign (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   let ts := if pf.getResult[0]!.getKind! == .AND then pf.getResult[0]!.getChildren else #[pf.getResult[0]!]
@@ -380,12 +377,13 @@ def reconstructArithPolyNormRel (pf : cvc5.Proof) : ReconstructM (Option Expr) :
   let x₂ : Q(Int) ← reconstructTerm pf.getResult[0]![1]!
   let y₁ : Q(Int) ← reconstructTerm pf.getResult[1]![0]!
   let y₂ : Q(Int) ← reconstructTerm pf.getResult[1]![1]!
-  let h : Q($cx * ($x₁ - $x₂) = $cy * ($y₁ - $y₂)) ← reconstructEqProof pf.getChildren[0]!
+  let h : Q(Bool.eq ($cx * ($x₁ - $x₂)) ($cy * ($y₁ - $y₂))) ← reconstructProof pf.getChildren[0]!
   let k := pf.getResult[0]!.getKind!
   -- The signs of the constants are decided by evaluation.
   let hc := q(Eq.refl true)
   let n ← getThmName k (cx > 0)
-  addEqThm pf.getResult (mkApp9 (.const n []) x₁ x₂ y₁ y₂ q($cx) q($cy) hc hc h)
+  addThm (← reconstructProofType pf.getResult)
+    (mkApp9 (.const n []) x₁ x₂ y₁ y₂ q($cx) q($cy) hc hc h)
 where
   getThmName (k : cvc5.Kind) (sign : Bool) : ReconstructM Name :=
     if k == .LT && sign == true then pure ``Int.lt_of_sub_eq_pos
@@ -431,13 +429,13 @@ where
     if k₁ == .LEQ && k₂ == .NOT then
       addThm (← reconstructProofType pf.getResult) (mkApp4 (.const ``Int.trichotomy₁ []) x c h₁ h₂)
     else if k₁ == .LEQ && k₂ == .GEQ then
-      addEqThm pf.getResult (mkApp4 (.const ``Int.trichotomy₂ []) x c h₁ h₂)
+      addThm (← reconstructProofType pf.getResult) (mkApp4 (.const ``Int.trichotomy₂ []) x c h₁ h₂)
     else if k₁ == .NOT && k₂ == .LEQ then
       addThm (← reconstructProofType pf.getResult) (mkApp4 (.const ``Int.trichotomy₃ []) x c h₁ h₂)
     else if k₁ == .NOT && k₂ == .GEQ then
       addThm (← reconstructProofType pf.getResult) (mkApp4 (.const ``Int.trichotomy₄ []) x c h₁ h₂)
     else if k₁ == .GEQ && k₂ == .LEQ then
-      addEqThm pf.getResult (mkApp4 (.const ``Int.trichotomy₅ []) x c h₁ h₂)
+      addThm (← reconstructProofType pf.getResult) (mkApp4 (.const ``Int.trichotomy₅ []) x c h₁ h₂)
     else if k₁ == .GEQ && k₂ == .NOT then
       addThm (← reconstructProofType pf.getResult) (mkApp4 (.const ``Int.trichotomy₆ []) x c h₁ h₂)
     else
@@ -446,13 +444,13 @@ where
     if !pf.getArguments[0]!.getSort!.isInteger then return none
     if pf.getArguments[0]!.getKind! == .ABS then
       let x : Q(Int) ← reconstructTerm pf.getArguments[0]![0]!
-      addEqThm pf.getResult q(@Int.abs_elim $x)
+      addThm (← reconstructProofType pf.getResult) q(@Int.abs_elim $x)
     else
       return none
   | .ARITH_POLY_NORM =>
     if !pf.getResult[0]!.getSort!.isInteger then return none
     let tac := if ← useNative then Int.nativePolyNorm else Int.polyNorm
-    addEqTac pf.getResult tac
+    addTac (← reconstructProofType pf.getResult) (decideTac tac)
   | .ARITH_POLY_NORM_REL =>
     if !pf.getChildren[0]!.getResult[0]![0]!.getSort!.isInteger then return none
     reconstructArithPolyNormRel pf

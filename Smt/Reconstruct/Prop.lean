@@ -56,177 +56,187 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   match pf.getRewriteRule! with
   | .BOOL_DOUBLE_NOT_ELIM =>
     let t : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Bool.bool_double_not_elim (t := $t))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_double_not_elim (t := $t))
   | .BOOL_NOT_TRUE =>
     let t : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    let h : Q($t = false) ← reconstructEqProof pf.getChildren[0]!
-    addEqThm pf.getResult q(Bool.bool_not_true (t := $t) $h)
+    let h : Q(Bool.eq $t false) ← reconstructProof pf.getChildren[0]!
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_not_true (t := $t) $h)
   | .BOOL_NOT_FALSE =>
     let t : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    let h : Q($t = true) ← reconstructEqProof pf.getChildren[0]!
-    addEqThm pf.getResult q(Bool.bool_not_false (t := $t) $h)
+    let h : Q(Bool.eq $t true) ← reconstructProof pf.getChildren[0]!
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_not_false (t := $t) $h)
   | .BOOL_EQ_TRUE =>
     let t : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Bool.bool_eq_true (t := $t))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_eq_true (t := $t))
   | .BOOL_EQ_FALSE =>
     let t : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Bool.bool_eq_false (t := $t))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_eq_false (t := $t))
   | .BOOL_EQ_NREFL =>
     let t : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Bool.bool_eq_nrefl (t := $t))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_eq_nrefl (t := $t))
   | .BOOL_IMPL_FALSE1 =>
     let t : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Bool.bool_impl_false1 (t := $t))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_impl_false1 (t := $t))
   | .BOOL_IMPL_FALSE2 =>
     let t : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Bool.bool_impl_false2 (t := $t))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_impl_false2 (t := $t))
   | .BOOL_IMPL_TRUE1 =>
     let t : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Bool.bool_impl_true1 (t := $t))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_impl_true1 (t := $t))
   | .BOOL_IMPL_TRUE2 =>
     let t : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Bool.bool_impl_true2 (t := $t))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_impl_true2 (t := $t))
   | .BOOL_IMPL_ELIM =>
     let t : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.bool_impl_elim (t := $t) (s := $s))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_impl_elim (t := $t) (s := $s))
   | .BOOL_DUAL_IMPL_EQ =>
     let t : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.bool_dual_impl_eq (t := $t) (s := $s))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_dual_impl_eq (t := $t) (s := $s))
   | .BOOL_AND_CONF =>
     let xs : Q(List Bool) ← reconstructTerms pf.getArguments[1]!.getChildren
     let w : Q(Bool) ← reconstructTerm pf.getArguments[2]!
     let ys : Q(List Bool) ← reconstructTerms pf.getArguments[3]!.getChildren
     let zs : Q(List Bool) ← reconstructTerms pf.getArguments[4]!.getChildren
-    addEqThm pf.getResult q(Bool.bool_and_conf (xs := $xs) (w := $w) (ys := $ys) (zs := $zs))
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.bool_and_conf (xs := $xs) (w := $w) (ys := $ys) (zs := $zs))
   | .BOOL_AND_CONF2 =>
     let xs : Q(List Bool) ← reconstructTerms pf.getArguments[1]!.getChildren
     let w : Q(Bool) ← reconstructTerm pf.getArguments[2]!
     let ys : Q(List Bool) ← reconstructTerms pf.getArguments[3]!.getChildren
     let zs : Q(List Bool) ← reconstructTerms pf.getArguments[4]!.getChildren
-    addEqThm pf.getResult q(Bool.bool_and_conf2 (xs := $xs) (w := $w) (ys := $ys) (zs := $zs))
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.bool_and_conf2 (xs := $xs) (w := $w) (ys := $ys) (zs := $zs))
   | .BOOL_OR_TAUT =>
     let xs : Q(List Bool) ← reconstructTerms pf.getArguments[1]!.getChildren
     let w : Q(Bool) ← reconstructTerm pf.getArguments[2]!
     let ys : Q(List Bool) ← reconstructTerms pf.getArguments[3]!.getChildren
     let zs : Q(List Bool) ← reconstructTerms pf.getArguments[4]!.getChildren
-    addEqThm pf.getResult q(Bool.bool_or_taut (xs := $xs) (w := $w) (ys := $ys) (zs := $zs))
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.bool_or_taut (xs := $xs) (w := $w) (ys := $ys) (zs := $zs))
   | .BOOL_OR_TAUT2 =>
     let xs : Q(List Bool) ← reconstructTerms pf.getArguments[1]!.getChildren
     let w : Q(Bool) ← reconstructTerm pf.getArguments[2]!
     let ys : Q(List Bool) ← reconstructTerms pf.getArguments[3]!.getChildren
     let zs : Q(List Bool) ← reconstructTerms pf.getArguments[4]!.getChildren
-    addEqThm pf.getResult q(Bool.bool_or_taut2 (xs := $xs) (w := $w) (ys := $ys) (zs := $zs))
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.bool_or_taut2 (xs := $xs) (w := $w) (ys := $ys) (zs := $zs))
   | .BOOL_OR_DE_MORGAN =>
     let x : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let y : Q(Bool) ← reconstructTerm pf.getArguments[2]!
     let zs : Q(List Bool) ← reconstructTerms pf.getArguments[3]!.getChildren
-    addEqThm pf.getResult q(Bool.bool_or_de_morgan (x := $x) (y := $y) (zs := $zs))
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.bool_or_de_morgan (x := $x) (y := $y) (zs := $zs))
   | .BOOL_IMPLIES_DE_MORGAN =>
     let x : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let y : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.bool_implies_de_morgan (x := $x) (y := $y))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_implies_de_morgan (x := $x) (y := $y))
   | .BOOL_AND_DE_MORGAN =>
     let x : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let y : Q(Bool) ← reconstructTerm pf.getArguments[2]!
     let zs : Q(List Bool) ← reconstructTerms pf.getArguments[3]!.getChildren
-    addEqThm pf.getResult q(Bool.bool_and_de_morgan (x := $x) (y := $y) (zs := $zs))
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.bool_and_de_morgan (x := $x) (y := $y) (zs := $zs))
   | .BOOL_OR_AND_DISTRIB =>
     let y₁ : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let y₂ : Q(Bool) ← reconstructTerm pf.getArguments[2]!
     let ys : Q(List Bool) ← reconstructTerms pf.getArguments[3]!.getChildren
     let z₁ : Q(Bool) ← reconstructTerm pf.getArguments[4]!
     let zs : Q(List Bool) ← reconstructTerms pf.getArguments[5]!.getChildren
-    addEqThm pf.getResult
+    addThm (← reconstructProofType pf.getResult)
       q(Bool.bool_or_and_distrib (y₁ := $y₁) (y₂ := $y₂) (ys := $ys) (z₁ := $z₁) (zs := $zs))
   | .BOOL_IMPLIES_OR_DISTRIB =>
     let y₁ : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let y₂ : Q(Bool) ← reconstructTerm pf.getArguments[2]!
     let ys : Q(List Bool) ← reconstructTerms pf.getArguments[3]!.getChildren
     let z : Q(Bool) ← reconstructTerm pf.getArguments[4]!
-    addEqThm pf.getResult
+    addThm (← reconstructProofType pf.getResult)
       q(Bool.bool_implies_or_distrib (y₁ := $y₁) (y₂ := $y₂) (ys := $ys) (z := $z))
   | .BOOL_XOR_REFL =>
     let x : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Bool.bool_xor_refl (x := $x))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_xor_refl (x := $x))
   | .BOOL_XOR_NREFL =>
     let x : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Bool.bool_xor_nrefl (x := $x))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_xor_nrefl (x := $x))
   | .BOOL_XOR_FALSE =>
     let x : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Bool.bool_xor_false (x := $x))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_xor_false (x := $x))
   | .BOOL_XOR_TRUE =>
     let x : Q(Bool) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Bool.bool_xor_true (x := $x))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_xor_true (x := $x))
   | .BOOL_XOR_COMM =>
     let x : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let y : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.bool_xor_comm (x := $x) (y := $y))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_xor_comm (x := $x) (y := $y))
   | .BOOL_XOR_ELIM =>
     let x : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let y : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.bool_xor_elim (x := $x) (y := $y))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_xor_elim (x := $x) (y := $y))
   | .BOOL_NOT_XOR_ELIM =>
     let x : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let y : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.bool_not_xor_elim (x := $x) (y := $y))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_not_xor_elim (x := $x) (y := $y))
   | .BOOL_NOT_EQ_ELIM1 =>
     let x : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let y : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.bool_not_eq_elim1 (x := $x) (y := $y))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_not_eq_elim1 (x := $x) (y := $y))
   | .BOOL_NOT_EQ_ELIM2 =>
     let x : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let y : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.bool_not_eq_elim2 (x := $x) (y := $y))
+    addThm (← reconstructProofType pf.getResult) q(Bool.bool_not_eq_elim2 (x := $x) (y := $y))
   | .ITE_NEG_BRANCH =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let x : Q(Bool) ← reconstructTerm pf.getArguments[2]!
     let y : Q(Bool) ← reconstructTerm pf.getArguments[3]!
-    let h : Q($x = !$y) ← reconstructEqProof pf.getChildren[0]!
-    addEqThm pf.getResult q(Bool.ite_neg_branch (c := $c) (x := $x) (y := $y) $h)
+    let h : Q(Bool.eq $x (!$y)) ← reconstructProof pf.getChildren[0]!
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.ite_neg_branch (c := $c) (x := $x) (y := $y) $h)
   | .ITE_THEN_TRUE =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let x : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.ite_then_true (c := $c) (x := $x))
+    addThm (← reconstructProofType pf.getResult) q(Bool.ite_then_true (c := $c) (x := $x))
   | .ITE_ELSE_FALSE =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let x : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.ite_else_false (c := $c) (x := $x))
+    addThm (← reconstructProofType pf.getResult) q(Bool.ite_else_false (c := $c) (x := $x))
   | .ITE_THEN_FALSE =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let x : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.ite_then_false (c := $c) (x := $x))
+    addThm (← reconstructProofType pf.getResult) q(Bool.ite_then_false (c := $c) (x := $x))
   | .ITE_ELSE_TRUE =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let x : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.ite_else_true (c := $c) (x := $x))
+    addThm (← reconstructProofType pf.getResult) q(Bool.ite_else_true (c := $c) (x := $x))
   | .ITE_THEN_LOOKAHEAD_SELF =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let x : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.ite_then_lookahead_self (c := $c) (x := $x))
+    addThm (← reconstructProofType pf.getResult) q(Bool.ite_then_lookahead_self (c := $c) (x := $x))
   | .ITE_ELSE_LOOKAHEAD_SELF =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let x : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.ite_else_lookahead_self (c := $c) (x := $x))
+    addThm (← reconstructProofType pf.getResult) q(Bool.ite_else_lookahead_self (c := $c) (x := $x))
   | .ITE_THEN_LOOKAHEAD_NOT_SELF =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let x : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.ite_then_lookahead_not_self (c := $c) (x := $x))
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.ite_then_lookahead_not_self (c := $c) (x := $x))
   | .ITE_ELSE_LOOKAHEAD_NOT_SELF =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let x : Q(Bool) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.ite_else_lookahead_not_self (c := $c) (x := $x))
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.ite_else_lookahead_not_self (c := $c) (x := $x))
   | .ITE_EXPAND =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let x : Q(Bool) ← reconstructTerm pf.getArguments[2]!
     let y : Q(Bool) ← reconstructTerm pf.getArguments[3]!
-    addEqThm pf.getResult q(Bool.ite_expand (c := $c) (x := $x) (y := $y))
+    addThm (← reconstructProofType pf.getResult) q(Bool.ite_expand (c := $c) (x := $x) (y := $y))
   | .BOOL_NOT_ITE_ELIM =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let x : Q(Bool) ← reconstructTerm pf.getArguments[2]!
     let y : Q(Bool) ← reconstructTerm pf.getArguments[3]!
-    addEqThm pf.getResult q(Bool.bool_not_ite_elim (c := $c) (x := $x) (y := $y))
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.bool_not_ite_elim (c := $c) (x := $x) (y := $y))
   | _ => return none
 
 def nary (k : cvc5.Kind) (c : cvc5.Term) : Array cvc5.Term := Id.run do
@@ -293,10 +303,8 @@ def reconstructChainResolution (cs as : Array cvc5.Term) (ps : Array Expr) : Rec
     let c ← reconstructTerm pf.getArguments[0]![0]!
     let x ← reconstructTerm pf.getArguments[0]![1]!
     let y ← reconstructTerm pf.getArguments[0]![2]!
-    let u ← Meta.getLevel α
-    let cxy := mkApp4 (.const ``cond [u]) α c x y
-    addThm (← reconstructProofType pf.getResult) (mkAppN (.const ``Bool.ite_eq [u])
-      #[α, c, x, y, ← Bool.eqInst α cxy x, ← Bool.eqInst α cxy y])
+    addThm (← reconstructProofType pf.getResult)
+      (mkAppN (.const ``Bool.ite_eq [← Meta.getLevel α]) #[α, ← Bool.decEqInst α, c, x, y])
   | .RESOLUTION =>
     let p := pf.getArguments[0]!
     let l := pf.getArguments[1]!
@@ -331,8 +339,8 @@ def reconstructChainResolution (cs as : Array cvc5.Term) (ps : Array Expr) : Rec
     let p : Q(Bool) ← reconstructTerm pf.getChildren[0]!.getResult
     let q : Q(Bool) ← reconstructTerm pf.getResult
     let hp : Q($p = true) ← reconstructProof pf.getChildren[0]!
-    let hpq : Q($p = $q) ← reconstructEqProof pf.getChildren[1]!
-    addThm q($q = true) q(Bool.eq_resolve' $hp $hpq)
+    let hpq : Q(Bool.eq $p $q) ← reconstructProof pf.getChildren[1]!
+    addThm q($q = true) q(Bool.eq_resolve $hp $hpq)
   | .MODUS_PONENS =>
     let p : Q(Bool) ← reconstructTerm pf.getChildren[0]!.getResult
     let q : Q(Bool) ← reconstructTerm pf.getResult

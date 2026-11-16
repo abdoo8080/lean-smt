@@ -35,11 +35,11 @@ integers, rationals, and reals, and `BitVec.ult` and friends on bit-vectors. `de
 synthesized instance of `Decidable p`, or a classical one.
 
 The theorems of proof reconstruction are stated over these Boolean formulas: a proof of a formula
-`b` is a proof of `b = true`, a proof of an equality `(= t s)` is usually a proof of `t = s`, and
-rewrites are equations between Booleans or terms.
+`b` is a proof of `b = true`. In particular, a proof of an equality `(= t s)`, e.g., of a rewrite,
+is a proof of `Bool.eq t s`, i.e., of `decide (t = s) = true`.
 -/
 
-universe u
+universe u v
 
 /-- `true` iff `p x` holds for all `x`: SMT-LIB's `forall` over one variable.
 `(forall ((x T) (y U)) F)` is `Bool.forall fun x => Bool.forall fun y => F`. -/
@@ -69,6 +69,11 @@ namespace Bool
 
 /-- Boolean implication, the reconstruction of SMT-LIB's `=>`. -/
 def imp (a b : Bool) : Bool := !a || b
+
+/-- The proposition that SMT-LIB's `(= a b)` holds, i.e., the type of its proofs: its reconstruction
+`decide (a = b)` is `true`. The theorems of proof reconstruction about equalities are stated with it
+(see `Bool.eq.trans` and friends), so that proofs of equalities need no conversions. -/
+abbrev eq {α : Sort u} [DecidableEq α] (a b : α) : Prop := decide (a = b) = true
 
 /-- n-ary conjunction. Like cvc5's n-ary `and`, it has no trailing `true`: `andN [a] = a` and
 `andN [a, b, c] = a && (b && c)`. -/
@@ -119,6 +124,44 @@ theorem orN_eq_true {bs : List Bool} : (orN bs = true) = ∃ b ∈ bs, b = true 
   | cons b bs ih => simp [ih]
 
 end Bool
+
+namespace Bool.eq
+
+variable {α : Sort u} {β : Sort v} [DecidableEq α] [DecidableEq β] {a b c : α}
+
+theorem of_eq (h : a = b) : Bool.eq a b := _root_.decide_eq_true h
+
+theorem to_eq (h : Bool.eq a b) : a = b := _root_.of_decide_eq_true h
+
+theorem refl (a : α) : Bool.eq a a := of_eq rfl
+
+theorem symm (h : Bool.eq a b) : Bool.eq b a := of_eq h.to_eq.symm
+
+theorem trans (h₁ : Bool.eq a b) (h₂ : Bool.eq b c) : Bool.eq a c :=
+  of_eq (h₁.to_eq.trans h₂.to_eq)
+
+theorem of_iff {a b : Bool} (h : a = true ↔ b = true) : Bool.eq a b :=
+  of_eq (Bool.eq_iff_iff.mpr h)
+
+theorem congrArg (f : α → β) (h : Bool.eq a b) : Bool.eq (f a) (f b) :=
+  of_eq (_root_.congrArg f h.to_eq)
+
+theorem congr [DecidableEq (α → β)] {f g : α → β} (hf : Bool.eq f g) (h : Bool.eq a b) :
+    Bool.eq (f a) (g b) :=
+  of_eq (_root_.congr hf.to_eq h.to_eq)
+
+/-- Congruence of atoms `decide p`, from the equality of the propositions. -/
+theorem decide_congr [DecidableEq Prop] {p q : Prop} {hp : Decidable p} {hq : Decidable q}
+    (h : Bool.eq p q) : Bool.eq (@decide p hp) (@decide q hq) :=
+  of_eq (_root_.decide_eq_decide.mpr (h.to_eq ▸ Iff.rfl))
+
+/-- Congruence of the propositions `p` and `q` that Lean functions are passed for Booleans `a` and
+`b`, e.g., `p` for an atom `a = decide p`, and `a = true` otherwise. -/
+theorem prop_congr [DecidableEq Prop] {a b : Bool} {p q : Prop} (hp : (a = true) = p)
+    (hq : (b = true) = q) (h : Bool.eq a b) : Bool.eq p q :=
+  of_eq (hp ▸ hq ▸ h.to_eq ▸ rfl)
+
+end Bool.eq
 
 namespace Smt.Reconstruct.Bool
 

@@ -27,7 +27,8 @@ theorem arithTransExpZero (t : ℝ) :
   · intro h; simp at h; assumption
 
 theorem arithTransExpZeroEq (t : ℝ) :
-    decide (t = 0) = decide (Real.exp t = 1) := by
+    Bool.eq (decide (t = 0)) (decide (Real.exp t = 1)) := by
+  apply Bool.eq.of_eq
   apply Bool.eq_iff_iff.mpr
   simp only [decide_eq_true_eq]
   exact arithTransExpZero t

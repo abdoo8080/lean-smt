@@ -102,56 +102,68 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   match pf.getRewriteRule! with
   | .DISTINCT_ELIM =>
     let t : Q(Bool) ← reconstructTerm pf.getResult[0]!
-    addEqThm pf.getResult q(Eq.refl $t)
+    addThm (← reconstructProofType pf.getResult) q(Bool.eq.refl $t)
   | .ITE_TRUE_COND =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
     let x : Q($α) ← reconstructTerm pf.getArguments[1]!
     let y : Q($α) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.ite_true_cond (x := $x) (y := $y))
+    addThm (← reconstructProofType pf.getResult) q(Bool.ite_true_cond (x := $x) (y := $y))
   | .ITE_FALSE_COND =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
     let x : Q($α) ← reconstructTerm pf.getArguments[1]!
     let y : Q($α) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.ite_false_cond (x := $x) (y := $y))
+    addThm (← reconstructProofType pf.getResult) q(Bool.ite_false_cond (x := $x) (y := $y))
   | .ITE_NOT_COND =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[2]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
     let x : Q($α) ← reconstructTerm pf.getArguments[2]!
     let y : Q($α) ← reconstructTerm pf.getArguments[3]!
-    addEqThm pf.getResult q(Bool.ite_not_cond (c := $c) (x := $x) (y := $y))
+    addThm (← reconstructProofType pf.getResult) q(Bool.ite_not_cond (c := $c) (x := $x) (y := $y))
   | .ITE_EQ_BRANCH =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[2]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
     let x : Q($α) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(Bool.ite_eq_branch (c := $c) (x := $x))
+    addThm (← reconstructProofType pf.getResult) q(Bool.ite_eq_branch (c := $c) (x := $x))
   | .ITE_THEN_LOOKAHEAD =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[2]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
     let x : Q($α) ← reconstructTerm pf.getArguments[2]!
     let y : Q($α) ← reconstructTerm pf.getArguments[3]!
     let z : Q($α) ← reconstructTerm pf.getArguments[4]!
-    addEqThm pf.getResult q(Bool.ite_then_lookahead (c := $c) (x := $x) (y := $y) (z := $z))
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.ite_then_lookahead (c := $c) (x := $x) (y := $y) (z := $z))
   | .ITE_ELSE_LOOKAHEAD =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[2]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
     let x : Q($α) ← reconstructTerm pf.getArguments[2]!
     let y : Q($α) ← reconstructTerm pf.getArguments[3]!
     let z : Q($α) ← reconstructTerm pf.getArguments[4]!
-    addEqThm pf.getResult q(Bool.ite_else_lookahead (c := $c) (x := $x) (y := $y) (z := $z))
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.ite_else_lookahead (c := $c) (x := $x) (y := $y) (z := $z))
   | .ITE_THEN_NEG_LOOKAHEAD =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[2]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
     let x : Q($α) ← reconstructTerm pf.getArguments[2]!
     let y : Q($α) ← reconstructTerm pf.getArguments[3]!
     let z : Q($α) ← reconstructTerm pf.getArguments[4]!
-    addEqThm pf.getResult q(Bool.ite_then_neg_lookahead (c := $c) (x := $x) (y := $y) (z := $z))
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.ite_then_neg_lookahead (c := $c) (x := $x) (y := $y) (z := $z))
   | .ITE_ELSE_NEG_LOOKAHEAD =>
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[2]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
     let x : Q($α) ← reconstructTerm pf.getArguments[2]!
     let y : Q($α) ← reconstructTerm pf.getArguments[3]!
     let z : Q($α) ← reconstructTerm pf.getArguments[4]!
-    addEqThm pf.getResult q(Bool.ite_else_neg_lookahead (c := $c) (x := $x) (y := $y) (z := $z))
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.ite_else_neg_lookahead (c := $c) (x := $x) (y := $y) (z := $z))
   | _ => return none
 
 @[smt_proof_reconstruct] def reconstructBuiltinProof : ProofReconstructor := fun pf => do match pf.getRule with
@@ -182,8 +194,10 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       addThm (← reconstructProofType pf.getResult) q(Bool.scopes $h₁)
   | .EVALUATE =>
     if pf.getResult[0]! == pf.getResult[1]! then
-      let t ← reconstructTerm pf.getResult[0]!
-      addEqThm pf.getResult (← Meta.mkEqRefl t)
+      let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getResult[0]!.getSort!
+      let _ : Q(DecidableEq $α) ← Bool.decEqInst α
+      let t : Q($α) ← reconstructTerm pf.getResult[0]!
+      addThm (← reconstructProofType pf.getResult) q(Bool.eq.refl $t)
     else
       -- `decide (t = t')` evaluates to `true`, unless it involves noncomputable functions, e.g., of
       -- reals.
@@ -194,17 +208,18 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
         else pure (mkApp2 (.const ``Eq.refl [1]) (.const ``Bool []) (.const ``Bool.true []))
       addThm q($b = true) hb
   | .ACI_NORM =>
-    addEqTac pf.getResult Meta.AC.rewriteUnnormalizedTop
+    addTac (← reconstructProofType pf.getResult) (decideTac Meta.AC.rewriteUnnormalizedTop)
   | .ABSORB =>
     let e ← reconstructTerm pf.getResult[0]!
     let z ← reconstructTerm pf.getResult[1]!
     let op := e.appFn!.appFn!
     let tac := if ← useNative then nativeAbsorb else absorb
-    addEqTac pf.getResult (tac · z op)
+    addTac (← reconstructProofType pf.getResult) (decideTac (tac · z op))
   | .ENCODE_EQ_INTRO =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getResult[0]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
     let y : Q($α) ← reconstructTerm pf.getResult[1]!
-    addEqThm pf.getResult q(Eq.refl $y)
+    addThm (← reconstructProofType pf.getResult) q(Bool.eq.refl $y)
   | .DSL_REWRITE
   | .THEORY_REWRITE => reconstructRewrite pf
   | .ITE_ELIM1 =>
@@ -263,8 +278,9 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     addThm (← reconstructProofType pf.getResult) q(Bool.cnf_ite_neg3 $c $p $q)
   | .SKOLEM_INTRO =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getResult[0]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
     let t : Q($α) ← reconstructTerm pf.getResult[1]!
-    addEqThm pf.getResult q(Eq.refl $t)
+    addThm (← reconstructProofType pf.getResult) q(Bool.eq.refl $t)
   | _ => return none
 where
   /-- A proof of `b = true` by native evaluation of `b`. -/

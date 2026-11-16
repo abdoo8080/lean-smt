@@ -180,7 +180,8 @@ theorem sum_ub₂ (h₁ : a.blt b = true) (h₂ : c.ble d = true) : (a + c).blt 
   rewrite [Rat.add_comm, Rat.add_comm c b] at h'
   exact lt_of_lt_of_le h' h''
 
-theorem sum_ub₃ (h₁ : a.blt b = true) (h₂ : c = d) : (a + c).blt (b + d) = true := by
+theorem sum_ub₃ (h₁ : a.blt b = true) (h₂ : Bool.eq c d) : (a + c).blt (b + d) = true := by
+  have h₂ := h₂.to_eq
   simp only [Rat.blt_eq_true] at *
   rewrite [h₂]
   have : d + a < d + b := Rat.add_lt_add_left.mpr h₁
@@ -201,26 +202,30 @@ theorem sum_ub₅ (h₁ : a.ble b = true) (h₂ : c.ble d = true) : (a + c).ble 
   rewrite [Rat.add_comm, Rat.add_comm c b] at h'
   exact le_trans h' h''
 
-theorem sum_ub₆ (h₁ : a.ble b = true) (h₂ : c = d) : (a + c).ble (b + d) = true := by
+theorem sum_ub₆ (h₁ : a.ble b = true) (h₂ : Bool.eq c d) : (a + c).ble (b + d) = true := by
+  have h₂ := h₂.to_eq
   simp only [Rat.ble_eq_true] at *
   rewrite [h₂, Rat.add_comm, Rat.add_comm b d]
   exact Rat.add_le_add_left.mpr h₁
 
-theorem sum_ub₇ (h₁ : a = b) (h₂ : c.blt d = true) : (a + c).blt (b + d) = true := by
+theorem sum_ub₇ (h₁ : Bool.eq a b) (h₂ : c.blt d = true) : (a + c).blt (b + d) = true := by
+  have h₁ := h₁.to_eq
   simp only [Rat.blt_eq_true] at *
   rewrite [h₁, Rat.add_comm b c, Rat.add_comm b d]
-  exact sum_ub₃ h₂ rfl
+  exact sum_ub₃ h₂ (Bool.eq.refl _)
 
-theorem sum_ub₈ (h₁ : a = b) (h₂ : c.ble d = true) : (a + c).ble (b + d) = true := by
+theorem sum_ub₈ (h₁ : Bool.eq a b) (h₂ : c.ble d = true) : (a + c).ble (b + d) = true := by
+  have h₁ := h₁.to_eq
   simp only [Rat.ble_eq_true] at *
   rewrite [h₁]
   exact Rat.add_le_add_left.mpr h₂
 
-theorem sum_ub₉ (h₁ : a = b) (h₂ : c = d) : a + c = b + d := by
-  rw [h₁, h₂]
+theorem sum_ub₉ (h₁ : Bool.eq a b) (h₂ : Bool.eq c d) : Bool.eq (a + c) (b + d) := by
+  apply Bool.eq.of_eq
+  rw [h₁.to_eq, h₂.to_eq]
 
-theorem ble_of_eq (h : a = b) : a.ble b = true := by
-  rw [Rat.ble_eq_true, h]; exact Rat.le_refl
+theorem ble_of_eq (h : Bool.eq a b) : a.ble b = true := by
+  rw [Rat.ble_eq_true, h.to_eq]; exact Rat.le_refl
 
 theorem trichotomy₁ (h₁ : a.ble b = true) (h₂ : (!decide (a = b)) = true) : a.blt b = true := by
   simp only [Rat.ble_eq_true, Rat.blt_eq_true, Bool.not_eq_true', decide_eq_false_iff_not] at *
@@ -229,7 +234,8 @@ theorem trichotomy₁ (h₁ : a.ble b = true) (h₂ : (!decide (a = b)) = true) 
   have h := Rat.le_antisymm h₁ abs
   exact h₂ h
 
-theorem trichotomy₂ (h₁ : a.ble b = true) (h₂ : a.bge b = true) : a = b := by
+theorem trichotomy₂ (h₁ : a.ble b = true) (h₂ : a.bge b = true) : Bool.eq a b := by
+  apply Bool.eq.of_eq
   simp only [Rat.ble_eq_true, Rat.bge_eq_true] at *
   exact Rat.le_antisymm h₁ h₂
 
@@ -240,7 +246,8 @@ theorem trichotomy₄ (h₁ : (!decide (a = b)) = true) (h₂ : a.bge b = true) 
   simp only [Rat.bge_eq_true, Rat.bgt_eq_true, Bool.not_eq_true', decide_eq_false_iff_not] at *
   exact Rat.not_le.mp fun h => h₁ (Rat.le_antisymm h h₂)
 
-theorem trichotomy₅ (h₁ : a.bge b = true) (h₂ : a.ble b = true) : a = b := by
+theorem trichotomy₅ (h₁ : a.bge b = true) (h₂ : a.ble b = true) : Bool.eq a b := by
+  apply Bool.eq.of_eq
   simp only [Rat.ble_eq_true, Rat.bge_eq_true] at *
   exact Rat.le_antisymm h₂ h₁
 
@@ -254,7 +261,8 @@ theorem abs_eq_ite {x : Rat} : x.abs = if x < 0 then -x else x := by
   · rw [ite_eq_left h, ite_eq_right (Rat.not_le.mpr h)]
   · rw [ite_eq_right h, ite_eq_left (Rat.not_lt.mp h)]
 
-theorem abs_elim {x : Rat} : x.abs = cond (x.blt 0) (-x) x := by
+theorem abs_elim {x : Rat} : Bool.eq x.abs (cond (x.blt 0) (-x) x) := by
+  apply Bool.eq.of_eq
   rw [abs_eq_ite]
   cases h : x.blt 0
   · have hx : ¬x < 0 := by rw [← Rat.blt_eq_true, h]; decide
@@ -301,7 +309,7 @@ theorem neg_of_pos {a : Rat} : 0 < a → -a < 0 := by
     lhs
     rw [this]
     skip
-  exact sum_ub₇ rfl h
+  exact sum_ub₇ (Bool.eq.refl _) h
 
 theorem pos_of_neg {a : Rat} : a < 0 → 0 < -a := by
   intro h
@@ -311,7 +319,7 @@ theorem pos_of_neg {a : Rat} : a < 0 → 0 < -a := by
     rhs
     rw [this]
     skip
-  exact sum_ub₇ rfl h
+  exact sum_ub₇ (Bool.eq.refl _) h
 
 theorem abs_nonneg (x : Rat) : 0 ≤ x.abs := by
   rewrite [abs_eq_ite]
@@ -348,8 +356,10 @@ theorem abs_mul (a b : Rat) : (a * b).abs = a.abs * b.abs := by
     simp only [Rat.abs_of_nonpos, Rat.abs_of_nonneg, true_or, or_true, Rat.neg_mul,
       Rat.mul_neg, Rat.neg_neg, *]
 
-theorem mul_abs₁ (h₁ : x₁.abs = y₁.abs) (h₂ : x₂.abs = y₂.abs) : (x₁ * x₂).abs = (y₁ * y₂).abs := by
-  rw [Rat.abs_mul x₁ x₂, Rat.abs_mul y₁ y₂, h₁, h₂]
+theorem mul_abs₁ (h₁ : Bool.eq x₁.abs y₁.abs) (h₂ : Bool.eq x₂.abs y₂.abs) :
+    Bool.eq (x₁ * x₂).abs (y₁ * y₂).abs := by
+  apply Bool.eq.of_eq
+  rw [Rat.abs_mul x₁ x₂, Rat.abs_mul y₁ y₂, h₁.to_eq, h₂.to_eq]
 
 theorem mul_abs₂ (h₁ : x₁.abs.bgt y₁.abs = true)
     (h₂ : (decide (x₂.abs = y₂.abs) && !decide (x₂.abs = 0)) = true) :
@@ -496,7 +506,9 @@ theorem gt_eq_sub_gt_zero : (a > b) = (a - b > 0) := by
   apply propext
   exact Rat.lt_iff_sub_pos b a
 
-theorem lt_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
+theorem lt_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.blt a₂) (b₁.blt b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   have {c x y : Rat} (hc : c > 0) : (c * (x - y) < 0) = (x - y < 0) := by
     rw (config := { occs := .pos [1] }) [← Rat.mul_zero c, Rat.mul_lt_mul_left hc]
   apply Bool.eq_iff_iff.mpr; apply Iff.of_eq; show (a₁ < a₂) = (b₁ < b₂)
@@ -580,14 +592,18 @@ theorem lt_of_sub_eq_neg' {c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0
   have := neg_of_mul_pos c₂ (b₁ - b₂) hc₂ this
   exact (lt_iff_sub_pos' b₂ b₁).mpr this
 
-theorem lt_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
+theorem lt_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.blt a₂) (b₁.blt b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   apply Bool.eq_iff_iff.mpr
   constructor
   · exact lt_of_sub_eq_neg' hc₁ hc₂ h
   · intro h2
     exact lt_of_sub_eq_neg' (c₁ := c₂) (c₂ := c₁) (a₁ := b₁) (a₂ := b₂) (b₁ := a₁) (b₂ := a₂) hc₂ hc₁ (Eq.symm h) h2
 
-theorem le_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
+theorem le_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.ble a₂) (b₁.ble b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   have {c x y : Rat} (hc : c > 0) : (c * (x - y) ≤ 0) = (x - y ≤ 0) := by
     rw (config := { occs := .pos [1] }) [← Rat.mul_zero c, Rat.mul_le_mul_left hc]
   apply Bool.eq_iff_iff.mpr; rw [Rat.ble_eq_true, Rat.ble_eq_true]; apply Iff.of_eq
@@ -601,14 +617,18 @@ theorem le_of_sub_eq_neg' {c₁ c₂ : Rat} (hc₁ : c₁ < 0) (hc₂ : c₂ < 0
   have := nonpos_of_mul_nonneg c₂ (b₁ - b₂) hc₂ this
   exact (Rat.le_iff_sub_nonneg' b₂ b₁).mpr this
 
-theorem le_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
+theorem le_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.ble a₂) (b₁.ble b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   apply Bool.eq_iff_iff.mpr; rw [Rat.ble_eq_true, Rat.ble_eq_true]
   constructor
   · exact le_of_sub_eq_neg' hc₁ hc₂ h
   · intro h2
     exact le_of_sub_eq_neg' (c₁ := c₂) (c₂ := c₁) (a₁ := b₁) (a₂ := b₂) (b₁ := a₁) (b₂ := a₂) hc₂ hc₁ (Eq.symm h) h2
 
-theorem eq_of_sub_eq {c₁ c₂ : Rat} (hc₁ : (!decide (c₁ = 0)) = true) (hc₂ : (!decide (c₂ = 0)) = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : decide (a₁ = a₂) = decide (b₁ = b₂) := by
+theorem eq_of_sub_eq {c₁ c₂ : Rat} (hc₁ : (!decide (c₁ = 0)) = true) (hc₂ : (!decide (c₂ = 0)) = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (decide (a₁ = a₂)) (decide (b₁ = b₂)) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   simp only [Bool.not_eq_true', decide_eq_false_iff_not] at hc₁ hc₂
   apply Bool.eq_iff_iff.mpr; rw [decide_eq_true_eq, decide_eq_true_eq]
   apply Iff.intro
@@ -625,7 +645,9 @@ theorem eq_of_sub_eq {c₁ c₂ : Rat} (hc₁ : (!decide (c₁ = 0)) = true) (hc
     rw [eq_eq_sub_eq_zero]
     exact this
 
-theorem ge_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
+theorem ge_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.bge a₂) (b₁.bge b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   have {c x y : Rat} (hc : c > 0) : (c * (x - y) ≥ 0) = (x - y ≥ 0) := by
     rw (config := { occs := .pos [1] }) [← Rat.mul_zero c, ge_iff_le, Rat.mul_le_mul_left hc]
   apply Bool.eq_iff_iff.mpr; rw [Rat.bge_eq_true, Rat.bge_eq_true]; apply Iff.of_eq
@@ -645,23 +667,29 @@ theorem neg_eq {a b : Rat} : -a = -b → a = b := by
   simp only [Rat.neg_neg] at h'
   exact h'
 
-theorem ge_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
+theorem ge_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.bge a₂) (b₁.bge b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   show a₂.ble a₁ = b₂.ble b₁
   rw [<- Rat.neg_sub, <- Rat.neg_sub b₂ b₁, mul_neg, mul_neg] at h
   have h' := neg_eq h
-  exact le_of_sub_eq_neg hc₁ hc₂ h'
+  exact (le_of_sub_eq_neg hc₁ hc₂ (Bool.eq.of_eq h')).to_eq
 
-theorem gt_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
+theorem gt_of_sub_eq_pos {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.bgt a₂) (b₁.bgt b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   have {c x y : Rat} (hc : c > 0) : (c * (x - y) > 0) = (x - y > 0) := by
     rw (config := { occs := .pos [1] }) [← Rat.mul_zero c, gt_iff_lt, Rat.mul_lt_mul_left hc]
   apply Bool.eq_iff_iff.mpr; apply Iff.of_eq; show (a₁ > a₂) = (b₁ > b₂)
   rw [gt_eq_sub_gt_zero, @gt_eq_sub_gt_zero b₁, ← this hc₁, ← this hc₂, h]
 
-theorem gt_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
+theorem gt_of_sub_eq_neg {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.bgt a₂) (b₁.bgt b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   show a₂.blt a₁ = b₂.blt b₁
   rw [<- Rat.neg_sub, <- Rat.neg_sub b₂ b₁, mul_neg, mul_neg] at h
   have h' := neg_eq h
-  exact lt_of_sub_eq_neg hc₁ hc₂ h'
+  exact (lt_of_sub_eq_neg hc₁ hc₂ (Bool.eq.of_eq h')).to_eq
 
 theorem cast_blt {a b : Int} : a.blt b = (a : Rat).blt b :=
   Bool.eq_iff_iff.mpr (by rw [Int.blt_eq_true]; exact Rat.cast_lt')
@@ -678,95 +706,131 @@ theorem cast_bge {a b : Int} : a.bge b = (a : Rat).bge b :=
 theorem cast_decide_eq {a b : Int} : decide (a = b) = decide ((a : Rat) = b) :=
   Bool.eq_iff_iff.mpr (by rw [decide_eq_true_eq, decide_eq_true_eq]; exact Rat.cast_eq)
 
-theorem lt_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
+theorem lt_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : Bool.eq (c₁ * ↑(a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.blt a₂) (b₁.blt b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_blt]
-  exact lt_of_sub_eq_pos hc₁ hc₂ h
+  exact (lt_of_sub_eq_pos hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem lt_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
+theorem lt_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : Bool.eq (c₁ * ↑(a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.blt a₂) (b₁.blt b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_blt]
-  exact lt_of_sub_eq_neg hc₁ hc₂ h
+  exact (lt_of_sub_eq_neg hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem le_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
+theorem le_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : Bool.eq (c₁ * ↑(a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.ble a₂) (b₁.ble b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_ble]
-  exact le_of_sub_eq_pos hc₁ hc₂ h
+  exact (le_of_sub_eq_pos hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem le_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
+theorem le_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : Bool.eq (c₁ * ↑(a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.ble a₂) (b₁.ble b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_ble]
-  exact le_of_sub_eq_neg hc₁ hc₂ h
+  exact (le_of_sub_eq_neg hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem eq_of_sub_eq_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : (!decide (c₁ = 0)) = true) (hc₂ : (!decide (c₂ = 0)) = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : decide (a₁ = a₂) = decide (b₁ = b₂) := by
+theorem eq_of_sub_eq_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : (!decide (c₁ = 0)) = true) (hc₂ : (!decide (c₂ = 0)) = true) (h : Bool.eq (c₁ * ↑(a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (decide (a₁ = a₂)) (decide (b₁ = b₂)) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_decide_eq]
-  exact eq_of_sub_eq hc₁ hc₂ h
+  exact (eq_of_sub_eq hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem ge_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
+theorem ge_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : Bool.eq (c₁ * ↑(a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.bge a₂) (b₁.bge b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_bge]
-  exact ge_of_sub_eq_pos hc₁ hc₂ h
+  exact (ge_of_sub_eq_pos hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem ge_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
+theorem ge_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : Bool.eq (c₁ * ↑(a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.bge a₂) (b₁.bge b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_bge]
-  exact ge_of_sub_eq_neg hc₁ hc₂ h
+  exact (ge_of_sub_eq_neg hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem gt_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
+theorem gt_of_sub_eq_pos_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : Bool.eq (c₁ * ↑(a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.bgt a₂) (b₁.bgt b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_bgt]
-  exact gt_of_sub_eq_pos hc₁ hc₂ h
+  exact (gt_of_sub_eq_pos hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem gt_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * ↑(a₁ - a₂) = c₂ * (b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
+theorem gt_of_sub_eq_neg_int_left {a₁ a₂ : Int} {b₁ b₂ c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : Bool.eq (c₁ * ↑(a₁ - a₂)) (c₂ * (b₁ - b₂))) : Bool.eq (a₁.bgt a₂) (b₁.bgt b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_bgt]
-  exact gt_of_sub_eq_neg hc₁ hc₂ h
+  exact (gt_of_sub_eq_neg hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem lt_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
+theorem lt_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * ↑(b₁ - b₂))) : Bool.eq (a₁.blt a₂) (b₁.blt b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_blt]
-  exact lt_of_sub_eq_pos hc₁ hc₂ h
+  exact (lt_of_sub_eq_pos hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem lt_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.blt a₂ = b₁.blt b₂ := by
+theorem lt_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * ↑(b₁ - b₂))) : Bool.eq (a₁.blt a₂) (b₁.blt b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_blt]
-  exact lt_of_sub_eq_neg hc₁ hc₂ h
+  exact (lt_of_sub_eq_neg hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem le_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
+theorem le_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * ↑(b₁ - b₂))) : Bool.eq (a₁.ble a₂) (b₁.ble b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_ble]
-  exact le_of_sub_eq_pos hc₁ hc₂ h
+  exact (le_of_sub_eq_pos hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem le_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.ble a₂ = b₁.ble b₂ := by
+theorem le_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * ↑(b₁ - b₂))) : Bool.eq (a₁.ble a₂) (b₁.ble b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_ble]
-  exact le_of_sub_eq_neg hc₁ hc₂ h
+  exact (le_of_sub_eq_neg hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem eq_of_sub_eq_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : (!decide (c₁ = 0)) = true) (hc₂ : (!decide (c₂ = 0)) = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : decide (a₁ = a₂) = decide (b₁ = b₂) := by
+theorem eq_of_sub_eq_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : (!decide (c₁ = 0)) = true) (hc₂ : (!decide (c₂ = 0)) = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * ↑(b₁ - b₂))) : Bool.eq (decide (a₁ = a₂)) (decide (b₁ = b₂)) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_decide_eq]
-  exact eq_of_sub_eq hc₁ hc₂ h
+  exact (eq_of_sub_eq hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem ge_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
+theorem ge_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * ↑(b₁ - b₂))) : Bool.eq (a₁.bge a₂) (b₁.bge b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_bge]
-  exact ge_of_sub_eq_pos hc₁ hc₂ h
+  exact (ge_of_sub_eq_pos hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem ge_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.bge a₂ = b₁.bge b₂ := by
+theorem ge_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * ↑(b₁ - b₂))) : Bool.eq (a₁.bge a₂) (b₁.bge b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_bge]
-  exact ge_of_sub_eq_neg hc₁ hc₂ h
+  exact (ge_of_sub_eq_neg hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem gt_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
+theorem gt_of_sub_eq_pos_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.bgt 0 = true) (hc₂ : c₂.bgt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * ↑(b₁ - b₂))) : Bool.eq (a₁.bgt a₂) (b₁.bgt b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_bgt]
-  exact gt_of_sub_eq_pos hc₁ hc₂ h
+  exact (gt_of_sub_eq_pos hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
-theorem gt_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : c₁ * (a₁ - a₂) = c₂ * ↑(b₁ - b₂)) : a₁.bgt a₂ = b₁.bgt b₂ := by
+theorem gt_of_sub_eq_neg_int_right {a₁ a₂ : Rat} {b₁ b₂ : Int} {c₁ c₂ : Rat} (hc₁ : c₁.blt 0 = true) (hc₂ : c₂.blt 0 = true) (h : Bool.eq (c₁ * (a₁ - a₂)) (c₂ * ↑(b₁ - b₂))) : Bool.eq (a₁.bgt a₂) (b₁.bgt b₂) := by
+  apply Bool.eq.of_eq
+  have h := h.to_eq
   rw [Rat.intCast_sub] at h
   rw [cast_bgt]
-  exact gt_of_sub_eq_neg hc₁ hc₂ h
+  exact (gt_of_sub_eq_neg hc₁ hc₂ (Bool.eq.of_eq h)).to_eq
 
 theorem mul_sign₆ (ha : a.bgt 0 = true) (hb : b.bgt 0 = true) : (a * b).bgt 0 = true :=
   (show a > 0 → b > 0 → a * b > 0 from Rat.numDenCasesOn' a fun a_num a_den a_den_nz ha =>
@@ -1008,8 +1072,9 @@ theorem mul_tangent_lower :
   x * y ≤ b * x + a * y - a * b ↔ x ≤ a ∧ y ≥ b ∨ x ≥ a ∧ y ≤ b :=
   ⟨mul_tangent_mp_lower, mul_tangent_mpr_lower⟩
 
-theorem mul_tangent_lower_eq {x y : Rat}
-  : (x * y).ble (b * x + a * y - a * b) = (x.ble a && y.bge b || x.bge a && y.ble b) := by
+theorem mul_tangent_lower_eq {x y : Rat} :
+    Bool.eq ((x * y).ble (b * x + a * y - a * b)) (x.ble a && y.bge b || x.bge a && y.ble b) :=
+    Bool.eq.of_eq <| by
   apply Bool.eq_iff_iff.mpr
   simp only [Rat.ble_eq_true, Rat.bge_eq_true, Bool.or_eq_true, Bool.and_eq_true]
   exact mul_tangent_lower
@@ -1090,8 +1155,9 @@ theorem mul_tangent_upper
   : x * y ≥ b * x + a * y - a * b ↔ x ≤ a ∧ y ≤ b ∨ x ≥ a ∧ y ≥ b :=
   ⟨mul_tangent_mp_upper, mul_tangent_mpr_upper⟩
 
-theorem mul_tangent_upper_eq {x y : Rat}
-  : (x * y).bge (b * x + a * y - a * b) = (x.ble a && y.ble b || x.bge a && y.bge b) := by
+theorem mul_tangent_upper_eq {x y : Rat} :
+    Bool.eq ((x * y).bge (b * x + a * y - a * b)) (x.ble a && y.ble b || x.bge a && y.bge b) :=
+    Bool.eq.of_eq <| by
   apply Bool.eq_iff_iff.mpr
   simp only [Rat.ble_eq_true, Rat.bge_eq_true, Bool.or_eq_true, Bool.and_eq_true]
   exact mul_tangent_upper

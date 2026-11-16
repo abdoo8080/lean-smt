@@ -153,109 +153,110 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     let x : Q(Real) ← reconstructTerm (pf.getResult[0]!)[0]!
     let c : Nat := (pf.getResult[0]!)[1]!.getIntegerValue!.toNat
     let y : Q(Real) ← reconstructTerm pf.getResult[1]!
-    let mut h : Q($x ^ $c = $y) := .app q(@Eq.refl Real) y
+    let refl : Q((a : Real) → Bool.eq a a) := q(Bool.eq.refl)
+    let mut h : Q(Bool.eq ($x ^ $c) $y) := .app refl y
     if c > 0 then
       let qPow : Q(Real) := c.repeat (fun acc => q($acc * $x)) (.bvar 0)
-      let p : Q(Real → Prop) := .lam `x q(Real) q($qPow = $y) .default
+      let p : Q(Real → Prop) := .lam `x q(Real) q(Bool.eq $qPow $y) .default
       h := .app q(Eq.subst (motive := $p) (one_mul $x).symm) h
-    addEqThm pf.getResult h
+    addThm (← reconstructProofType pf.getResult) h
   | .ARITH_DIV_TOTAL_ZERO_REAL =>
     let x : Q(Real) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(@Rewrite.div_total_zero $x)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.div_total_zero $x)
   | .ARITH_ELIM_GT =>
     if pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Real) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Real) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.elim_gt $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.elim_gt $t $s)
   | .ARITH_ELIM_LT =>
     if pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Real) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Real) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.elim_lt $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.elim_lt $t $s)
   | .ARITH_ELIM_LEQ =>
     if pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Real) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Real) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.elim_leq $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.elim_leq $t $s)
   | .ARITH_GEQ_NORM1_REAL =>
     let t : Q(Real) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Real) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.geq_norm1 $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.geq_norm1 $t $s)
   | .ARITH_EQ_ELIM_REAL =>
     let t : Q(Real) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Real) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.eq_elim $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.eq_elim $t $s)
   | .ARITH_INT_EQ_CONFLICT =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let c : Q(Real) ← reconstructTerm pf.getArguments[2]!
-    let h : Q(decide ((⌊$c⌋ : Real) = $c) = false) ← reconstructEqProof pf.getChildren[0]!
-    addEqThm pf.getResult q(@Rewrite.eq_conflict $t $c $h)
+    let h : Q(Bool.eq (decide ((⌊$c⌋ : Real) = $c)) false) ← reconstructProof pf.getChildren[0]!
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.eq_conflict $t $c $h)
   | .ARITH_INT_GEQ_TIGHTEN =>
     let t : Q(Int) ← reconstructTerm pf.getArguments[1]!
     let c : Q(Real) ← reconstructTerm pf.getArguments[2]!
     let cc : Q(Int) ← reconstructTerm pf.getArguments[3]!
-    let hc : Q(decide ((⌊$c⌋ : Real) = $c) = false) ← reconstructEqProof pf.getChildren[0]!
-    let hcc : Q($cc = ⌊$c⌋ + 1) ← reconstructEqProof pf.getChildren[1]!
-    addEqThm pf.getResult q(@Rewrite.geq_tighten $t $c $cc $hc $hcc)
+    let hc : Q(Bool.eq (decide ((⌊$c⌋ : Real) = $c)) false) ← reconstructProof pf.getChildren[0]!
+    let hcc : Q(Bool.eq $cc (⌊$c⌋ + 1)) ← reconstructProof pf.getChildren[1]!
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.geq_tighten $t $c $cc $hc $hcc)
   | .ARITH_ABS_EQ =>
     if pf.getArguments[1]!.getSort!.isInteger then return none
     let x : Q(Real) ← reconstructTerm pf.getArguments[1]!
     let y : Q(Real) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.abs_eq $x $y)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.abs_eq $x $y)
   | .ARITH_ABS_REAL_GT =>
     let x : Q(Real) ← reconstructTerm pf.getArguments[1]!
     let y : Q(Real) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.abs_gt $x $y)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.abs_gt $x $y)
   | .ARITH_GEQ_ITE_LIFT =>
     if pf.getArguments[2]!.getSort!.isInteger then return none
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let t : Q(Real) ← reconstructTerm pf.getArguments[2]!
     let s : Q(Real) ← reconstructTerm pf.getArguments[3]!
     let r : Q(Real) ← reconstructTerm pf.getArguments[4]!
-    addEqThm pf.getResult q(@Rewrite.geq_ite_lift $c $t $s $r)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.geq_ite_lift $c $t $s $r)
   | .ARITH_LEQ_ITE_LIFT =>
     if pf.getArguments[2]!.getSort!.isInteger then return none
     let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
     let t : Q(Real) ← reconstructTerm pf.getArguments[2]!
     let s : Q(Real) ← reconstructTerm pf.getArguments[3]!
     let r : Q(Real) ← reconstructTerm pf.getArguments[4]!
-    addEqThm pf.getResult q(@Rewrite.leq_ite_lift $c $t $s $r)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.leq_ite_lift $c $t $s $r)
   | .ARITH_MIN_LT1 =>
     if pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Real) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Real) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.min_lt1 $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.min_lt1 $t $s)
   | .ARITH_MIN_LT2 =>
     if pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Real) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Real) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.min_lt2 $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.min_lt2 $t $s)
   | .ARITH_MAX_GEQ1 =>
     if pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Real) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Real) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.max_geq1 $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.max_geq1 $t $s)
   | .ARITH_MAX_GEQ2 =>
     if pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Real) ← reconstructTerm pf.getArguments[1]!
     let s : Q(Real) ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult q(@Rewrite.max_geq2 $t $s)
+    addThm (← reconstructProofType pf.getResult) q(@Rewrite.max_geq2 $t $s)
   | .ARITH_SINE_ZERO =>
-    addEqThm pf.getResult q(Rewrite.arith_sine_zero)
+    addThm (← reconstructProofType pf.getResult) q(Rewrite.arith_sine_zero)
   | .ARITH_SINE_PI2 =>
-    addEqThm pf.getResult q(Rewrite.arith_sine_pi2)
+    addThm (← reconstructProofType pf.getResult) q(Rewrite.arith_sine_pi2)
   | .ARITH_COSINE_ELIM =>
     if pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Real) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Rewrite.arith_cosine_elim $t)
+    addThm (← reconstructProofType pf.getResult) q(Rewrite.arith_cosine_elim $t)
   | .ARITH_TANGENT_ELIM =>
     if pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Real) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Rewrite.arith_tangent_elim $t)
+    addThm (← reconstructProofType pf.getResult) q(Rewrite.arith_tangent_elim $t)
   | .ARITH_COTANGENT_ELIM =>
     if pf.getArguments[1]!.getSort!.isInteger then return none
     let t : Q(Real) ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult q(Rewrite.arith_cotangent_elim $t)
+    addThm (← reconstructProofType pf.getResult) q(Rewrite.arith_cotangent_elim $t)
   | _ => return none
 
 def reconstructSumUB (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
@@ -275,7 +276,7 @@ def reconstructSumUB (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       return (.LT, lsl, rsr, q(Real.sum_ub₂ $hs $h))
     else if ks == .LT && k == .EQUAL then
       let hs : Q(Real.blt $ls $rs = true) := hs
-      let h : Q($l = $r) ← reconstructEqProof p
+      let h : Q(Bool.eq $l $r) ← reconstructProof p
       return (.LT, lsl, rsr, q(Real.sum_ub₃ $hs $h))
     else if ks == .LEQ && k == .LT then
       let hs : Q(Real.ble $ls $rs = true) := hs
@@ -287,29 +288,29 @@ def reconstructSumUB (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
       return (.LEQ, lsl, rsr, q(Real.sum_ub₅ $hs $h))
     else if ks == .LEQ && k == .EQUAL then
       let hs : Q(Real.ble $ls $rs = true) := hs
-      let h : Q($l = $r) ← reconstructEqProof p
+      let h : Q(Bool.eq $l $r) ← reconstructProof p
       return (.LEQ, lsl, rsr, q(Real.sum_ub₆ $hs $h))
     else if ks == .EQUAL && k == .LT then
-      let hs : Q($ls = $rs) := hs
+      let hs : Q(Bool.eq $ls $rs) := hs
       let h : Q(Real.blt $l $r = true) ← reconstructProof p
       return (.LT, lsl, rsr, q(Real.sum_ub₇ $hs $h))
     else if ks == .EQUAL && k == .LEQ then
-      let hs : Q($ls = $rs) := hs
+      let hs : Q(Bool.eq $ls $rs) := hs
       let h : Q(Real.ble $l $r = true) ← reconstructProof p
       return (.LEQ, lsl, rsr, q(Real.sum_ub₈ $hs $h))
     else if ks == .EQUAL && k == .EQUAL then
-      let hs : Q($ls = $rs) := hs
-      let h : Q($l = $r) ← reconstructEqProof p
+      let hs : Q(Bool.eq $ls $rs) := hs
+      let h : Q(Bool.eq $l $r) ← reconstructProof p
       return (.EQUAL, lsl, rsr, q(Real.sum_ub₉ $hs $h))
     else
       throwError "[sum_ub]: invalid kinds: {ks}, {k}"
   let k := pf.getChildren[0]!.getResult.getKind!
   let ls : Q(Real) ← reconstructTerm pf.getChildren[0]!.getResult[0]!
   let rs : Q(Real) ← reconstructTerm pf.getChildren[0]!.getResult[1]!
-  let hs ← reconstructRelProof pf.getChildren[0]!
+  let hs ← reconstructProof pf.getChildren[0]!
   let (ks, ls, rs, hs) ← pf.getChildren[1:].foldlM f (k, ls, rs, hs)
   if ks == .EQUAL then
-    let hs : Q($ls = $rs) := hs
+    let hs : Q(Bool.eq $ls $rs) := hs
     addThm (← reconstructProofType pf.getResult) q(Real.ble_of_eq $hs)
   else
     addThm (← reconstructProofType pf.getResult) hs
@@ -320,8 +321,8 @@ def reconstructMulAbsComparison (pf : cvc5.Proof) : ReconstructM (Option Expr) :
     if ks == .EQUAL && k == .EQUAL then
       let l : Q(Real) ← reconstructTerm (p.getResult[0]!)[0]!
       let r : Q(Real) ← reconstructTerm (p.getResult[1]!)[0]!
-      let hs : Q(|$ls| = |$rs|) := hs
-      let h : Q(|$l| = |$r|) ← reconstructEqProof p
+      let hs : Q(Bool.eq |$ls| |$rs|) := hs
+      let h : Q(Bool.eq |$l| |$r|) ← reconstructProof p
       return (.EQUAL, q($ls * $l), q($rs * $r), q(Real.mul_abs₁ $hs $h))
     else if ks == .GT && k == .AND then
       let l : Q(Real) ← reconstructTerm ((p.getResult[0]!)[0]!)[0]!
@@ -340,12 +341,9 @@ def reconstructMulAbsComparison (pf : cvc5.Proof) : ReconstructM (Option Expr) :
   let k := pf.getChildren[0]!.getResult.getKind!
   let ls : Q(Real) ← reconstructTerm (pf.getChildren[0]!.getResult[0]!)[0]!
   let rs : Q(Real) ← reconstructTerm (pf.getChildren[0]!.getResult[1]!)[0]!
-  let hs ← reconstructRelProof pf.getChildren[0]!
+  let hs ← reconstructProof pf.getChildren[0]!
   let (ks, _, _, hs) ← pf.getChildren[1:].foldlM f (k, ls, rs, hs)
-  if ks == .EQUAL then
-    addEqThm pf.getResult hs
-  else
-    addThm (← reconstructProofType pf.getResult) hs
+  addThm (← reconstructProofType pf.getResult) hs
 
 def reconstructMulSign (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   let ts := if pf.getResult[0]!.getKind! == .AND then pf.getResult[0]!.getChildren else #[pf.getResult[0]!]
@@ -401,7 +399,7 @@ def reconstructArithPolyNormRel (pf : cvc5.Proof) : ReconstructM (Option Expr) :
   let x₂ : Q(Real) ← reconstructTerm (pf.getResult[0]!)[1]!
   let y₁ : Q(Real) ← reconstructTerm (pf.getResult[1]!)[0]!
   let y₂ : Q(Real) ← reconstructTerm (pf.getResult[1]!)[1]!
-  let h : Q($cx * ($x₁ - $x₂) = $cy * ($y₁ - $y₂)) ← reconstructEqProof pf.getChildren[0]!
+  let h : Q(Bool.eq ($cx * ($x₁ - $x₂)) ($cy * ($y₁ - $y₂))) ← reconstructProof pf.getChildren[0]!
   let k := pf.getResult[0]!.getKind!
   -- The signs of the constants are proved by `norm_num`, since the comparisons of reals are
   -- noncomputable.
@@ -424,7 +422,7 @@ def reconstructArithPolyNormRel (pf : cvc5.Proof) : ReconstructM (Option Expr) :
   let hcx ← sign cx
   let hcy ← sign cy
   let n ← getThmName k (pf.getResult[0]!)[0]!.getSort!.isInteger (pf.getResult[1]!)[0]!.getSort!.isInteger (lcx > 0)
-  addEqThm pf.getResult (mkApp9 (.const n []) x₁ x₂ y₁ y₂ cx cy hcx hcy h)
+  addThm (← reconstructProofType pf.getResult) (mkApp9 (.const n []) x₁ x₂ y₁ y₂ cx cy hcx hcy h)
 where
   getThmName (k : cvc5.Kind) (il ir sign : Bool) : ReconstructM Name :=
     if k == .LT && il == false && ir == false && sign == true then pure ``Real.lt_of_sub_eq_pos
@@ -461,7 +459,7 @@ where
     -- Computable evaluations are reconstructed by evaluation (see `Smt.Reconstruct.Builtin`).
     if !(← usesNoncomputable (← reconstructTerm pf.getResult)) then
       return none
-    addEqTac pf.getResult normNumAbs
+    addTac (← reconstructProofType pf.getResult) (decideTac normNumAbs)
   | .DSL_REWRITE
   | .THEORY_REWRITE => reconstructRewrite pf
   | .ARITH_SUM_UB =>
@@ -493,13 +491,13 @@ where
     if k₁ == .LEQ && k₂ == .NOT then
       addThm (← reconstructProofType pf.getResult) (mkApp4 (.const ``Real.trichotomy₁ []) x c h₁ h₂)
     else if k₁ == .LEQ && k₂ == .GEQ then
-      addEqThm pf.getResult (mkApp4 (.const ``Real.trichotomy₂ []) x c h₁ h₂)
+      addThm (← reconstructProofType pf.getResult) (mkApp4 (.const ``Real.trichotomy₂ []) x c h₁ h₂)
     else if k₁ == .NOT && k₂ == .LEQ then
       addThm (← reconstructProofType pf.getResult) (mkApp4 (.const ``Real.trichotomy₃ []) x c h₁ h₂)
     else if k₁ == .NOT && k₂ == .GEQ then
       addThm (← reconstructProofType pf.getResult) (mkApp4 (.const ``Real.trichotomy₄ []) x c h₁ h₂)
     else if k₁ == .GEQ && k₂ == .LEQ then
-      addEqThm pf.getResult (mkApp4 (.const ``Real.trichotomy₅ []) x c h₁ h₂)
+      addThm (← reconstructProofType pf.getResult) (mkApp4 (.const ``Real.trichotomy₅ []) x c h₁ h₂)
     else if k₁ == .GEQ && k₂ == .NOT then
       addThm (← reconstructProofType pf.getResult) (mkApp4 (.const ``Real.trichotomy₆ []) x c h₁ h₂)
     else
@@ -508,13 +506,13 @@ where
     if pf.getArguments[0]!.getSort!.isInteger then return none
     if pf.getArguments[0]!.getKind! == .ABS then
       let x : Q(Real) ← reconstructTerm (pf.getArguments[0]!)[0]!
-      addEqThm pf.getResult q(@Real.abs_elim $x)
+      addThm (← reconstructProofType pf.getResult) q(@Real.abs_elim $x)
     else
       return none
   | .ARITH_POLY_NORM =>
     if pf.getResult[0]!.getSort!.isInteger then return none
     let tac := if ← useNative then Real.nativePolyNorm else Real.polyNorm
-    addEqTac pf.getResult tac
+    addTac (← reconstructProofType pf.getResult) (decideTac tac)
   | .ARITH_POLY_NORM_REL =>
     if (pf.getChildren[0]!.getResult[0]!)[0]!.getSort!.isInteger then return none
     reconstructArithPolyNormRel pf
@@ -553,9 +551,9 @@ where
     let a : Q(Real) ← reconstructTerm pf.getArguments[2]!
     let b : Q(Real) ← reconstructTerm pf.getArguments[3]!
     if pf.getArguments[4]!.getBooleanValue! == false then
-      addEqThm pf.getResult q(@Real.mul_tangent_lower_eq $a $b $x $y)
+      addThm (← reconstructProofType pf.getResult) q(@Real.mul_tangent_lower_eq $a $b $x $y)
     else
-      addEqThm pf.getResult q(@Real.mul_tangent_upper_eq $a $b $x $y)
+      addThm (← reconstructProofType pf.getResult) q(@Real.mul_tangent_upper_eq $a $b $x $y)
   | .ARITH_TRANS_PI =>
     -- The conclusion is `(and (>= real.pi l) (<= real.pi u))`.
     let l : Q(Real) ← reconstructTerm (pf.getResult[0]!)[1]!
@@ -566,7 +564,7 @@ where
     addThm (← reconstructProofType pf.getResult) q(TransFns.arithTransPi_of $h)
   | .ARITH_TRANS_EXP_ZERO =>
     let t : Q(Real) ← reconstructTerm pf.getArguments[0]!
-    addEqThm pf.getResult q(TransFns.arithTransExpZeroEq $t)
+    addThm (← reconstructProofType pf.getResult) q(TransFns.arithTransExpZeroEq $t)
   | .ARITH_TRANS_SINE_SHIFT =>
     let x : Q(Real) ← reconstructTerm pf.getArguments[0]!
     addThm (← reconstructProofType pf.getResult) q(TransFns.arithTransSineShift₁ $x)
@@ -584,7 +582,7 @@ where
     addThm (← reconstructProofType pf.getResult) q(TransFns.arithTransExpSuperLin $t)
   | .ARITH_TRANS_EXP_NEG =>
     let t : Q(Real) ← reconstructTerm pf.getArguments[0]!
-    addEqThm pf.getResult q(TransFns.arithTransExpNeg' $t)
+    addThm (← reconstructProofType pf.getResult) q(TransFns.arithTransExpNeg' $t)
   | .ARITH_TRANS_SINE_BOUNDS =>
     let t : Q(Real) ← reconstructTerm pf.getArguments[0]!
     addThm (← reconstructProofType pf.getResult) q(TransFns.arithTransSineBounds $t)

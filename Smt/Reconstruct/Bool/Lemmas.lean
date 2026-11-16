@@ -37,6 +37,8 @@ theorem andN_eq_false_iff_mem {bs : List Bool} : Bool.andN bs = false ↔ false 
   | nil => simp [Bool.andN]
   | cons b bs ih => cases b <;> simp [ih]
 
+theorem eq_resolve {p q : Bool} (hp : p = true) (hpq : Bool.eq p q) : q = true := hpq.to_eq ▸ hp
+
 theorem eq_resolve' {p q : Bool} (hp : p = true) (hpq : p = q) : q = true := hpq ▸ hp
 
 theorem modus_ponens {p q : Bool} (hp : p = true) (hpq : p.imp q = true) : q = true := by
@@ -201,9 +203,8 @@ theorem implies_false_of_not_and {ps : List Bool} (h : (!Bool.andN ps) = true) :
 
 /-! ### `ite` over `Bool` conditions, reconstructed as `cond` -/
 
-theorem ite_eq {α : Sort u} (c : Bool) (x y : α) {h₁ : Decidable (cond c x y = x)}
-    {h₂ : Decidable (cond c x y = y)} :
-    cond c (@decide (cond c x y = x) h₁) (@decide (cond c x y = y) h₂) = true := by
+theorem ite_eq {α : Sort u} [DecidableEq α] (c : Bool) (x y : α) :
+    cond c (decide (cond c x y = x)) (decide (cond c x y = y)) = true := by
   cases c <;> simp
 
 theorem ite_elim1 {c p q : Bool} (h : cond c p q = true) : (!c || p) = true := by
@@ -230,17 +231,17 @@ theorem cnf_ite_neg3 (c p q : Bool) : (cond c p q || (!p || !q)) = true := by
 
 /-! ### Equality -/
 
-theorem not_decide_eq_symm {α : Sort u} {a b : α} {h₁ : Decidable (a = b)} {h₂ : Decidable (b = a)}
-    (h : (!@decide (a = b) h₁) = true) : (!@decide (b = a) h₂) = true := by
+theorem not_decide_eq_symm {α : Sort u} [DecidableEq α] {a b : α} (h : (!decide (a = b)) = true) :
+    (!decide (b = a)) = true := by
   simp only [Bool.not_eq_eq_eq_not, Bool.not_true, decide_eq_false_iff_not] at h ⊢
   exact Ne.symm h
 
-theorem eq_of_decide_eq {p q : Prop} {hp : Decidable p} {hq : Decidable q}
-    (h : @decide p hp = @decide q hq) : p = q :=
-  propext (decide_eq_decide.mp h)
+theorem decide_eq_false_of_ne {α : Sort u} [DecidableEq α] {a b : α} (h : a ≠ b) :
+    Bool.eq (decide (a = b)) false :=
+  Bool.eq.of_eq (_root_.decide_eq_false h)
 
-theorem decide_eq_decide_of_eq {p q : Prop} {hp : Decidable p} {hq : Decidable q} (h : p = q) :
-    @decide p hp = @decide q hq :=
-  decide_eq_decide.mpr (h ▸ Iff.rfl)
+theorem not_decide_eq_of_ne {α : Sort u} [DecidableEq α] {a b : α} (h : a ≠ b) :
+    (!decide (a = b)) = true := by
+  simp [h]
 
 end Smt.Reconstruct.Bool

@@ -1183,29 +1183,29 @@ def getCons! (x : Expr) : MetaM (Expr × Expr × Expr) := do
     | throwError "expected a bit-blasted bit-vector, got{indentExpr x}"
   return (n, a, xs)
 
-/-- A proof of `decide (x = y) = (decide (x₀ = y₀) && (… && decide (xₙ₋₁ = yₙ₋₁)))` for the
+/-- A proof of `Bool.eq (decide (x = y)) (decide (x₀ = y₀) && (… && decide (xₙ₋₁ = yₙ₋₁)))` for the
 bit-blasted bit-vectors `x` and `y`. -/
 partial def decideEqBits (x y : Expr) : MetaM Expr := do
   let (n, a, xs) ← getCons! x
   let (_, b, ys) ← getCons! y
   let a : Q(Bool) ← pure a
   let b : Q(Bool) ← pure b
-  -- `decide (x = y) = (decide (xs = ys) && decide (a = b))`
+  -- `Bool.eq (decide (x = y)) (decide (xs = ys) && decide (a = b))`
   let h := mkApp5 (.const ``BitVec.decide_eq_cons_cons []) n a b xs ys
   go xs ys q(decide ($a = $b)) h
 where
-  /-- Given a proof `h` of `decide (x = y) = (decide (xs = ys) && acc)`, prove the goal. -/
+  /-- Given a proof `h` of `Bool.eq (decide (x = y)) (decide (xs = ys) && acc)`, prove the goal. -/
   go (xs ys : Expr) (acc : Q(Bool)) (h : Expr) : MetaM Expr := do
     if xs.isConstOf ``BitVec.nil then
-      -- `(decide (nil = nil) && acc) = acc`
-      return ← Meta.mkEqTrans h q(BitVec.decide_eq_nil_nil_and $acc)
+      -- `Bool.eq (decide (nil = nil) && acc) acc`
+      return ← Meta.mkAppM ``Bool.eq.trans #[h, q(BitVec.decide_eq_nil_nil_and $acc)]
     let (n, a, xs') ← getCons! xs
     let (_, b, ys') ← getCons! ys
     let a : Q(Bool) ← pure a
     let b : Q(Bool) ← pure b
-    -- `(decide (xs = ys) && acc) = (decide (xs' = ys') && (decide (a = b) && acc))`
+    -- `Bool.eq (decide (xs = ys) && acc) (decide (xs' = ys') && (decide (a = b) && acc))`
     let h' := mkAppN (.const ``BitVec.decide_eq_cons_cons_and []) #[n, a, b, acc, xs', ys']
-    go xs' ys' q(decide ($a = $b) && $acc) (← Meta.mkEqTrans h h')
+    go xs' ys' q(decide ($a = $b) && $acc) (← Meta.mkAppM ``Bool.eq.trans #[h, h'])
 
 /-- Prove the equation `e` by rewriting with the theorems `thms`, unfolding the definitions `defs`,
 and simplifying with the simprocs `procs`, and then by `rfl`. -/
@@ -1222,8 +1222,8 @@ def proveBySimp (e : Expr) (thms defs procs : List Name) : MetaM Expr := do
 def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   let some h ← rewriteTheorem? pf.getRewriteRule! pf.getArguments | return none
   let some h ← proveHypotheses? h | return none
-  -- The theorems are the equations of the rewrites, between bit-vectors or Booleans.
-  addEqThm pf.getResult h
+  -- The theorems state the rewrites `Bool.eq lhs rhs`, between bit-vectors or Booleans.
+  addThm (← reconstructProofType pf.getResult) h
 
 @[smt_proof_reconstruct] def reconstructBitVecProof : ProofReconstructor := fun pf => do match pf.getRule with
   | .DSL_REWRITE => reconstructRewrite pf
@@ -1232,9 +1232,10 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     let t := pf.getArguments[0]![0]!
     match t.getKind! with
     | .CONST_BITVECTOR =>
-      let w : Nat := t.getSort!.getBitVectorSize!.toNat
-      let t : Q(BitVec $w) ← reconstructTerm pf.getResult[0]!
-      addEqThm pf.getResult q(Eq.refl $t)
+      let α ← reconstructSort t.getSort!
+      let t ← reconstructTerm pf.getResult[0]!
+      addThm (← reconstructProofType pf.getResult)
+        (mkApp3 (.const ``Bool.eq.refl [1]) α (← Bool.decEqInst α) t)
     | .CONSTANT =>
       let w : Nat := t.getSort!.getBitVectorSize!.toNat
       let x : Q(BitVec $w) ← reconstructTerm pf.getResult[0]!
@@ -1243,11 +1244,12 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
         [``BitVec.bb, ``BitVec.iunfoldr, ``Fin.hIterate, ``Fin.hIterateFrom]
         [``Nat.reduceAdd, ``Nat.reduceLT, ``reduceDIte]
       let h : Q(«$x».bb = $x') ← pure h
-      addEqThm pf.getResult q(Eq.trans (BitVec.self_eq_bb $x) $h)
+      addThm (← reconstructProofType pf.getResult) q(BitVec.eq_of_bb_eq $h)
     | .EQUAL =>
       -- `(= (= x y) (and (= x₀ y₀) … (= xₙ₋₁ yₙ₋₁)))`
-      let (_, x, y, _) ← getEq! (← reconstructTerm pf.getResult[0]!)
-      addEqThm pf.getResult (← decideEqBits x y)
+      let x ← reconstructTerm pf.getResult[0]![0]!
+      let y ← reconstructTerm pf.getResult[0]![1]!
+      addThm (← reconstructProofType pf.getResult) (← decideEqBits x y)
     | .BITVECTOR_ADD =>
       if pf.getResult[0]!.getNumChildren != 2 then return none
       let w : Nat ← pure t[0]!.getSort!.getBitVectorSize!.toNat
@@ -1258,7 +1260,7 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
         [``BitVec.adc', ``BitVec.adcb', ``BitVec.iunfoldr, ``Fin.hIterate, ``Fin.hIterateFrom]
         [``Nat.reduceAdd, ``Nat.reduceLT, ``reduceDIte, ``reduceIte]
       let h : Q((BitVec.adc' $x $y false).snd = $z) ← pure h
-      addEqThm pf.getResult q(Eq.trans (BitVec.add_eq_adc' $x $y) $h)
+      addThm (← reconstructProofType pf.getResult) q(BitVec.add_eq_of_adc'_eq $h)
     | _ => return none
   | _ => return none
 

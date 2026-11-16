@@ -23,7 +23,7 @@ namespace Smt.Reconstruct.Real.TransFns
 theorem arithTransExpNeg (t : ℝ) : t < 0 ↔ Real.exp t < 1 :=
   Iff.comm.mp Real.exp_lt_one_iff
 
-theorem arithTransExpNeg' (t : ℝ) : t.blt 0 = (Real.exp t).blt 1 :=
-  decide_eq_decide.mpr (arithTransExpNeg t)
+theorem arithTransExpNeg' (t : ℝ) : Bool.eq (t.blt 0) ((Real.exp t).blt 1) :=
+  Bool.eq.of_eq (decide_eq_decide.mpr (arithTransExpNeg t))
 
 end Smt.Reconstruct.Real.TransFns

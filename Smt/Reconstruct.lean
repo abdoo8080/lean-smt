@@ -234,40 +234,16 @@ where
     let type ← reconstructProofType pf.getResult
     addTrust type pf
 
-/-- Return the type `α`, the sides `a` and `b`, and the instance of `Decidable (a = b)` of the Boolean
-formula `decide (a = b)` of an equality (see `Bool.mkDecideEq`). -/
-def getEq! (e : Expr) : MetaM (Expr × Expr × Expr × Expr) := do
-  if let some (p, inst) := e.app2? ``Decidable.decide then
-    if let some (α, a, b) := p.eq? then
-      return (α, a, b, inst)
-  throwError "expected an equality `decide (a = b)`, got{indentExpr e}"
-
-/-- A proof of `a = b` from the proof `pf` of the SMT formula `(= a b)`, which is a proof of
-`decide (a = b) = true`. -/
-def reconstructEqProof (pf : cvc5.Proof) : ReconstructM Expr := do
-  let h ← reconstructProof pf
-  let (_, a, b, inst) ← getEq! (← reconstructTerm pf.getResult)
-  return mkApp3 (.const ``of_decide_eq_true []) (← Meta.mkEq a b) inst h
-
-/-- A proof of the conclusion of `pf`, e.g., of a premise `(<rel> l r)` of an arithmetic rule: a proof
-of `l = r` if it is an equality `(= l r)`, and of `⟦(<rel> l r)⟧ = true` otherwise. -/
-def reconstructRelProof (pf : cvc5.Proof) : ReconstructM Expr :=
-  if pf.getResult.getKind! == .EQUAL then reconstructEqProof pf else reconstructProof pf
-
-/-- Add the proof `h` of `a = b` as a proof of the SMT formula `t = (= a b)`, i.e., of
-`decide (a = b) = true`. -/
-def addEqThm (t : cvc5.Term) (h : Expr) : ReconstructM Expr := do
-  let e ← reconstructTerm t
-  let (_, a, b, inst) ← getEq! e
-  addThm (← Meta.mkEq e (.const ``Bool.true [])) (mkApp3 (.const ``decide_eq_true []) (← Meta.mkEq a b) inst h)
-
-/-- Prove `a = b` with the tactic `tac` and add it as a proof of the SMT formula `t = (= a b)`, i.e.,
-of `decide (a = b) = true`. -/
-def addEqTac (t : cvc5.Term) (tac : MVarId → MetaM Unit) : ReconstructM Expr := do
-  let (_, a, b, _) ← getEq! (← reconstructTerm t)
-  let h ← Meta.mkFreshExprMVar (← Meta.mkEq a b)
+/-- The tactic that proves a goal `decide p = true` by proving `p` with `tac`. Steps proven by Lean
+tactics for propositions use it, e.g., equalities `(= a b)`, whose proofs are proofs of
+`decide (a = b) = true`, proven by tactics for `a = b`. -/
+def decideTac (tac : MVarId → MetaM Unit) (mv : MVarId) : MetaM Unit := do
+  let t ← mv.getType
+  let some (p, inst) := t.eq?.bind fun (_, b, _) => b.app2? ``Decidable.decide
+    | throwError "expected a goal `decide p = true`, got{indentExpr t}"
+  let h ← Meta.mkFreshExprMVar p
+  mv.assign (mkApp3 (.const ``decide_eq_true []) p inst h)
   tac h.mvarId!
-  addEqThm t h
 
 end Reconstruct
 

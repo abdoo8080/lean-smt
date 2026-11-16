@@ -85,103 +85,104 @@ def ofBool (b : Expr) : MetaM Expr := do
 def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
   match pf.getRewriteRule! with
   | .EQ_REFL =>
-    let α ← reconstructSort pf.getArguments[1]!.getSort!
-    let t ← reconstructTerm pf.getArguments[1]!
-    addEqThm pf.getResult
-      (mkApp3 (.const ``Bool.eq_refl [← Meta.getLevel α]) α t (← Bool.eqInst α t t))
+    let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
+    let t : Q($α) ← reconstructTerm pf.getArguments[1]!
+    addThm (← reconstructProofType pf.getResult) q(Bool.eq_refl (t := $t))
   | .EQ_SYMM =>
-    let α ← reconstructSort pf.getArguments[1]!.getSort!
-    let t ← reconstructTerm pf.getArguments[1]!
-    let s ← reconstructTerm pf.getArguments[2]!
-    addEqThm pf.getResult (mkAppN (.const ``Bool.eq_symm [← Meta.getLevel α])
-      #[α, t, s, ← Bool.eqInst α t s, ← Bool.eqInst α s t])
+    let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
+    let t : Q($α) ← reconstructTerm pf.getArguments[1]!
+    let s : Q($α) ← reconstructTerm pf.getArguments[2]!
+    addThm (← reconstructProofType pf.getResult) q(Bool.eq_symm (t := $t) (s := $s))
   | .EQ_COND_DEQ =>
-    let α ← reconstructSort pf.getArguments[1]!.getSort!
-    let t ← reconstructTerm pf.getArguments[1]!
-    let s ← reconstructTerm pf.getArguments[2]!
-    let r ← reconstructTerm pf.getArguments[3]!
-    -- `decide (s = r) = false`
-    let h ← reconstructEqProof pf.getChildren[0]!
-    addEqThm pf.getResult (mkAppN (.const ``Bool.eq_cond_deq [← Meta.getLevel α])
-      #[α, t, s, r, ← Bool.eqInst α s r, ← Bool.eqInst α t s, ← Bool.eqInst α t r, h])
+    let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[1]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
+    let t : Q($α) ← reconstructTerm pf.getArguments[1]!
+    let s : Q($α) ← reconstructTerm pf.getArguments[2]!
+    let r : Q($α) ← reconstructTerm pf.getArguments[3]!
+    let h : Q(Bool.eq (decide ($s = $r)) false) ← reconstructProof pf.getChildren[0]!
+    addThm (← reconstructProofType pf.getResult) q(Bool.eq_cond_deq (t := $t) $h)
   | .EQ_ITE_LIFT =>
-    let c ← reconstructTerm pf.getArguments[1]!
-    let α ← reconstructSort pf.getArguments[2]!.getSort!
-    let t ← reconstructTerm pf.getArguments[2]!
-    let s ← reconstructTerm pf.getArguments[3]!
-    let r ← reconstructTerm pf.getArguments[4]!
-    let u ← Meta.getLevel α
-    let cts := mkApp4 (.const ``cond [u]) α c t s
-    addEqThm pf.getResult (mkAppN (.const ``Bool.eq_ite_lift [u])
-      #[α, c, t, s, r, ← Bool.eqInst α cts r, ← Bool.eqInst α t r, ← Bool.eqInst α s r])
+    let c : Q(Bool) ← reconstructTerm pf.getArguments[1]!
+    let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[2]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
+    let t : Q($α) ← reconstructTerm pf.getArguments[2]!
+    let s : Q($α) ← reconstructTerm pf.getArguments[3]!
+    let r : Q($α) ← reconstructTerm pf.getArguments[4]!
+    addThm (← reconstructProofType pf.getResult)
+      q(Bool.eq_ite_lift (c := $c) (t := $t) (s := $s) (r := $r))
   | .DISTINCT_BINARY_ELIM =>
     let t : Q(Bool) ← reconstructTerm pf.getResult[0]!
-    addEqThm pf.getResult q(Eq.refl $t)
+    addThm (← reconstructProofType pf.getResult) q(Bool.eq.refl $t)
   | _ => return none
+
+/-- The triples of the reconstructions of the sides of the equalities that `pfs` prove, and their
+proofs, for congruence (see `smtCongr`). -/
+def reconstructCongrPremises (pfs : Array cvc5.Proof) :
+    ReconstructM (Array (Expr × Expr × Expr)) :=
+  pfs.mapM fun pf => do
+    let a ← reconstructTerm pf.getResult[0]!
+    let b ← reconstructTerm pf.getResult[1]!
+    return (a, b, ← reconstructProof pf)
 
 @[smt_proof_reconstruct] def reconstructUFProof : ProofReconstructor := fun pf => do match pf.getRule with
   | .DSL_REWRITE => reconstructRewrite pf
   | .REFL =>
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getArguments[0]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
     let a : Q($α) ← reconstructTerm pf.getArguments[0]!
-    addEqThm pf.getResult q(Eq.refl $a)
+    addThm (← reconstructProofType pf.getResult) q(Bool.eq.refl $a)
   | .SYMM =>
     if pf.getResult.getKind! == .EQUAL then
       let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getResult[0]!.getSort!
+      let _ : Q(DecidableEq $α) ← Bool.decEqInst α
       let a : Q($α) ← reconstructTerm pf.getResult[1]!
       let b : Q($α) ← reconstructTerm pf.getResult[0]!
-      let h : Q($a = $b) ← reconstructEqProof pf.getChildren[0]!
-      addEqThm pf.getResult q(Eq.symm $h)
+      let h : Q(Bool.eq $a $b) ← reconstructProof pf.getChildren[0]!
+      addThm (← reconstructProofType pf.getResult) q(Bool.eq.symm $h)
     else
-      let α ← reconstructSort pf.getResult[0]![0]!.getSort!
-      let a ← reconstructTerm pf.getResult[0]![1]!
-      let b ← reconstructTerm pf.getResult[0]![0]!
-      -- `(!decide (a = b)) = true`
-      let h ← reconstructProof pf.getChildren[0]!
-      addThm (← reconstructProofType pf.getResult)
-        (mkAppN (.const ``Bool.not_decide_eq_symm [← Meta.getLevel α])
-          #[α, a, b, ← Bool.eqInst α a b, ← Bool.eqInst α b a, h])
+      let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort pf.getResult[0]![0]!.getSort!
+      let _ : Q(DecidableEq $α) ← Bool.decEqInst α
+      let a : Q($α) ← reconstructTerm pf.getResult[0]![1]!
+      let b : Q($α) ← reconstructTerm pf.getResult[0]![0]!
+      let h : Q((!decide ($a = $b)) = true) ← reconstructProof pf.getChildren[0]!
+      addThm (← reconstructProofType pf.getResult) q(Bool.not_decide_eq_symm $h)
   | .TRANS =>
     let cpfs := pf.getChildren
     let (u, (α : Q(Sort u))) ← reconstructSortLevelAndSort cpfs[0]!.getResult[0]!.getSort!
+    let _ : Q(DecidableEq $α) ← Bool.decEqInst α
     let a : Q($α) ← reconstructTerm cpfs[0]!.getResult[0]!
-    let mut curr ← reconstructEqProof cpfs[0]!
+    let mut curr ← reconstructProof cpfs[0]!
     for i in [1:cpfs.size] do
       let b : Q($α) ← reconstructTerm cpfs[i]!.getResult[0]!
       let c : Q($α) ← reconstructTerm cpfs[i]!.getResult[1]!
-      let hab : Q($a = $b) := curr
-      let hbc : Q($b = $c) ← reconstructEqProof cpfs[i]!
-      curr := q(Eq.trans $hab $hbc)
-    addEqThm pf.getResult curr
+      let hab : Q(Bool.eq $a $b) := curr
+      let hbc : Q(Bool.eq $b $c) ← reconstructProof cpfs[i]!
+      curr := q(Bool.eq.trans $hab $hbc)
+    addThm (← reconstructProofType pf.getResult) curr
   | .CONG =>
     let k := pf.getResult[0]!.getKind!
     if k == .FORALL || k == .EXISTS || k == .WITNESS || k == .LAMBDA || k == .SET_COMPREHENSION then
       return none
-    let assums ← pf.getChildren.mapM reconstructEqProof
-    addEqTac pf.getResult (smtCongr · assums)
+    let l ← reconstructTerm pf.getResult[0]!
+    let r ← reconstructTerm pf.getResult[1]!
+    let hs ← reconstructCongrPremises pf.getChildren
+    addThm (← reconstructProofType pf.getResult) (← smtCongr l r hs)
   | .NARY_CONG =>
-    let assums ← pf.getChildren.mapM reconstructEqProof
-    addEqTac pf.getResult (smtCongr · assums)
+    let l ← reconstructTerm pf.getResult[0]!
+    let r ← reconstructTerm pf.getResult[1]!
+    let hs ← reconstructCongrPremises pf.getChildren
+    addThm (← reconstructProofType pf.getResult) (← smtCongr l r hs)
   | .HO_CONG =>
-    let f ← reconstructTerm pf.getChildren[0]!.getResult[0]!
-    let g ← reconstructTerm pf.getChildren[0]!.getResult[0]!
-    let hfg ← reconstructEqProof pf.getChildren[0]!
-    let hs := pf.getChildren[1:]
-    let buildProof := fun (f₁, f₂, h₁) cpf => do
-      let some (α, β) := (← Meta.inferType f₁).arrow? | throwError "[ho_congr]: expected function type"
-      let .sort u ← Meta.inferType α | throwError "[ho_congr]: expected the type of {α} to be a sort"
-      let .sort v ← Meta.inferType β | throwError "[ho_congr]: expected the type of {β} to be a sort"
-      let α : Q(Sort u) ← pure α
-      let β : Q(Sort v) ← pure β
-      let a₁ : Q($α) ← reconstructTerm cpf.getResult[0]!
-      let a₂ : Q($α) ← reconstructTerm cpf.getResult[1]!
-      let f₁ : Q($α → $β) ← pure f₁
-      let f₂ : Q($α → $β) ← pure f₂
-      let h₁ : Q($f₁ = $f₂) ← pure h₁
-      let h₂ : Q($a₁ = $a₂) ← reconstructEqProof cpf
-      return (q($f₁ $a₁), q($f₂ $a₂), q(congr $h₁ $h₂))
-    let (_, _, h) ← hs.foldlM buildProof (f, g, hfg)
-    addEqThm pf.getResult h
+    let mut f ← reconstructTerm pf.getChildren[0]!.getResult[0]!
+    let mut g ← reconstructTerm pf.getChildren[0]!.getResult[1]!
+    let mut h ← reconstructProof pf.getChildren[0]!
+    for (a, b, hab) in ← reconstructCongrPremises pf.getChildren[1:] do
+      h ← mkBoolEqCongr f g a b h hab
+      f := .app f a
+      g := .app g b
+    addThm (← reconstructProofType pf.getResult) h
   | _ => return none
 
 end Smt.Reconstruct.UF

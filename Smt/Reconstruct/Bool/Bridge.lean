@@ -41,13 +41,8 @@ def decEqInst (α : Expr) : MetaM Expr := do
   if let some inst ← Meta.synthInstance? (mkApp (.const ``DecidableEq [u]) α) then return inst
   return mkApp (.const ``Classical.typeDecidableEq [u]) α
 
-/-- The instance `decEqInst α a b` of `Decidable (a = b)` with which Boolean formulas decide
-`a = b`. -/
-def eqInst (α a b : Expr) : MetaM Expr := do
-  return mkApp2 (← decEqInst α) a b
-
 /-- The Boolean formula `decide (a = b)` of `a = b` for `a b : α`, with the instance `decEqInst α a b`. -/
 def mkDecideEq (α a b : Expr) : MetaM Expr := do
-  return mkApp2 (.const ``Decidable.decide []) (← Meta.mkEq a b) (← eqInst α a b)
+  return mkApp2 (.const ``Decidable.decide []) (← Meta.mkEq a b) (mkApp2 (← decEqInst α) a b)
 
 end Smt.Reconstruct.Bool

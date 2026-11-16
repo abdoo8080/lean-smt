@@ -17,7 +17,8 @@ open Function
 
 /-! The rewrites are stated over the reconstructions of SMT-LIB terms: `bvult` is `BitVec.ult`,
 `bvugt` is `BitVec.ugt` (see `Smt.Reconstruct.BitVec.Core`), `(= t s)` is `decide (t = s)`, `ite` is
-`cond`, and the Boolean connectives are `!`, `&&`, `||`, and `^^`. -/
+`cond`, and the Boolean connectives are `!`, `&&`, `||`, and `^^`. A rewrite `(= lhs rhs)` is stated
+as `Bool.eq lhs rhs`. -/
 
 -- https://github.com/cvc5/cvc5/blob/main/src/theory/bv/rewrites-elimination
 
@@ -42,33 +43,42 @@ private theorem intMin_eq_cast {n w : Nat} (h : 1 + n = w) :
 
 -- Operator Elimination Rules
 
-theorem ugt_eliminate {w : Nat} {x y : BitVec w} : x.ugt y = y.ult x := rfl
-theorem uge_eliminate {w : Nat} {x y : BitVec w} : x.uge y = y.ule x := rfl
-theorem sgt_eliminate {w : Nat} {x y : BitVec w} : x.sgt y = y.slt x := rfl
-theorem sge_eliminate {w : Nat} {x y : BitVec w} : x.sge y = y.sle x := rfl
-theorem sle_eliminate {w : Nat} {x y : BitVec w} : x.sle y = !y.slt x :=
-  BitVec.sle_eq_not_slt
+theorem ugt_eliminate {w : Nat} {x y : BitVec w} : Bool.eq (x.ugt y) (y.ult x) :=
+  Bool.eq.of_eq <| rfl
+theorem uge_eliminate {w : Nat} {x y : BitVec w} : Bool.eq (x.uge y) (y.ule x) :=
+  Bool.eq.of_eq <| rfl
+theorem sgt_eliminate {w : Nat} {x y : BitVec w} : Bool.eq (x.sgt y) (y.slt x) :=
+  Bool.eq.of_eq <| rfl
+theorem sge_eliminate {w : Nat} {x y : BitVec w} : Bool.eq (x.sge y) (y.sle x) :=
+  Bool.eq.of_eq <| rfl
+theorem sle_eliminate {w : Nat} {x y : BitVec w} : Bool.eq (x.sle y) (!y.slt x) :=
+  Bool.eq.of_eq <| BitVec.sle_eq_not_slt
 
-theorem redor_eliminate {w : Nat} {x : BitVec w} : x.smtRedor = ~~~(x.smtComp (0#w)) := by
+theorem redor_eliminate {w : Nat} {x : BitVec w} : Bool.eq x.smtRedor (~~~(x.smtComp (0#w))) := by
+  apply Bool.eq.of_eq
   unfold BitVec.smtRedor BitVec.smtComp
   split <;> decide
-theorem redand_eliminate {w : Nat} {x : BitVec w} : x.smtRedand = x.smtComp (~~~(0#w)) := by
+theorem redand_eliminate {w : Nat} {x : BitVec w} : Bool.eq x.smtRedand (x.smtComp (~~~(0#w))) := by
+  apply Bool.eq.of_eq
   rw [BitVec.not_zero]; rfl
 
-theorem ule_eliminate {w : Nat} {x y : BitVec w} : x.ule y = !y.ult x := by
+theorem ule_eliminate {w : Nat} {x y : BitVec w} : Bool.eq (x.ule y) (!y.ult x) := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff]
   simp only [BitVec.ule_iff_le, BitVec.ult_iff_lt, Smt.Reconstruct.Bool.not_eq_true_eq_not]
   exact BitVec.not_lt.symm
 theorem comp_eliminate {w : Nat} {x y : BitVec w} :
-    x.smtComp y = cond (decide (x = y)) 1#1 0#1 := by
+    Bool.eq (x.smtComp y) (cond (decide (x = y)) 1#1 0#1) := by
+  apply Bool.eq.of_eq
   unfold BitVec.smtComp
   by_cases h : x = y <;> simp [h]
 
 theorem rotate_left_eliminate_1 {w : Nat} {x : BitVec w} {amount : Nat}
     (h : (amount % w = 0) = False) (hw : 0 < w) :
-    x.rotateLeft amount =
-      (x.extractLsb (w - (1 + amount % w)) 0 ++ x.extractLsb (w - 1) (w - amount % w)).cast
-        (by have := of_eq_false h; have := Nat.mod_lt amount hw; omega) := by
+    Bool.eq (x.rotateLeft amount)
+      ((x.extractLsb (w - (1 + amount % w)) 0 ++ x.extractLsb (w - 1) (w - amount % w)).cast
+        (by have := of_eq_false h; have := Nat.mod_lt amount hw; omega)) := by
+  apply Bool.eq.of_eq
   have ha := Nat.mod_lt amount hw
   have ha0 := of_eq_false h
   apply BitVec.eq_of_getLsbD_eq
@@ -81,15 +91,17 @@ theorem rotate_left_eliminate_1 {w : Nat} {x : BitVec w} {amount : Nat}
   · simp [hia]
   · simp [hia, hi, show i - a < w - a by omega]
 theorem rotate_left_eliminate_2 {w : Nat} {x : BitVec w} {amount : Nat} (h : amount % w = 0) :
-    x.rotateLeft amount = x := by
+    Bool.eq (x.rotateLeft amount) x := by
+  apply Bool.eq.of_eq
   apply BitVec.eq_of_getLsbD_eq
   intro i hi
   simp [h, hi]
 theorem rotate_right_eliminate_1 {w : Nat} {x : BitVec w} {amount : Nat}
     (h : (amount % w = 0) = False) (hw : 0 < w) :
-    x.rotateRight amount =
-      (x.extractLsb (amount % w - 1) 0 ++ x.extractLsb (w - 1) (amount % w)).cast
-        (by have := of_eq_false h; have := Nat.mod_lt amount hw; omega) := by
+    Bool.eq (x.rotateRight amount)
+      ((x.extractLsb (amount % w - 1) 0 ++ x.extractLsb (w - 1) (amount % w)).cast
+        (by have := of_eq_false h; have := Nat.mod_lt amount hw; omega)) := by
+  apply Bool.eq.of_eq
   have ha := Nat.mod_lt amount hw
   have ha0 := of_eq_false h
   apply BitVec.eq_of_getLsbD_eq
@@ -102,23 +114,28 @@ theorem rotate_right_eliminate_1 {w : Nat} {x : BitVec w} {amount : Nat}
   · simp [hia]
   · simp [hia, hi, show i - (w - a) < a by omega]
 theorem rotate_right_eliminate_2 {w : Nat} {x : BitVec w} {amount : Nat} (h : amount % w = 0) :
-    x.rotateRight amount = x := by
+    Bool.eq (x.rotateRight amount) x := by
+  apply Bool.eq.of_eq
   apply BitVec.eq_of_getLsbD_eq
   intro i hi
   simp [h, hi]
 
-theorem nand_eliminate {w : Nat} {x y : BitVec w} : x.smtNand y = ~~~(x &&& y) := rfl
-theorem nor_eliminate {w : Nat} {x y : BitVec w} : x.smtNor y = ~~~(x ||| y) := rfl
-theorem xnor_eliminate {w : Nat} {x y : BitVec w} : x.smtXnor y = ~~~(x ^^^ y) := rfl
+theorem nand_eliminate {w : Nat} {x y : BitVec w} : Bool.eq (x.smtNand y) (~~~(x &&& y)) :=
+  Bool.eq.of_eq <| rfl
+theorem nor_eliminate {w : Nat} {x y : BitVec w} : Bool.eq (x.smtNor y) (~~~(x ||| y)) :=
+  Bool.eq.of_eq <| rfl
+theorem xnor_eliminate {w : Nat} {x y : BitVec w} : Bool.eq (x.smtXnor y) (~~~(x ^^^ y)) :=
+  Bool.eq.of_eq <| rfl
 
 theorem sdiv_eliminate {w : Nat} {x y : BitVec w} :
-    x.smtSDiv y =
-      cond (decide (x.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega)) ^^
+    Bool.eq (x.smtSDiv y)
+      (cond (decide (x.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega)) ^^
           decide (y.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega)))
         (-((cond (decide (x.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega))) (-x) x).smtUDiv
           (cond (decide (y.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega))) (-y) y)))
         ((cond (decide (x.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega))) (-x) x).smtUDiv
-          (cond (decide (y.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega))) (-y) y)) := by
+          (cond (decide (y.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega))) (-y) y))) := by
+  apply Bool.eq.of_eq
   have hx : decide (x.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega)) = x.msb := by
     rw [Bool.eq_iff_iff, decide_eq_true_eq, BitVec.extractLsb_msb_eq_one_iff rfl]
   have hy : decide (y.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega)) = y.msb := by
@@ -127,7 +144,8 @@ theorem sdiv_eliminate {w : Nat} {x y : BitVec w} :
   cases x.msb <;> cases y.msb <;> simp
 
 theorem zero_extend_eliminate {w : Nat} {x : BitVec w} {n : Nat} :
-    x.zeroExtend (w + n) = (0#n ++ x).cast (by omega) := by
+    Bool.eq (x.zeroExtend (w + n)) ((0#n ++ x).cast (by omega)) := by
+  apply Bool.eq.of_eq
   apply BitVec.eq_of_getLsbD_eq
   intro i hi
   simp only [BitVec.getLsbD_setWidth, BitVec.getLsbD_cast, BitVec.getLsbD_append,
@@ -138,8 +156,9 @@ theorem zero_extend_eliminate {w : Nat} {x : BitVec w} {n : Nat} :
     exact .inr (BitVec.getLsbD_of_ge x i (by omega))
 
 theorem uaddo_eliminate {w : Nat} {x y : BitVec w} :
-    x.uaddOverflow y =
-      decide (((0#1 ++ x) + (0#1 ++ y)).extractLsb w w = (1#1).cast (by omega)) := by
+    Bool.eq (x.uaddOverflow y)
+      (decide (((0#1 ++ x) + (0#1 ++ y)).extractLsb w w = (1#1).cast (by omega))) := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff, decide_eq_true_eq, ← eq_iff_iff]
   rw [BitVec.extractLsb_eq_one_iff, ← BitVec.testBit_toNat, BitVec.toNat_add, BitVec.toNat_append,
     BitVec.toNat_append]
@@ -150,13 +169,14 @@ theorem uaddo_eliminate {w : Nat} {x y : BitVec w} :
   rw [Nat.mod_eq_of_lt (by omega), testBit_eq_decide_le (by rw [Nat.pow_succ]; omega)]
   simp [BitVec.uaddOverflow]
 theorem saddo_eliminate {w : Nat} {x y : BitVec w} :
-    x.saddOverflow y =
+    Bool.eq (x.saddOverflow y)
       (((decide (x.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega)) &&
             decide (y.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega))) &&
           decide ((x + y).extractLsb (w - 1) (w - 1) = (0#1).cast (by omega))) ||
         ((decide (x.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega)) &&
             decide (y.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega))) &&
           decide ((x + y).extractLsb (w - 1) (w - 1) = (1#1).cast (by omega)))) := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff]
   simp only [Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq]
   rw [← eq_iff_iff]
@@ -164,16 +184,17 @@ theorem saddo_eliminate {w : Nat} {x y : BitVec w} :
     BitVec.saddOverflow_eq]
   cases x.msb <;> cases y.msb <;> cases (x + y).msb <;> simp
 theorem sdivo_eliminate {w : Nat} {x y : BitVec w} (hw : 0 < w) :
-    x.sdivOverflow y =
+    Bool.eq (x.sdivOverflow y)
       (decide (x = (1#1 ++ 0#(w - 1)).cast (by omega)) && decide (y = ~~~(0#w))) := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff]
   simp only [Bool.and_eq_true, decide_eq_true_eq]
   rw [← eq_iff_iff]
   rw [BitVec.sdivOverflow_eq, ← intMin_eq_cast, BitVec.not_zero]
   simp [hw]
 theorem smod_eliminate {w : Nat} {x y : BitVec w} :
-    x.smod y =
-      cond (decide ((cond (decide (x.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega))) x (-x)) %
+    Bool.eq (x.smod y)
+      (cond (decide ((cond (decide (x.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega))) x (-x)) %
           (cond (decide (y.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega))) y (-y)) = 0#w))
         ((cond (decide (x.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega))) x (-x)) %
           (cond (decide (y.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega))) y (-y)))
@@ -190,7 +211,8 @@ theorem smod_eliminate {w : Nat} {x y : BitVec w} :
         ((cond (decide (x.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega))) x (-x)) %
           (cond (decide (y.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega))) y (-y)) + y)
         (-((cond (decide (x.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega))) x (-x)) %
-          (cond (decide (y.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega))) y (-y))))))) := by
+          (cond (decide (y.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega))) y (-y)))))))) := by
+  apply Bool.eq.of_eq
   have hx0 : decide (x.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega)) = !x.msb := by
     rw [Bool.eq_iff_iff, decide_eq_true_eq, BitVec.extractLsb_msb_eq_zero_iff rfl]; simp
   have hy0 : decide (y.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega)) = !y.msb := by
@@ -206,12 +228,13 @@ theorem smod_eliminate {w : Nat} {x y : BitVec w} :
     rw [hu, BitVec.neg_zero]
 
 theorem srem_eliminate {w : Nat} {x y : BitVec w} :
-    x.srem y =
-      cond (decide (x.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega)))
+    Bool.eq (x.srem y)
+      (cond (decide (x.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega)))
         (-((cond (decide (x.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega))) (-x) x) %
           (cond (decide (y.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega))) (-y) y)))
         ((cond (decide (x.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega))) (-x) x) %
-          (cond (decide (y.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega))) (-y) y)) := by
+          (cond (decide (y.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega))) (-y) y))) := by
+  apply Bool.eq.of_eq
   have hx : decide (x.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega)) = x.msb := by
     rw [Bool.eq_iff_iff, decide_eq_true_eq, BitVec.extractLsb_msb_eq_one_iff rfl]
   have hy : decide (y.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega)) = y.msb := by
@@ -220,9 +243,10 @@ theorem srem_eliminate {w : Nat} {x y : BitVec w} :
   cases x.msb <;> cases y.msb <;> simp
 
 theorem usubo_eliminate {n : Nat} {x y : BitVec n} :
-    x.usubOverflow y =
-      decide ((x.zeroExtend (n + 1) - y.zeroExtend (n + 1)).extractLsb n n =
-        (1#1).cast (by omega)) := by
+    Bool.eq (x.usubOverflow y)
+      (decide ((x.zeroExtend (n + 1) - y.zeroExtend (n + 1)).extractLsb n n =
+        (1#1).cast (by omega))) := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff, decide_eq_true_eq, ← eq_iff_iff]
   have hx := x.isLt
   have hy := y.isLt
@@ -241,13 +265,14 @@ theorem usubo_eliminate {n : Nat} {x y : BitVec n} :
       Nat.testBit_lt_two_pow (by omega)]
     simp [BitVec.lt_def, hxy]
 theorem ssubo_eliminate {w : Nat} {x y : BitVec w} :
-    x.ssubOverflow y =
+    Bool.eq (x.ssubOverflow y)
       (((decide (x.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega)) &&
             decide (y.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega))) &&
           decide ((x - y).extractLsb (w - 1) (w - 1) = (0#1).cast (by omega))) ||
         ((decide (x.extractLsb (w - 1) (w - 1) = (0#1).cast (by omega)) &&
             decide (y.extractLsb (w - 1) (w - 1) = (1#1).cast (by omega))) &&
           decide ((x - y).extractLsb (w - 1) (w - 1) = (1#1).cast (by omega)))) := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff]
   simp only [Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq]
   rw [← eq_iff_iff]
@@ -256,7 +281,8 @@ theorem ssubo_eliminate {w : Nat} {x y : BitVec w} :
   cases x.msb <;> cases y.msb <;> cases (x - y).msb <;> simp
 
 theorem nego_eliminate {w : Nat} {x : BitVec w} (hw : 0 < w) :
-    x.negOverflow = decide (x = (1#1 ++ 0#(w - 1)).cast (by omega)) := by
+    Bool.eq x.negOverflow (decide (x = (1#1 ++ 0#(w - 1)).cast (by omega))) := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff, decide_eq_true_eq, ← eq_iff_iff]
   rw [BitVec.negOverflow_eq, ← intMin_eq_cast]
   simp [hw]

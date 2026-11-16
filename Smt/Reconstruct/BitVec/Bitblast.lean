@@ -29,6 +29,9 @@ theorem self_eq_bb (x : BitVec w) : x = x.bb := by
   intro i
   rfl
 
+theorem eq_of_bb_eq {x x' : BitVec w} (h : x.bb = x') : Bool.eq x x' :=
+  Bool.eq.of_eq ((self_eq_bb x).trans h)
+
 theorem cons_eq_cons {a b : Bool} {xs ys : BitVec w} : (cons a xs = cons b ys) = (xs = ys ∧ a = b) := by
   apply propext
   constructor
@@ -41,16 +44,20 @@ theorem cons_eq_cons {a b : Bool} {xs ys : BitVec w} : (cons a xs = cons b ys) =
 `decide (x = y) = (decide (x₀ = y₀) && (… && decide (xₙ₋₁ = yₙ₋₁)))`. -/
 
 theorem decide_eq_cons_cons (a b : Bool) (xs ys : BitVec w) :
-    decide (cons a xs = cons b ys) = (decide (xs = ys) && decide (a = b)) := by
+    Bool.eq (decide (cons a xs = cons b ys)) (decide (xs = ys) && decide (a = b)) := by
+  apply Bool.eq.of_eq
   apply Bool.eq_iff_iff.mpr
   simp only [decide_eq_true_eq, Bool.and_eq_true, cons_eq_cons]
 
 theorem decide_eq_cons_cons_and (a b acc : Bool) (xs ys : BitVec w) :
-    (decide (cons a xs = cons b ys) && acc) = (decide (xs = ys) && (decide (a = b) && acc)) := by
-  rw [decide_eq_cons_cons, Bool.and_assoc]
+    Bool.eq (decide (cons a xs = cons b ys) && acc)
+      (decide (xs = ys) && (decide (a = b) && acc)) := by
+  rw [(decide_eq_cons_cons a b xs ys).to_eq, Bool.and_assoc]
+  exact Bool.eq.refl _
 
-theorem decide_eq_nil_nil_and (acc : Bool) : (decide (nil = nil) && acc) = acc := by
+theorem decide_eq_nil_nil_and (acc : Bool) : Bool.eq (decide (nil = nil) && acc) acc := by
   rw [decide_eq_true rfl, Bool.true_and]
+  exact Bool.eq.refl _
 
 /-- Carry function for bitwise addition. -/
 def adcb' (x y c : Bool) : Bool × Bool := (x && y || Bool.xor x y && c, (Bool.xor (Bool.xor x y) c))
@@ -69,5 +76,8 @@ theorem adc_eq_adc' : @adc = @adc' := by
 
 theorem add_eq_adc' (x y : BitVec w) : x + y = (adc' x y false).snd := by
   rw [add_eq_adc, adc_eq_adc']
+
+theorem add_eq_of_adc'_eq {x y z : BitVec w} (h : (adc' x y false).snd = z) : Bool.eq (x + y) z :=
+  Bool.eq.of_eq ((add_eq_adc' x y).trans h)
 
 end BitVec

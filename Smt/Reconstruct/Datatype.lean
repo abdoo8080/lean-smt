@@ -9,6 +9,8 @@ module
 
 public import Smt.Reconstruct
 public meta import Smt.Reconstruct
+public import Smt.Reconstruct.Bool.Lemmas
+public meta import Smt.Reconstruct.Bool.Lemmas
 
 public meta section
 
@@ -90,9 +92,9 @@ private def proveConsClash (t s : Expr) : MetaM Expr := do
   let iff_pf ← mkAppM ``Iff.intro #[fwd, bwd]
   mkAppM ``propext #[iff_pf]
 
-/-- A proof of `decide (t = s) = F` for applications `t` and `s` of constructors, where `F` is the
-conjunction of the equalities of their fields, by the injectivity of the constructors. Returns `none`
-if that fails. -/
+/-- A proof of `Bool.eq l r` for `l = decide (t = s)` and applications `t` and `s` of constructors,
+where `r` is the conjunction of the equalities of their fields, by the injectivity of the
+constructors. Returns `none` if that fails. -/
 private def proveConsEq (l r : Expr) : MetaM (Option Expr) := do
   let mut thms : SimpTheorems := {}
   for n in [``decide_eq_true_eq, ``Bool.and_eq_true] do
@@ -107,7 +109,7 @@ private def proveConsEq (l r : Expr) : MetaM (Option Expr) := do
   try
     if let (some mv, _) ← simpTarget h.mvarId! ctx then
       _ ← mv.apply (.const ``Iff.rfl [])
-    return some (← mkAppM ``Iff.mpr #[← mkAppOptM ``Bool.eq_iff_iff #[l, r], ← instantiateMVars h])
+    return some (← mkAppM ``Bool.eq.of_iff #[← instantiateMVars h])
   catch _ =>
     return none
 where
@@ -126,16 +128,19 @@ def reconstructRewrite (pf : cvc5.Proof) : ReconstructM (Option Expr) := do
     if sort.getKind! == .DATATYPE_SORT && isBuiltinName sort.getDatatype!.getName!.toName then
       return none
     if result[1]!.getKind! == .CONST_BOOLEAN && !result[1]!.getBooleanValue! then
-      -- Distinct constructors: `decide (t = s) = false`.
-      let (_, t, s, inst) ← getEq! (← reconstructTerm result[0]!)
-      let p ← mkEq t s
-      let h := mkApp2 (.const ``of_eq_false []) p (← proveConsClash t s)
-      addEqThm pf.getResult (mkApp3 (.const ``decide_eq_false []) p inst h)
+      -- Distinct constructors: `(= (= t s) false)`.
+      let α ← reconstructSort result[0]![0]!.getSort!
+      let t ← reconstructTerm result[0]![0]!
+      let s ← reconstructTerm result[0]![1]!
+      let h := mkApp2 (.const ``of_eq_false []) (← mkEq t s) (← proveConsClash t s)
+      let inst ← Bool.decEqInst α
+      addThm (← reconstructProofType result)
+        (mkAppN (.const ``Bool.decide_eq_false_of_ne [← getLevel α]) #[α, inst, t, s, h])
     else
       -- `(= (= (C t₁ … tₙ) (C s₁ … sₙ)) (and (= t₁ s₁) … (= tₙ sₙ)))`
-      let (_, l, r, _) ← getEq! (← reconstructTerm result)
-      let some h ← proveConsEq l r | return none
-      addEqThm result h
+      let some h ← proveConsEq (← reconstructTerm result[0]!) (← reconstructTerm result[1]!)
+        | return none
+      addThm (← reconstructProofType result) h
   | _ => return none
 
 /-- Build a Lean proof of `¬(t = s)` where `t` and `s` are distinct constructors.
@@ -159,13 +164,13 @@ private def proveDistinctValues (t s : Expr) : MetaM Expr := do
     if sort.getKind! == .DATATYPE_SORT && isBuiltinName sort.getDatatype!.getName!.toName then
       return none
     -- `(not (= t s))` is reconstructed as `!decide (t = s)`.
-    let (_, t, s, inst) ← getEq! (← reconstructTerm pf.getResult[0]!)
-    let p ← mkEq t s
-    let h := mkApp3 (.const ``decide_eq_false []) p inst (← proveDistinctValues t s)
-    -- `(!decide (t = s)) = !false`
-    let b := .const ``Bool []
+    let α ← reconstructSort pf.getResult[0]![0]!.getSort!
+    let t ← reconstructTerm pf.getResult[0]![0]!
+    let s ← reconstructTerm pf.getResult[0]![1]!
+    let h ← proveDistinctValues t s
+    let inst ← Bool.decEqInst α
     addThm (← reconstructProofType pf.getResult)
-      (mkAppN (.const ``congrArg [1, 1]) #[b, b, mkApp2 (.const ``decide []) p inst, .const ``Bool.false [], .const ``not [], h])
+      (mkAppN (.const ``Bool.not_decide_eq_of_ne [← getLevel α]) #[α, inst, t, s, h])
   | _ => return none
 
 end Smt.Reconstruct.Datatype

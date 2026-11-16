@@ -45,8 +45,9 @@ private theorem toInt_mul_of_two_mul_natAbs_lt {w : Nat} {x y : BitVec w}
 
 theorem concat_extract_merge {w : Nat} {xs : HBitVecList} {s : BitVec w} {ys : HBitVecList}
     {i j k : Nat} (hij : i ≤ j) (hjk : j < k) :
-    (xs ++ s.extractLsb k (j + 1) ::ₕ s.extractLsb j i ::ₕ ys).concat =
-    (xs ++ s.extractLsb k i ::ₕ ys).concat.cast (by simp; omega) := by
+    Bool.eq ((xs ++ s.extractLsb k (j + 1) ::ₕ s.extractLsb j i ::ₕ ys).concat)
+    ((xs ++ s.extractLsb k i ::ₕ ys).concat.cast (by simp; omega)) := by
+  apply Bool.eq.of_eq
   apply BitVec.eq_of_getLsbD_eq
   intro n hn
   simp only [getLsbD_concat_append, getLsbD_concat_cons, width_cons, BitVec.getLsbD_cast,
@@ -58,7 +59,9 @@ theorem concat_extract_merge {w : Nat} {xs : HBitVecList} {s : BitVec w} {ys : H
     | omega
 
 theorem extract_extract {w : Nat} {x : BitVec w} {i j k l : Nat} (hkl : k ≤ l) (hl : l ≤ j - i) :
-    (x.extractLsb j i).extractLsb l k = (x.extractLsb (i + l) (i + k)).cast (by omega) := by
+    Bool.eq ((x.extractLsb j i).extractLsb l k)
+      ((x.extractLsb (i + l) (i + k)).cast (by omega)) := by
+  apply Bool.eq.of_eq
   apply BitVec.eq_of_getLsbD_eq
   intro n hn
   simp only [BitVec.getLsbD_extractLsb, BitVec.getLsbD_cast]
@@ -68,7 +71,8 @@ theorem extract_extract {w : Nat} {x : BitVec w} {i j k l : Nat} (hkl : k ≤ l)
 
 -- cvc5's `(>= n (- (@bvsize x) 1))` and well-formedness (`n < w`) force `n = w - 1`.
 theorem extract_whole {w : Nat} {x : BitVec w} (hw : 0 < w) :
-    x.extractLsb (w - 1) 0 = x.cast (by omega) := by
+    Bool.eq (x.extractLsb (w - 1) 0) (x.cast (by omega)) := by
+  apply Bool.eq.of_eq
   apply BitVec.eq_of_getLsbD_eq
   intro i hi
   simp only [BitVec.getLsbD_extractLsb, BitVec.getLsbD_cast, Nat.zero_add]
@@ -78,7 +82,8 @@ theorem extract_whole {w : Nat} {x : BitVec w} (hw : 0 < w) :
 -- cvc5's premise `j ≤ w` is replaced by `hj : j < w`, which `(extract j i x)` needs.
 theorem extract_concat_1 {w v : Nat} {x : BitVec w} {xs : HBitVecList} {y : BitVec v}
     {i j : Nat} (hij : i ≤ j) (hj : j < w) :
-    (xs ++ y ::ₕ x ::ₕ .nil).concat.extractLsb j i = x.extractLsb j i := by
+    Bool.eq ((xs ++ y ::ₕ x ::ₕ .nil).concat.extractLsb j i) (x.extractLsb j i) := by
+  apply Bool.eq.of_eq
   apply BitVec.eq_of_getLsbD_eq
   intro n hn
   simp only [BitVec.getLsbD_extractLsb, getLsbD_concat_append, getLsbD_concat_cons, width_cons,
@@ -89,9 +94,10 @@ theorem extract_concat_1 {w v : Nat} {x : BitVec w} {xs : HBitVecList} {y : BitV
 
 theorem extract_concat_2 {w v : Nat} {x : BitVec w} {xs : HBitVecList} {y : BitVec v}
     {i j : Nat} (h₁ : (i < w) = True) (h₂ : (j ≥ w) = True) :
-    (xs ++ y ::ₕ x ::ₕ .nil).concat.extractLsb j i =
-    ((xs ++ y ::ₕ .nil).concat.extractLsb (j - w) 0 ++ x.extractLsb (w - 1) i).cast
-      (by have := of_eq_true h₁; have := of_eq_true h₂; omega) := by
+    Bool.eq ((xs ++ y ::ₕ x ::ₕ .nil).concat.extractLsb j i)
+    (((xs ++ y ::ₕ .nil).concat.extractLsb (j - w) 0 ++ x.extractLsb (w - 1) i).cast
+      (by have := of_eq_true h₁; have := of_eq_true h₂; omega)) := by
+  apply Bool.eq.of_eq
   have h₁ := of_eq_true h₁
   have h₂ := of_eq_true h₂
   apply BitVec.eq_of_getLsbD_eq
@@ -105,9 +111,10 @@ theorem extract_concat_2 {w v : Nat} {x : BitVec w} {xs : HBitVecList} {y : BitV
 
 theorem extract_concat_3 {w v : Nat} {x : BitVec w} {y : BitVec v} {xs : HBitVecList}
     {i j : Nat} (h : (i ≥ w) = True) :
-    (xs ++ y ::ₕ x ::ₕ .nil).concat.extractLsb j i =
-    ((xs ++ y ::ₕ .nil).concat.extractLsb (j - w) (i - w)).cast
-      (by have := of_eq_true h; omega) := by
+    Bool.eq ((xs ++ y ::ₕ x ::ₕ .nil).concat.extractLsb j i)
+    (((xs ++ y ::ₕ .nil).concat.extractLsb (j - w) (i - w)).cast
+      (by have := of_eq_true h; omega)) := by
+  apply Bool.eq.of_eq
   have h := of_eq_true h
   apply BitVec.eq_of_getLsbD_eq
   intro n hn
@@ -119,8 +126,9 @@ theorem extract_concat_3 {w v : Nat} {x : BitVec w} {y : BitVec v} {xs : HBitVec
 
 theorem extract_concat_4 {w v : Nat} {x : BitVec w} {y : BitVec v} {xs : HBitVecList}
     {i j : Nat} (h : (j < (x ::ₕ y ::ₕ xs).width - w) = True) (hij : i ≤ j) :
-    (x ::ₕ (xs ++ y ::ₕ .nil)).concat.extractLsb j i =
-    (xs ++ y ::ₕ .nil).concat.extractLsb j i := by
+    Bool.eq ((x ::ₕ (xs ++ y ::ₕ .nil)).concat.extractLsb j i)
+    ((xs ++ y ::ₕ .nil).concat.extractLsb j i) := by
+  apply Bool.eq.of_eq
   have h := of_eq_true h
   simp only [width_cons] at h
   apply BitVec.eq_of_getLsbD_eq
@@ -132,9 +140,10 @@ theorem extract_concat_4 {w v : Nat} {x : BitVec w} {y : BitVec v} {xs : HBitVec
 -- `y : BitVec (j - i + 1)` keeps the LHS cast-free, so `y` is bound after `i` and `j`.
 theorem eq_extract_elim1 {w : Nat} {x : BitVec w} {i j : Nat} {y : BitVec (j - i + 1)}
     (h₁ : (w - 1 > j) = True) (h₂ : (i > 0) = True) (hij : i ≤ j) :
-    decide (x.extractLsb j i = y) =
-    decide (x = (x.extractLsb (w - 1) (j + 1) ++ y ++ x.extractLsb (i - 1) 0).cast
-      (by have := of_eq_true h₁; have := of_eq_true h₂; omega)) := by
+    Bool.eq (decide (x.extractLsb j i = y))
+    (decide (x = (x.extractLsb (w - 1) (j + 1) ++ y ++ x.extractLsb (i - 1) 0).cast
+      (by have := of_eq_true h₁; have := of_eq_true h₂; omega))) := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff, decide_eq_true_eq, decide_eq_true_eq, ← eq_iff_iff]
   have h₁ := of_eq_true h₁
   have h₂ := of_eq_true h₂
@@ -158,8 +167,9 @@ theorem eq_extract_elim1 {w : Nat} {x : BitVec w} {i j : Nat} {y : BitVec (j - i
 
 theorem eq_extract_elim2 {w : Nat} {x : BitVec w} {j : Nat} {y : BitVec (j - 0 + 1)}
     (h : (w - 1 > j) = True) :
-    decide (x.extractLsb j 0 = y) =
-    decide (x = (x.extractLsb (w - 1) (j + 1) ++ y).cast (by have := of_eq_true h; omega)) := by
+    Bool.eq (decide (x.extractLsb j 0 = y))
+    (decide (x = (x.extractLsb (w - 1) (j + 1) ++ y).cast (by have := of_eq_true h; omega))) := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff, decide_eq_true_eq, decide_eq_true_eq, ← eq_iff_iff]
   have h := of_eq_true h
   apply propext
@@ -182,8 +192,9 @@ theorem eq_extract_elim2 {w : Nat} {x : BitVec w} {j : Nat} {y : BitVec (j - 0 +
 
 theorem eq_extract_elim3 {w : Nat} {x : BitVec w} {i : Nat} {y : BitVec (w - 1 - i + 1)}
     (h : (i > 0) = True) (hi : i < w) :
-    decide (x.extractLsb (w - 1) i = y) =
-    decide (x = (y ++ x.extractLsb (i - 1) 0).cast (by have := of_eq_true h; omega)) := by
+    Bool.eq (decide (x.extractLsb (w - 1) i = y))
+    (decide (x = (y ++ x.extractLsb (i - 1) 0).cast (by have := of_eq_true h; omega))) := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff, decide_eq_true_eq, decide_eq_true_eq, ← eq_iff_iff]
   have h := of_eq_true h
   apply propext
@@ -207,7 +218,8 @@ theorem eq_extract_elim3 {w : Nat} {x : BitVec w} {i : Nat} {y : BitVec (w - 1 -
 -- Normalization rules
 
 theorem extract_not {w : Nat} {x : BitVec w} {i j : Nat} (hij : i ≤ j) (hj : j < w) :
-    (~~~x).extractLsb j i = ~~~(x.extractLsb j i) := by
+    Bool.eq ((~~~x).extractLsb j i) (~~~(x.extractLsb j i)) := by
+  apply Bool.eq.of_eq
   apply BitVec.eq_of_getLsbD_eq
   intro n hn
   simp (disch := omega) only [BitVec.getLsbD_extractLsb, BitVec.getLsbD_not, decide_eq_true,
@@ -215,7 +227,8 @@ theorem extract_not {w : Nat} {x : BitVec w} {i j : Nat} (hij : i ≤ j) (hj : j
 
 theorem extract_sign_extend_1 {w : Nat} {x : BitVec w} {low high k : Nat}
     (h : (high < w) = True) (hlh : low ≤ high) :
-    (x.signExtend (w + k)).extractLsb high low = x.extractLsb high low := by
+    Bool.eq ((x.signExtend (w + k)).extractLsb high low) (x.extractLsb high low) := by
+  apply Bool.eq.of_eq
   have h := of_eq_true h
   apply BitVec.eq_of_getLsbD_eq
   intro n hn
@@ -224,9 +237,10 @@ theorem extract_sign_extend_1 {w : Nat} {x : BitVec w} {low high k : Nat}
 
 theorem extract_sign_extend_2 {w : Nat} {x : BitVec w} {low high k : Nat}
     (h₁ : (low < w) = True) (h₂ : (high ≥ w) = True) (hhigh : high < w + k) :
-    (x.signExtend (w + k)).extractLsb high low =
-    ((x.extractLsb (w - 1) low).signExtend (w - 1 - low + 1 + (1 + (high - w)))).cast
-      (by have := of_eq_true h₁; have := of_eq_true h₂; omega) := by
+    Bool.eq ((x.signExtend (w + k)).extractLsb high low)
+    (((x.extractLsb (w - 1) low).signExtend (w - 1 - low + 1 + (1 + (high - w)))).cast
+      (by have := of_eq_true h₁; have := of_eq_true h₂; omega)) := by
+  apply Bool.eq.of_eq
   have h₁ := of_eq_true h₁
   have h₂ := of_eq_true h₂
   apply BitVec.eq_of_getLsbD_eq
@@ -239,9 +253,10 @@ theorem extract_sign_extend_2 {w : Nat} {x : BitVec w} {low high k : Nat}
 
 theorem extract_sign_extend_3 {w : Nat} {x : BitVec w} {low high k : Nat}
     (h : (low ≥ w) = True) (hlh : low ≤ high) (hhigh : high < w + k) :
-    (x.signExtend (w + k)).extractLsb high low =
-    ((x.extractLsb (w - 1) (w - 1)).replicate (1 + (high - low))).cast
-      (by rw [Nat.sub_self, Nat.zero_add, Nat.one_mul]; omega) := by
+    Bool.eq ((x.signExtend (w + k)).extractLsb high low)
+    (((x.extractLsb (w - 1) (w - 1)).replicate (1 + (high - low))).cast
+      (by rw [Nat.sub_self, Nat.zero_add, Nat.one_mul]; omega)) := by
+  apply Bool.eq.of_eq
   have h := of_eq_true h
   apply BitVec.eq_of_getLsbD_eq
   intro n hn
@@ -253,51 +268,61 @@ theorem extract_sign_extend_3 {w : Nat} {x : BitVec w} {low high k : Nat}
   all_goals first | rfl | omega | (congr 1; omega)
 
 theorem not_xor {w : Nat} {x1 x2 : BitVec w} {xs : List (BitVec w)} :
-    ~~~(BitVec.xorN (x1 :: x2 :: xs)) = BitVec.xorN (~~~x1 :: x2 :: xs) := by
+    Bool.eq (~~~(BitVec.xorN (x1 :: x2 :: xs))) (BitVec.xorN (~~~x1 :: x2 :: xs)) := by
+  apply Bool.eq.of_eq
   simp only [BitVec.xorN_cons, BitVec.not_xor_left]
 
 theorem and_simplify_1 {w : Nat} {xs ys zs : List (BitVec w)} {x : BitVec w} :
-    BitVec.andN (xs ++ ~~~x :: (ys ++ x :: zs)) = 0#w := by
+    Bool.eq (BitVec.andN (xs ++ ~~~x :: (ys ++ x :: zs))) (0#w) := by
+  apply Bool.eq.of_eq
   ext i hi
   simp only [BitVec.andN_append, BitVec.andN_cons, BitVec.getElem_and, BitVec.getElem_not,
     BitVec.getElem_zero]
   cases x[i] <;> simp
 
 theorem and_simplify_2 {w : Nat} {xs ys zs : List (BitVec w)} {x : BitVec w} :
-    BitVec.andN (xs ++ x :: (ys ++ ~~~x :: zs)) = 0#w := by
+    Bool.eq (BitVec.andN (xs ++ x :: (ys ++ ~~~x :: zs))) (0#w) := by
+  apply Bool.eq.of_eq
   ext i hi
   simp only [BitVec.andN_append, BitVec.andN_cons, BitVec.getElem_and, BitVec.getElem_not,
     BitVec.getElem_zero]
   cases x[i] <;> simp
 
 theorem or_simplify_1 {w : Nat} {xs ys zs : List (BitVec w)} {x : BitVec w} :
-    BitVec.orN (xs ++ ~~~x :: (ys ++ x :: zs)) = ~~~(0#w) := by
+    Bool.eq (BitVec.orN (xs ++ ~~~x :: (ys ++ x :: zs))) (~~~(0#w)) := by
+  apply Bool.eq.of_eq
   ext i hi
   simp only [BitVec.orN_append, BitVec.orN_cons, BitVec.getElem_or, BitVec.getElem_not,
     BitVec.getElem_zero]
   cases x[i] <;> simp
 
 theorem or_simplify_2 {w : Nat} {xs ys zs : List (BitVec w)} {x : BitVec w} :
-    BitVec.orN (xs ++ x :: (ys ++ ~~~x :: zs)) = ~~~(0#w) := by
+    Bool.eq (BitVec.orN (xs ++ x :: (ys ++ ~~~x :: zs))) (~~~(0#w)) := by
+  apply Bool.eq.of_eq
   ext i hi
   simp only [BitVec.orN_append, BitVec.orN_cons, BitVec.getElem_or, BitVec.getElem_not,
     BitVec.getElem_zero]
   cases x[i] <;> simp
 
 theorem xor_simplify_1 {w : Nat} {xs ys zs : List (BitVec w)} {x : BitVec w} :
-    BitVec.xorN (xs ++ x :: (ys ++ x :: zs)) = BitVec.xorN (xs ++ (ys ++ zs)) := by
+    Bool.eq (BitVec.xorN (xs ++ x :: (ys ++ x :: zs))) (BitVec.xorN (xs ++ (ys ++ zs))) := by
+  apply Bool.eq.of_eq
   ext i hi
   simp only [BitVec.xorN_append, BitVec.xorN_cons, BitVec.getElem_xor]
   cases x[i] <;> simp
 
 theorem xor_simplify_2 {w : Nat} {xs ys zs : List (BitVec w)} {x : BitVec w} :
-    BitVec.xorN (xs ++ x :: (ys ++ ~~~x :: zs)) = ~~~(BitVec.xorN (xs ++ (ys ++ zs))) := by
+    Bool.eq (BitVec.xorN (xs ++ x :: (ys ++ ~~~x :: zs)))
+      (~~~(BitVec.xorN (xs ++ (ys ++ zs)))) := by
+  apply Bool.eq.of_eq
   ext i hi
   simp only [BitVec.xorN_append, BitVec.xorN_cons, BitVec.getElem_xor, BitVec.getElem_not]
   cases x[i] <;> simp
 
 theorem xor_simplify_3 {w : Nat} {xs ys zs : List (BitVec w)} {x : BitVec w} :
-    BitVec.xorN (xs ++ ~~~x :: (ys ++ x :: zs)) = ~~~(BitVec.xorN (xs ++ (ys ++ zs))) := by
+    Bool.eq (BitVec.xorN (xs ++ ~~~x :: (ys ++ x :: zs)))
+      (~~~(BitVec.xorN (xs ++ (ys ++ zs)))) := by
+  apply Bool.eq.of_eq
   ext i hi
   simp only [BitVec.xorN_append, BitVec.xorN_cons, BitVec.getElem_xor, BitVec.getElem_not]
   cases x[i] <;> simp
@@ -305,8 +330,9 @@ theorem xor_simplify_3 {w : Nat} {xs ys zs : List (BitVec w)} {x : BitVec w} :
 -- Simplify bit-blasting
 
 theorem ult_add_one {w : Nat} {x : BitVec w} {ys zs : List (BitVec w)} :
-    x.ult (BitVec.addN (ys ++ 1#w :: zs)) =
+    Bool.eq (x.ult (BitVec.addN (ys ++ 1#w :: zs)))
     (!decide (BitVec.addN (ys ++ zs) = ~~~(0#w)) && !(BitVec.addN (ys ++ zs)).ult x) := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff]
   simp only [BitVec.ult_iff_lt, Bool.and_eq_true, not_eq_true_eq_not, decide_eq_true_eq]
   rw [← eq_iff_iff]
@@ -329,9 +355,10 @@ theorem ult_add_one {w : Nat} {x : BitVec w} {ys zs : List (BitVec w)} :
 -- `(sign_extend m a)` is written with the common target width: `a.signExtend (tn + n)`.
 theorem mult_slt_mult_1 {tn an : Nat} {x y : BitVec tn} {a : BitVec an} {n m : Nat}
     (h₁ : (n ≥ tn) = True) (h₂ : (m ≥ an) = True) (hw : tn + n = an + m) :
-    (y.signExtend (tn + n) * a.signExtend (tn + n)).slt
-      (x.signExtend (tn + n) * a.signExtend (tn + n)) =
+    Bool.eq ((y.signExtend (tn + n) * a.signExtend (tn + n)).slt
+      (x.signExtend (tn + n) * a.signExtend (tn + n)))
     (!decide (y - x = 0#tn) && (!decide (a = 0#an) && decide (y.slt x = (0#an).slt a))) := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff]
   simp only [Bool.and_eq_true, not_eq_true_eq_not, decide_bool_eq_eq]
   simp only [decide_eq_true_eq]
@@ -365,9 +392,10 @@ theorem mult_slt_mult_1 {tn an : Nat} {x y : BitVec tn} {a : BitVec an} {n m : N
 
 theorem mult_slt_mult_2 {tn an : Nat} {x y : BitVec tn} {a : BitVec an} {n m : Nat}
     (h₁ : (n ≥ tn) = True) (h₂ : (m ≥ an) = True) (hw : tn + n = an + m) :
-    (y.zeroExtend (tn + n) * a.signExtend (tn + n)).slt
-      (x.zeroExtend (tn + n) * a.signExtend (tn + n)) =
+    Bool.eq ((y.zeroExtend (tn + n) * a.signExtend (tn + n)).slt
+      (x.zeroExtend (tn + n) * a.signExtend (tn + n)))
     (!decide (y - x = 0#tn) && (!decide (a = 0#an) && decide (y.ult x = (0#an).slt a))) := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff]
   simp only [Bool.and_eq_true, not_eq_true_eq_not, decide_bool_eq_eq]
   simp only [decide_eq_true_eq, BitVec.ult_iff_lt]
@@ -414,19 +442,22 @@ theorem mult_slt_mult_2 {tn an : Nat} {x y : BitVec tn} {a : BitVec an} {n m : N
 
 -- Commutativity
 
-theorem commutative_xor {w : Nat} {x y : BitVec w} : x ^^^ y = y ^^^ x :=
-  BitVec.xor_comm x y
+theorem commutative_xor {w : Nat} {x y : BitVec w} : Bool.eq (x ^^^ y) (y ^^^ x) :=
+  Bool.eq.of_eq <| BitVec.xor_comm x y
 
-theorem commutative_comp {w : Nat} {x y : BitVec w} : x.smtComp y = y.smtComp x := by
+theorem commutative_comp {w : Nat} {x y : BitVec w} : Bool.eq (x.smtComp y) (y.smtComp x) := by
+  apply Bool.eq.of_eq
   simp only [BitVec.smtComp, eq_comm]
 
-theorem zero_extend_eliminate_0 {w : Nat} {x : BitVec w} : x.zeroExtend (w + 0) = x :=
-  BitVec.setWidth_eq x
+theorem zero_extend_eliminate_0 {w : Nat} {x : BitVec w} : Bool.eq (x.zeroExtend (w + 0)) x :=
+  Bool.eq.of_eq <| BitVec.setWidth_eq x
 
-theorem sign_extend_eliminate_0 {w : Nat} {x : BitVec w} : x.signExtend (w + 0) = x :=
-  BitVec.signExtend_eq x
+theorem sign_extend_eliminate_0 {w : Nat} {x : BitVec w} : Bool.eq (x.signExtend (w + 0)) x :=
+  Bool.eq.of_eq <| BitVec.signExtend_eq x
 
-theorem not_neq {w : Nat} {x : BitVec w} (h : (w > 0) = True) : decide (x = ~~~x) = false := by
+theorem not_neq {w : Nat} {x : BitVec w} (h : (w > 0) = True) :
+    Bool.eq (decide (x = ~~~x)) false := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff, decide_eq_true_eq, Bool.false_eq_true, ← eq_iff_iff]
   apply eq_false
   intro hx
@@ -434,7 +465,8 @@ theorem not_neq {w : Nat} {x : BitVec w} (h : (w > 0) = True) : decide (x = ~~~x
   simp [of_eq_true h] at this
 
 theorem ult_ones {w : Nat} {x : BitVec w} :
-    x.ult (BitVec.ofNat w (2 ^ w - 1)) = !decide (x = BitVec.ofNat w (2 ^ w - 1)) := by
+    Bool.eq (x.ult (BitVec.ofNat w (2 ^ w - 1))) (!decide (x = BitVec.ofNat w (2 ^ w - 1))) := by
+  apply Bool.eq.of_eq
   rw [Bool.eq_iff_iff]
   simp only [BitVec.ult_iff_lt, not_eq_true_eq_not, decide_eq_true_eq]
   rw [← eq_iff_iff]
@@ -444,9 +476,10 @@ theorem ult_ones {w : Nat} {x : BitVec w} :
 -- Collapse rules
 
 theorem concat_merge_const {xs : HBitVecList} {n1 w1 n2 w2 : Nat} {zs : HBitVecList} :
-    (xs ++ BitVec.ofNat w1 n1 ::ₕ BitVec.ofNat w2 n2 ::ₕ zs).concat =
-    (xs ++ BitVec.ofNat (w1 + w2) (n1 * 2 ^ w2 + n2 % 2 ^ w2) ::ₕ zs).concat.cast
-      (by simp only [width_append, width_cons]; omega) := by
+    Bool.eq ((xs ++ BitVec.ofNat w1 n1 ::ₕ BitVec.ofNat w2 n2 ::ₕ zs).concat)
+    ((xs ++ BitVec.ofNat (w1 + w2) (n1 * 2 ^ w2 + n2 % 2 ^ w2) ::ₕ zs).concat.cast
+      (by simp only [width_append, width_cons]; omega)) := by
+  apply Bool.eq.of_eq
   apply BitVec.eq_of_getLsbD_eq
   intro k hk
   simp only [BitVec.getLsbD_cast, getLsbD_concat_append, getLsbD_concat_cons, width_cons,
@@ -456,20 +489,23 @@ theorem concat_merge_const {xs : HBitVecList} {n1 w1 n2 w2 : Nat} {zs : HBitVecL
   all_goals (try simp (disch := omega) only [decide_eq_true, Bool.true_and])
   all_goals first | rfl | omega | (congr 1; omega)
 
-theorem commutative_add {w : Nat} {x y : BitVec w} : x + y = y + x :=
-  BitVec.add_comm x y
+theorem commutative_add {w : Nat} {x y : BitVec w} : Bool.eq (x + y) (y + x) :=
+  Bool.eq.of_eq <| BitVec.add_comm x y
 
-theorem sub_eliminate {w : Nat} {x y : BitVec w} : x - y = x + -y :=
-  BitVec.sub_eq_add_neg x y
+theorem sub_eliminate {w : Nat} {x y : BitVec w} : Bool.eq (x - y) (x + -y) :=
+  Bool.eq.of_eq <| BitVec.sub_eq_add_neg x y
 
-theorem ite_width_one {x : BitVec 1} : cond (decide (x = 1#1)) 1#1 0#1 = x := by
+theorem ite_width_one {x : BitVec 1} : Bool.eq (cond (decide (x = 1#1)) 1#1 0#1) x := by
+  apply Bool.eq.of_eq
   revert x; decide
 
-theorem ite_width_one_not {x : BitVec 1} : cond (decide (x = 0#1)) 1#1 0#1 = ~~~x := by
+theorem ite_width_one_not {x : BitVec 1} : Bool.eq (cond (decide (x = 0#1)) 1#1 0#1) (~~~x) := by
+  apply Bool.eq.of_eq
   revert x; decide
 
 theorem eq_xor_solve {w : Nat} {x y z : BitVec w} :
-    decide (decide (x ^^^ y = z) = decide (x = z ^^^ y)) = true := by
+    Bool.eq (decide (decide (x ^^^ y = z) = decide (x = z ^^^ y))) true := by
+  apply Bool.eq.of_eq
   rw [decide_eq_true_eq, Bool.eq_iff_iff]
   simp only [decide_eq_true_eq]
   constructor
@@ -479,7 +515,8 @@ theorem eq_xor_solve {w : Nat} {x y z : BitVec w} :
     simp [BitVec.xor_assoc]
 
 theorem eq_not_solve {w : Nat} {x y : BitVec w} :
-    decide (decide (~~~x = y) = decide (x = ~~~y)) = true := by
+    Bool.eq (decide (decide (~~~x = y) = decide (x = ~~~y))) true := by
+  apply Bool.eq.of_eq
   rw [decide_eq_true_eq, Bool.eq_iff_iff]
   simp only [decide_eq_true_eq]
   constructor
