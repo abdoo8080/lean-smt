@@ -17,12 +17,13 @@ namespace Smt.Reconstruct.Datatype
 open Lean Meta Qq
 
 /-- Names of types that already have dedicated sort/term/proof reconstructors
-and should not be handled by the generic datatype reconstructor. -/
+and should not be handled by the generic datatype reconstructor. `Nat` is not one of them: it is
+the SMT-LIB datatype `Nat` (see `Smt/Preprocess/Embedding/Nat.lean`). -/
 private def builtinTypeNames : Std.HashSet Name :=
   Std.HashSet.ofList [
     ``Bool, `Prop, ``True, ``False,
     ``Or, ``And, ``Iff, ``Exists,
-    ``Nat, ``Int, `Rat, `Real,
+    ``Int, `Rat, `Real,
     ``String, ``BitVec
   ]
 
@@ -30,7 +31,7 @@ private def builtinTypeNames : Std.HashSet Name :=
 type with dedicated built-in reconstruction support. -/
 private def isBuiltinName (n : Name) : Bool :=
   builtinTypeNames.contains n ||
-  -- Also catch constructor names like `Bool.true`, `Nat.zero`, etc.
+  -- Also catch constructor names like `Bool.true`, `Int.ofNat`, etc.
   match n with
   | .str p _ => builtinTypeNames.contains p
   | _ => false

@@ -125,16 +125,6 @@ private def reduceBitVecWidth? (e : Expr) : MetaM (Option Nat) := do
   | .app (.const ``BitVec.zero []) w => do
     let w ← reduceWidth w e
     return mkLit w 0
-  | mkApp3 (.const ``BitVec.rotateLeft []) w x n =>
-    _ ← reduceWidth w e
-    let n ← reduceLit n e
-    return some (.appT (.mkApp2 (.symbolT "_") (.symbolT "rotate_left") (.literalT (toString n)))
-                       (← applyTranslators! x))
-  | mkApp3 (.const ``BitVec.rotateRight []) w x n =>
-    _ ← reduceWidth w e
-    let n ← reduceLit n e
-    return some (.appT (.mkApp2 (.symbolT "_") (.symbolT "rotate_right") (.literalT (toString n)))
-                       (← applyTranslators! x))
   | mkApp6 (.const ``HAppend.hAppend [0, 0, 0]) α β _ _ x y =>
     let some _ ← reduceBitVecWidth? α | return none
     let some _ ← reduceBitVecWidth? β | return none
@@ -171,6 +161,18 @@ private def reduceBitVecWidth? (e : Expr) : MetaM (Option Nat) := do
   | mkApp2 (.const `BitVec.smtRedand []) w x =>
     _ ← reduceWidth w e
     return some (.appT (.symbolT "bvredand") (← applyTranslators! x))
+  -- The normalization step rewrites rotations by `Nat` literals into these, with a bit-vector
+  -- literal as the amount (see `Smt/Preprocess/Normalize/BitVec.lean`).
+  | mkApp4 (.const `BitVec.smtRotateLeft []) w _ x (mkApp3 (.const ``OfNat.ofNat [0]) _ n _) =>
+    _ ← reduceWidth w e
+    let n ← reduceLit n e
+    return some (.appT (.mkApp2 (.symbolT "_") (.symbolT "rotate_left") (.literalT (toString n)))
+                       (← applyTranslators! x))
+  | mkApp4 (.const `BitVec.smtRotateRight []) w _ x (mkApp3 (.const ``OfNat.ofNat [0]) _ n _) =>
+    _ ← reduceWidth w e
+    let n ← reduceLit n e
+    return some (.appT (.mkApp2 (.symbolT "_") (.symbolT "rotate_right") (.literalT (toString n)))
+                       (← applyTranslators! x))
   | _                  => return none
 
 @[smt_translate] def translateProp : Translator := fun e => do match e with

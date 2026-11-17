@@ -28,8 +28,6 @@ namespace Smt.Translate.Query
 open Lean Expr Meta
 open Term
 
--- TODO: move all `Nat` hacks in this file to `Nat.lean`; see also issue #27
-
 structure QueryBuilderM.Config where
   /-- Expressions to process. -/
   toProcess : List Expr := []
@@ -238,16 +236,6 @@ where
     let et ← instantiateMVars et
     trace[smt.translate.query] "processing {e} : {et}"
 
-    -- HACK: `Nat` special cases
-    if e matches const ``Nat .. then
-      addCommand e Command.defNat
-      return
-    if e matches const ``Nat.sub .. then
-      addCommand e Command.defNatSub
-      go (mkConst ``Nat)
-      addDependency e (mkConst ``Nat)
-      return
-
     let deps ← addCommandFor e et
 
     trace[smt.translate.query] "deps: {deps}"
@@ -257,46 +245,10 @@ where
 
 end QueryBuilderM
 
-def sortEndsWithNat : Term → Bool
-  | .arrowT _ t    => sortEndsWithNat t
-  | .symbolT "Nat" => true
-  | _              => false
-
-def natAssertBody (t : Term) : Term :=
-  .mkApp2 (.symbolT ">=") t (.literalT "0")
-
-/-- TODO: remove this hack once we have a tactic that replaces Nat goals with Int goals. -/
-def natConstAssert (n : String) (args : List Name) : Term → MetaM Term
-  | arrowT i@(symbolT "Nat") t => do
-    let id ← mkFreshId
-    return (forallT id.toString i
-                   (imp id.toString (← natConstAssert n (id::args) t)))
-  | arrowT a t => do
-    let id ← mkFreshId
-    return (forallT id.toString a (← natConstAssert n (id::args) t))
-  | _ => pure $ natAssertBody (applyList n args)
-  where
-    imp n t := appT (appT (symbolT "=>") (natAssertBody (symbolT n))) t
-    applyList n : List Name → Term
-      | [] => symbolT n
-      | t :: ts => appT (applyList n ts) (symbolT t.toString)
-
-/-- TODO: Remove this function and its `Nat` those hacks. -/
-def addCommand (cmd : Command) (cmds : List Command) : MetaM (List Command) := do
-  let mut cmds := cmds
-  cmds := cmd :: cmds
-  match cmd with
-  | .declare nm st =>
-    if sortEndsWithNat st then
-      let x ← natConstAssert nm [] st
-      cmds := .assert x :: cmds
-  | _ => pure ()
-  return cmds
-
 def emitVertex (cmds : Std.HashMap Expr Command) (e : Expr) : StateT (List Command) MetaM Unit := do
   trace[smt.translate.query] "emitting {e}"
   let some cmd := cmds[e]? | throwError "no command was computed for {e}"
-  set (← addCommand cmd (← get))
+  modify (cmd :: ·)
 
 def generateQuery (hs : List Expr) (fvNames : Std.HashMap FVarId String) : MetaM (List Command) :=
   withTraceNode `smt.translate.query (fun _ => pure .nil) do

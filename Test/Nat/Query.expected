@@ -1,0 +1,92 @@
+goal: x + y ≥ x
+
+query:
+(set-logic ALL)
+(declare-datatypes ((Nat 0)) (((Nat.zero) (Nat.succ (Nat.succ.n Nat)))))
+(declare-fun Nat.toInt (Nat) Int)
+(assert (forall ((n Nat)) (<= 0 (Nat.toInt n))))
+(declare-fun Nat.fromInt (Int) Nat)
+(assert (forall ((x Int)) (=> (<= 0 x) (= (Nat.toInt (Nat.fromInt x)) x))))
+(assert (forall ((n Nat)) (= (Nat.fromInt (Nat.toInt n)) n)))
+(assert (forall ((x Int)) (=> (<= x 0) (= (Nat.toInt (Nat.fromInt x)) 0))))
+(declare-const x Nat)
+(declare-const y Nat)
+(assert (not (<= (Nat.toInt x) (+ (Nat.toInt x) (Nat.toInt y)))))
+(check-sat)
+Test/Nat/Query.lean:6:35: error: unsolved goals
+x y : Nat
+⊢ x + y ≥ x
+goal: x - y ≤ x
+
+query:
+(set-logic ALL)
+(declare-datatypes ((Nat 0)) (((Nat.zero) (Nat.succ (Nat.succ.n Nat)))))
+(declare-fun Nat.toInt (Nat) Int)
+(assert (forall ((n Nat)) (<= 0 (Nat.toInt n))))
+(declare-fun Nat.fromInt (Int) Nat)
+(assert (forall ((x Int)) (=> (<= 0 x) (= (Nat.toInt (Nat.fromInt x)) x))))
+(assert (forall ((n Nat)) (= (Nat.fromInt (Nat.toInt n)) n)))
+(assert (forall ((x Int)) (=> (<= x 0) (= (Nat.toInt (Nat.fromInt x)) 0))))
+(declare-const y Nat)
+(declare-const x Nat)
+(assert (not (<= (Nat.toInt (Nat.fromInt (- (Nat.toInt x) (Nat.toInt y)))) (Nat.toInt x))))
+(check-sat)
+Test/Nat/Query.lean:9:35: error: unsolved goals
+x y : Nat
+⊢ x - y ≤ x
+goal: f (x + 1) ≥ 0
+
+query:
+(set-logic ALL)
+(declare-datatypes ((Nat 0)) (((Nat.zero) (Nat.succ (Nat.succ.n Nat)))))
+(declare-fun Nat.toInt (Nat) Int)
+(assert (forall ((n Nat)) (<= 0 (Nat.toInt n))))
+(declare-fun Nat.fromInt (Int) Nat)
+(assert (forall ((x Int)) (=> (<= 0 x) (= (Nat.toInt (Nat.fromInt x)) x))))
+(assert (forall ((n Nat)) (= (Nat.fromInt (Nat.toInt n)) n)))
+(assert (forall ((x Int)) (=> (<= x 0) (= (Nat.toInt (Nat.fromInt x)) 0))))
+(declare-fun f (Nat) Nat)
+(declare-const x Nat)
+(assert (not (<= 0 (Nat.toInt (f (Nat.fromInt (+ (Nat.toInt x) 1)))))))
+(check-sat)
+Test/Nat/Query.lean:12:53: error: unsolved goals
+f : Nat → Nat
+x : Nat
+⊢ f (x + 1) ≥ 0
+goal: (if c = true then x + 1 else y) ≥ x
+
+query:
+(set-logic ALL)
+(declare-datatypes ((Nat 0)) (((Nat.zero) (Nat.succ (Nat.succ.n Nat)))))
+(declare-fun Nat.toInt (Nat) Int)
+(assert (forall ((n Nat)) (<= 0 (Nat.toInt n))))
+(declare-fun Nat.fromInt (Int) Nat)
+(assert (forall ((x Int)) (=> (<= 0 x) (= (Nat.toInt (Nat.fromInt x)) x))))
+(assert (forall ((n Nat)) (= (Nat.fromInt (Nat.toInt n)) n)))
+(assert (forall ((x Int)) (=> (<= x 0) (= (Nat.toInt (Nat.fromInt x)) 0))))
+(declare-const |x✝| Bool)
+(declare-const x Nat)
+(declare-const y Nat)
+(assert (not (<= (Nat.toInt x) (ite |x✝| (+ (Nat.toInt x) 1) (Nat.toInt y)))))
+(check-sat)
+Test/Nat/Query.lean:15:65: error: unsolved goals
+c : Bool
+x y : Nat
+⊢ (if c = true then x + 1 else y) ≥ x
+goal: x.succ > Nat.zero
+
+query:
+(set-logic ALL)
+(declare-datatypes ((Nat 0)) (((Nat.zero) (Nat.succ (Nat.succ.n Nat)))))
+(declare-fun Nat.toInt (Nat) Int)
+(assert (forall ((n Nat)) (<= 0 (Nat.toInt n))))
+(declare-fun Nat.fromInt (Int) Nat)
+(assert (forall ((x Int)) (=> (<= 0 x) (= (Nat.toInt (Nat.fromInt x)) x))))
+(assert (forall ((n Nat)) (= (Nat.fromInt (Nat.toInt n)) n)))
+(assert (forall ((x Int)) (=> (<= x 0) (= (Nat.toInt (Nat.fromInt x)) 0))))
+(declare-const x Nat)
+(assert (not (< 0 (+ (Nat.toInt x) 1))))
+(check-sat)
+Test/Nat/Query.lean:18:45: error: unsolved goals
+x : Nat
+⊢ x.succ > Nat.zero

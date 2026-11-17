@@ -37,16 +37,6 @@ namespace Command
 
 open Lean Term
 
-def defNat : Command := .defineSort "Nat" [] (symbolT "Int")
-
-def defNatSub : Command :=
-  .defineFun "Nat.sub" [("x", symbolT "Nat"), ("y", symbolT "Nat")] (symbolT "Nat")
-    (Term.mkApp3 (symbolT "ite")
-                 (Term.mkApp2 (symbolT "<") (symbolT "x") (symbolT "y"))
-                 (literalT "0")
-                 (Term.mkApp2 (symbolT "-") (symbolT "x") (symbolT "y")))
-    false
-
 open ToSexp in
 protected def toSexp : Command → Sexp
   | .setLogic l                   => sexp!{(set-logic {l})}

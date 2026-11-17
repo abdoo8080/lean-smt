@@ -1,0 +1,11 @@
+goal: x.rotateLeft 3 = y.rotateRight 11
+
+query:
+(set-logic ALL)
+(declare-const x (_ BitVec 8))
+(declare-const y (_ BitVec 8))
+(assert (not (= ((_ rotate_left 3) x) ((_ rotate_right 11) y))))
+(check-sat)
+Test/BitVec/Rotate.lean:6:64: error: unsolved goals
+x y : BitVec 8
+⊢ x.rotateLeft 3 = y.rotateRight 11

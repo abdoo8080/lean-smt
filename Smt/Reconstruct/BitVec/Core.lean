@@ -41,6 +41,10 @@ SMT-LIB operators are represented as follows (matching `Smt/Translate/BitVec.lea
 
 The n-ary operators are left-associated like the term reconstruction, e.g.,
 `andN [x₁, x₂, x₃] = (x₁ &&& x₂) &&& x₃`, and `andN [x] = x`.
+
+The translation also accepts `x.smtRotateLeft n` and `x.smtRotateRight n`, where `n` is a
+bit-vector literal: the normalization step rewrites rotations by `Nat` literals into them (see
+`Smt/Preprocess/Normalize/BitVec.lean`), because the embedding of `Nat` rewrites `Nat` literals.
 -/
 
 @[expose] public section
@@ -69,6 +73,12 @@ def smtRedand (x : BitVec w) : BitVec 1 := if x = allOnes w then 1#1 else 0#1
 
 /-- cvc5's `bvite`: if-then-else with a bit-vector condition of width one. -/
 def smtIte (c : BitVec 1) (x y : BitVec w) : BitVec w := if c = 1#1 then x else y
+
+/-- SMT-LIB `(_ rotate_left n)`, with the amount `n` as a bit-vector. -/
+def smtRotateLeft (x : BitVec w) (n : BitVec v) : BitVec w := x.rotateLeft n.toNat
+
+/-- SMT-LIB `(_ rotate_right n)`, with the amount `n` as a bit-vector. -/
+def smtRotateRight (x : BitVec w) (n : BitVec v) : BitVec w := x.rotateRight n.toNat
 
 /-! ### n-ary operators -/
 

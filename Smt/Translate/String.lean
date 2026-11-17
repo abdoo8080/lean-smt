@@ -26,9 +26,11 @@ private def mkString : Expr :=
   | .const ``String _ => return symbolT "String"
   | _                 => return none
 
-@[smt_translate] def translateInt : Translator := fun e => do
+@[smt_translate] def translateNat : Translator := fun e => do
+  -- `str.len` returns an `Int`, but `String.length` returns a `Nat`, a datatype in SMT-LIB.
   if let some s := e.app1? ``String.length then
-    return appT (symbolT "str.len") (← applyTranslators! s)
+    modify fun st => { st with depConstants := st.depConstants.insert `Nat.fromInt }
+    return appT (symbolT "Nat.fromInt") (appT (symbolT "str.len") (← applyTranslators! s))
   else
     return none
 

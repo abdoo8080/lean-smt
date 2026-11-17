@@ -10,300 +10,229 @@ module
 public import Smt.Preprocess.Embedding.Attribute
 public meta import Smt.Preprocess.Embedding.Attribute
 
-public import Lean
-public meta import Lean
+/-!
+# Embedding `Nat` into `Int` without eliminating it
 
--- Note: not `@[expose]`d; nothing here needs to unfold downstream, and exposing the `simproc`s
--- below would forbid them from using the `private` helpers in this module.
+`Nat` is sent to the SMT solver as a datatype:
+```smt2
+(declare-datatypes ((Nat 0)) (((Nat.zero) (Nat.succ (Nat.succ.n Nat)))))
+```
+Variables, quantifiers, function arguments and results, and datatype fields of type `Nat` keep the
+type `Nat`. The `embedding` step only rewrites `Nat` operations, literals, and (in)equalities into
+their `Int` versions, using the casts `Nat.toInt` and `Nat.fromInt`. For example, `x + y ≤ z`
+becomes `(Nat.fromInt (x.toInt + y.toInt)).toInt ≤ z.toInt`. Truncated subtraction needs no special
+case: `Nat.fromInt` maps negative integers to `0`.
+
+The solver receives the casts as uninterpreted functions, together with the facts below (proved in
+Lean, and added as hypotheses by the `embedding` step, so the final step of the reconstruction
+discharges them like any other hypothesis):
+```lean
+Nat.toInt_nonneg            : ∀ n, 0 ≤ n.toInt
+Nat.toInt_fromInt_of_nonneg : ∀ x, 0 ≤ x → (Nat.fromInt x).toInt = x
+Nat.fromInt_toInt           : ∀ n, Nat.fromInt n.toInt = n
+Nat.toInt_fromInt_of_nonpos : ∀ x, x ≤ 0 → (Nat.fromInt x).toInt = 0
+```
+The first three facts make `Nat.toInt` a bijection between the datatype and the non-negative
+integers, with `Nat.fromInt` as its inverse. The fourth fact fixes `Nat.fromInt` on non-positive
+integers, which truncated subtraction (e.g., `x - y ≤ x`) relies on.
+
+We do not send the recursive definitions of the casts (as `define-fun-rec`s or as their equation
+lemmas): their unfolding (`Nat.fromInt x = Nat.succ (Nat.fromInt (x - 1))`) is a matching loop for
+quantifier instantiation, which makes cvc5 time out on goals it otherwise proves instantly, and spin
+forever (instead of returning `unknown`) on satisfiable queries.
+-/
+
 public section
 
-attribute [embedding ↓] Nat.zero_eq
-attribute [embedding ↓] Nat.succ_eq_add_one
-attribute [embedding ↓] Nat.pred_eq_sub_one
-attribute [embedding ↓] Int.toNat_of_nonneg
-attribute [embedding ↓] Int.cast_ofNat_Int
-attribute [embedding ↓] Int.natCast_add
-attribute [embedding ↓] Int.natCast_mul
-attribute [embedding ↓] Int.natCast_ediv
-attribute [embedding ↓] Int.natCast_emod
-attribute [embedding ↓ ←] Int.ofNat_inj
-attribute [embedding ↓ ←] Int.ofNat_le
-attribute [embedding ↓ ←] Int.ofNat_lt
+/-- Cast a natural number into an integer, by structural recursion on the `Nat` datatype. -/
+def Nat.toInt (n : Nat) : Int := match n with
+  | .zero   => 0
+  | .succ n => Nat.toInt n + 1
 
-@[embedding ↓ low]
-theorem Int.ofNat_toNat' {x : Int} : x.toNat = if x ≥ 0 then x else 0 := by
+/-- Cast an integer into a natural number, mapping non-positive integers to `0`. -/
+def Nat.fromInt (x : Int) : Nat :=
+  if x ≤ 0 then .zero else .succ (Nat.fromInt (x - 1))
+termination_by x.natAbs
+
+namespace Nat
+
+theorem toInt_eq_natCast (n : Nat) : n.toInt = (n : Int) := by
+  induction n with
+  | zero      => rfl
+  | succ n ih => rw [Nat.toInt, ih, Int.natCast_succ]
+
+theorem fromInt_eq_toNat (x : Int) : Nat.fromInt x = x.toNat := by
+  fun_induction Nat.fromInt x with
+  | case1 x h    => exact (Int.toNat_of_nonpos h).symm
+  | case2 x h ih => rw [ih]; omega
+
+-- Prevent `isDefEq` from evaluating the casts (e.g., on large literals).
+attribute [irreducible] Nat.toInt
+
+/-! ## Facts about the casts sent to the solver -/
+
+theorem toInt_nonneg (n : Nat) : 0 ≤ n.toInt := by
+  rw [toInt_eq_natCast]
+  exact Int.natCast_nonneg n
+
+theorem toInt_fromInt_of_nonneg (x : Int) : 0 ≤ x → (Nat.fromInt x).toInt = x := by
+  intro h
+  rw [toInt_eq_natCast, fromInt_eq_toNat]
+  exact Int.toNat_of_nonneg h
+
+theorem fromInt_toInt (n : Nat) : Nat.fromInt n.toInt = n := by
+  rw [toInt_eq_natCast, fromInt_eq_toNat]
+  exact Int.toNat_natCast n
+
+theorem toInt_fromInt_of_nonpos (x : Int) : x ≤ 0 → (Nat.fromInt x).toInt = 0 := by
+  intro h
+  rw [toInt_eq_natCast, fromInt_eq_toNat]
+  omega
+
+end Nat
+
+namespace Smt.Preprocess.Embedding.Nat
+
+/-! ## Rewrites of `Nat` into `Int` -/
+
+attribute [embedding ↓] Nat.zero_eq Nat.succ_eq_add_one Nat.pred_eq_sub_one
+
+-- Casts
+
+@[embedding ↓]
+theorem natCast_eq_toInt (n : Nat) : (n : Int) = n.toInt :=
+  (Nat.toInt_eq_natCast n).symm
+
+@[embedding ↓]
+theorem toNat_eq_fromInt (x : Int) : x.toNat = Nat.fromInt x :=
+  (Nat.fromInt_eq_toNat x).symm
+
+-- Literals. Bare literals are rewritten by the `natLitEqFromInt` simproc below. Literals under
+-- `Nat.toInt` are rewritten first (simp rewrites top-down). `no_index` is needed because simp
+-- indexes numerals as literals.
+
+theorem ofNat_eq_fromInt (n : Nat) : (OfNat.ofNat n : Nat) = Nat.fromInt (OfNat.ofNat n : Int) := by
+  rw [Nat.fromInt_eq_toNat]
+  rfl
+
+@[embedding ↓]
+theorem toInt_ofNat (n : Nat) : Nat.toInt (no_index (OfNat.ofNat n)) = (OfNat.ofNat n : Int) := by
+  rw [Nat.toInt_eq_natCast]
+  rfl
+
+-- (In)equalities
+
+@[embedding ↓]
+theorem eq_eq_toInt_eq (a b : Nat) : (a = b) = (a.toInt = b.toInt) := by
+  simp only [Nat.toInt_eq_natCast, Int.natCast_inj]
+
+@[embedding ↓]
+theorem ne_eq_toInt_ne (a b : Nat) : (a ≠ b) = (a.toInt ≠ b.toInt) := by
+  simp only [Nat.toInt_eq_natCast, ne_eq, Int.natCast_inj]
+
+@[embedding ↓]
+theorem le_eq_toInt_le (a b : Nat) : (a ≤ b) = (a.toInt ≤ b.toInt) := by
+  simp only [Nat.toInt_eq_natCast, Int.ofNat_le]
+
+@[embedding ↓]
+theorem lt_eq_toInt_lt (a b : Nat) : (a < b) = (a.toInt < b.toInt) := by
+  simp only [Nat.toInt_eq_natCast, Int.ofNat_lt]
+
+@[embedding ↓]
+theorem ge_eq_toInt_ge (a b : Nat) : (a ≥ b) = (a.toInt ≥ b.toInt) := by
+  simp only [Nat.toInt_eq_natCast, ge_iff_le, Int.ofNat_le]
+
+@[embedding ↓]
+theorem gt_eq_toInt_gt (a b : Nat) : (a > b) = (a.toInt > b.toInt) := by
+  simp only [Nat.toInt_eq_natCast, gt_iff_lt, Int.ofNat_lt]
+
+-- Operations under `Nat.toInt`. These hold without a round trip through `Nat.fromInt`, except for
+-- subtraction, which is truncated. Without them, nonlinear goals (e.g., the `a * b + ...` example
+-- in `Test/Unit/Embedding.lean`) get proofs too large to reconstruct.
+--
+-- The order of the rewrites is fixed by the traversal, not by priorities: simp tries the ↓
+-- lemmas on `(a + b).toInt` before it visits `a + b`, so `toInt_add` applies before
+-- `add_eq_fromInt` below could (priorities only order lemmas for the same term). So a term that
+-- another lemma rewrites into an operation or a literal only after its parent was visited needs a
+-- lemma of its own here: `Nat.zero`, `Nat.succ` (rewritten by `Nat.zero_eq` and
+-- `Nat.succ_eq_add_one`), and `ite`, whose branches are visited as `Nat` terms.
+
+@[embedding ↓]
+theorem toInt_zero : Nat.zero.toInt = 0 := by
+  rw [Nat.toInt_eq_natCast]
+  rfl
+
+@[embedding ↓]
+theorem toInt_succ (n : Nat) : n.succ.toInt = n.toInt + 1 := by
+  simp only [Nat.toInt_eq_natCast, Int.natCast_succ]
+
+@[embedding ↓]
+theorem toInt_ite [Decidable c] (a b : Nat) :
+    (if c then a else b).toInt = if c then a.toInt else b.toInt :=
+  apply_ite Nat.toInt c a b
+
+@[embedding ↓]
+theorem toInt_add (a b : Nat) : (a + b).toInt = a.toInt + b.toInt := by
+  simp only [Nat.toInt_eq_natCast, Int.natCast_add]
+
+@[embedding ↓]
+theorem toInt_mul (a b : Nat) : (a * b).toInt = a.toInt * b.toInt := by
+  simp only [Nat.toInt_eq_natCast, Int.natCast_mul]
+
+@[embedding ↓]
+theorem toInt_div (a b : Nat) : (a / b).toInt = a.toInt / b.toInt := by
+  simp only [Nat.toInt_eq_natCast, Int.natCast_ediv]
+
+@[embedding ↓]
+theorem toInt_mod (a b : Nat) : (a % b).toInt = a.toInt % b.toInt := by
+  simp only [Nat.toInt_eq_natCast, Int.natCast_emod]
+
+-- Operations elsewhere, e.g., in arguments of functions and constructors.
+
+@[embedding ↓]
+theorem add_eq_fromInt (a b : Nat) : a + b = Nat.fromInt (a.toInt + b.toInt) := by
+  rw [Nat.toInt_eq_natCast, Nat.toInt_eq_natCast, Nat.fromInt_eq_toNat]
   omega
 
 @[embedding ↓]
-theorem Int.ite_eq_of_ge_zero {x : Int} (h : x ≥ 0) : (if x ≥ 0 then x else 0) = x :=
-  ite_eq_left h
+theorem sub_eq_fromInt (a b : Nat) : a - b = Nat.fromInt (a.toInt - b.toInt) := by
+  rw [Nat.toInt_eq_natCast, Nat.toInt_eq_natCast, Nat.fromInt_eq_toNat]
+  omega
 
 @[embedding ↓]
-theorem Int.ofNat_sub' {x y : Nat} : (x - y : Nat) = (if x ≥ y then x - y else 0 : Int) := by
-  split <;> rename_i h
-  · exact Int.natCast_sub h
-  · rewrite [natCast_eq_zero]
-    exact Nat.sub_eq_zero_of_le (Nat.le_of_not_le h)
+theorem mul_eq_fromInt (a b : Nat) : a * b = Nat.fromInt (a.toInt * b.toInt) := by
+  rw [Nat.toInt_eq_natCast, Nat.toInt_eq_natCast, Nat.fromInt_eq_toNat, ← Int.natCast_mul,
+    Int.toNat_natCast]
 
 @[embedding ↓]
-theorem Int.natCast_ite [Decidable c] {t e : Nat} :
-    (if c then t else e : Nat) = (if c then t else e : Int) := by
-  exact apply_ite Nat.cast c t e
-
-@[embedding ↓ ←]
-theorem Int.ofNat_ge {x y : Nat} : ((x : Int) ≥ (y : Int)) ↔ (x ≥ y) := by
-  simp only [ge_iff_le, Int.ofNat_le]
-
-@[embedding ↓ ←]
-theorem Int.ofNat_gt {x y : Nat} : ((x : Int) > (y : Int)) ↔ (x > y) := by
-  simp only [gt_iff_lt, Int.ofNat_lt]
-
-@[embedding ↓ ←]
-theorem Int.ofNat_ne {x y : Nat} : ((x : Int) ≠ (y : Int)) ↔ (x ≠ y) := by
-  rw [← Decidable.not_iff_not]
-  rw [Decidable.not_not, Decidable.not_not]
-  rw [Int.ofNat_inj]
+theorem div_eq_fromInt (a b : Nat) : a / b = Nat.fromInt (a.toInt / b.toInt) := by
+  rw [Nat.toInt_eq_natCast, Nat.toInt_eq_natCast, Nat.fromInt_eq_toNat, ← Int.natCast_ediv,
+    Int.toNat_natCast]
 
 @[embedding ↓]
-theorem Int.toNat_eq_toNat_of_nonneg {x y : Int} (hx : x ≥ 0) (hy : y ≥ 0) : (x.toNat = y.toNat) ↔ (x = y) := by
-  match x, y with
-  | .negSucc n, _ => contradiction
-  | _, .negSucc m => contradiction
-  | .ofNat n, .ofNat m =>
-    simp only [Int.ofNat_eq_natCast, Int.toNat_natCast, Int.natCast_inj]
+theorem mod_eq_fromInt (a b : Nat) : a % b = Nat.fromInt (a.toInt % b.toInt) := by
+  rw [Nat.toInt_eq_natCast, Nat.toInt_eq_natCast, Nat.fromInt_eq_toNat, ← Int.natCast_emod,
+    Int.toNat_natCast]
 
-@[embedding ↓]
-theorem Int.toNat_ne_toNat_of_nonneg {x y : Int} (hx : x ≥ 0) (hy : y ≥ 0) : (x.toNat ≠ y.toNat) ↔ (x ≠ y) := by
-  match x, y with
-  | .negSucc n, _ => contradiction
-  | _, .negSucc m => contradiction
-  | .ofNat n, .ofNat m =>
-    simp only [Int.ofNat_eq_natCast, Int.toNat_natCast, ne_eq, Int.natCast_inj]
-
-namespace Smt.Preprocess.Embedding
-
-@[embedding ↓]
-theorem forall_nat_as_int {p : Nat → Prop} :
-    (∀ f : Nat, p f) ↔ (∀ f : Int, f ≥ 0 → p f.toNat) := by
-  constructor
-  · intro h f hf
-    exact h f.toNat
-  · intro h f
-    have hf := h (f : Int) (Int.natCast_nonneg f)
-    simp only [Int.toNat_natCast] at hf
-    exact hf
-
--- This theorem is similar to the one below, but it does not have the implication in the
--- conclusion of the right-hand side, which (while redundant) helps the simplifier in
--- eliminating `Int.toNat` calls.
-theorem exists_nat_as_int {p : Nat → Prop} :
-    (∃ x : Nat, p x) ↔ (∃ x : Int, x ≥ 0 ∧ p x.toNat) := by
-  constructor
-  · intro ⟨x, hx⟩
-    exists x
-    simp [hx]
-  · intro ⟨x, hx₀, hx⟩
-    exists x.toNat
-
-@[embedding ↓]
-theorem exists_nat_as_int' {p : Nat → Prop} :
-    (∃ x : Nat, p x) ↔ (∃ x : Int, x ≥ 0 ∧ (x ≥ 0 → p x.toNat)) := by
-  constructor
-  · intro ⟨x, hx⟩
-    exists x
-    simp [hx]
-  · intro ⟨x, hx₀, hx⟩
-    exists x.toNat
-    exact hx hx₀
-
-@[embedding ↓]
-theorem forall_nat_out_as_int₁ {p : (α₁ → Nat) → Prop} :
-    (∀ f : α₁ → Nat, p f) ↔
-    (∀ f : α₁ → Int, (∀ a₁, f a₁ ≥ 0) → p (fun a₁ => (f a₁).toNat)) := by
-  constructor
-  · intro h f hf
-    exact h (fun a₁ => (f a₁).toNat)
-  · intro h f
-    have hf := h (fun a₁ => (f a₁ : Int)) (fun a₁ => Int.natCast_nonneg (f a₁))
-    simp only [Int.toNat_natCast] at hf
-    exact hf
-
-@[embedding ↓]
-theorem forall_nat_out_as_int₂ {p : (α₁ → a₂ → Nat) → Prop} :
-    (∀ f : α₁ → a₂ → Nat, p f) ↔
-    (∀ f : α₁ → a₂ → Int, (∀ a₁ a₂, f a₁ a₂ ≥ 0) → p (fun a₁ a₂ => (f a₁ a₂).toNat)) := by
-  constructor
-  · intro h f hf
-    exact h (fun a₁ a₂ => (f a₁ a₂).toNat)
-  · intro h f
-    have hf := h (fun a₁ a₂ => (f a₁ a₂ : Int)) (fun a₁ a₂ => Int.natCast_nonneg (f a₁ a₂))
-    simp only [Int.toNat_natCast] at hf
-    exact hf
-
-@[embedding ↓]
-theorem forall_nat_out_as_int₃ {p : (α₁ → a₂ → a₃ → Nat) → Prop} :
-    (∀ f : α₁ → a₂ → a₃ → Nat, p f) ↔
-    (∀ f : α₁ → a₂ → a₃ → Int, (∀ a₁ a₂ a₃, f a₁ a₂ a₃ ≥ 0) → p (fun a₁ a₂ a₃ => (f a₁ a₂ a₃).toNat)) := by
-  constructor
-  · intro h f hf
-    exact h (fun a₁ a₂ a₃ => (f a₁ a₂ a₃).toNat)
-  · intro h f
-    have hf := h (fun a₁ a₂ a₃ => (f a₁ a₂ a₃ : Int)) (fun a₁ a₂ a₃ => Int.natCast_nonneg (f a₁ a₂ a₃))
-    simp only [Int.toNat_natCast] at hf
-    exact hf
-
-@[embedding ↓]
-theorem forall_nat_out_as_int₄ {p : (α₁ → a₂ → a₃ → a₄ → Nat) → Prop} :
-    (∀ f : α₁ → a₂ → a₃ → a₄ → Nat, p f) ↔
-    (∀ f : α₁ → a₂ → a₃ → a₄ → Int, (∀ a₁ a₂ a₃ a₄, f a₁ a₂ a₃ a₄ ≥ 0) → p (fun a₁ a₂ a₃ a₄ => (f a₁ a₂ a₃ a₄).toNat)) := by
-  constructor
-  · intro h f hf
-    exact h (fun a₁ a₂ a₃ a₄ => (f a₁ a₂ a₃ a₄).toNat)
-  · intro h f
-    have hf := h (fun a₁ a₂ a₃ a₄ => (f a₁ a₂ a₃ a₄ : Int))
-      (fun a₁ a₂ a₃ a₄ => Int.natCast_nonneg (f a₁ a₂ a₃ a₄))
-    simp only [Int.toNat_natCast] at hf
-    exact hf
-
-@[embedding ↓]
-theorem forall_nat_out_as_int₅ {p : (α₁ → a₂ → a₃ → a₄ → a₅ → Nat) → Prop} :
-    (∀ f : α₁ → a₂ → a₃ → a₄ → a₅ → Nat, p f) ↔
-    (∀ f : α₁ → a₂ → a₃ → a₄ → a₅ → Int, (∀ a₁ a₂ a₃ a₄ a₅, f a₁ a₂ a₃ a₄ a₅ ≥ 0) → p (fun a₁ a₂ a₃ a₄ a₅ => (f a₁ a₂ a₃ a₄ a₅).toNat)) := by
-  constructor
-  · intro h f hf
-    exact h (fun a₁ a₂ a₃ a₄ a₅ => (f a₁ a₂ a₃ a₄ a₅).toNat)
-  · intro h f
-    have hf := h (fun a₁ a₂ a₃ a₄ a₅ => (f a₁ a₂ a₃ a₄ a₅ : Int))
-      (fun a₁ a₂ a₃ a₄ a₅ => Int.natCast_nonneg (f a₁ a₂ a₃ a₄ a₅))
-    simp only [Int.toNat_natCast] at hf
-    exact hf
-
-@[embedding ↓]
-theorem forall_nat_in_as_int₁ {p : (Nat → α₁) → Prop} :
-    (∀ f : Nat → α₁, p f) ↔
-    (∀ f : Int → α₁, p (fun a => f (a : Int))) := by
-  constructor
-  · intro h f
-    exact h (fun a => f (a : Int))
-  · intro h f
-    have hf := h (fun b => f b.toNat)
-    simp only [Int.toNat_natCast] at hf
-    exact hf
-
-@[embedding ↓]
-theorem forall_nat_in_as_int₂ {p : (α₁ → Nat → α₂) → Prop} :
-    (∀ f : α₁ → Nat → α₂, p f) ↔
-    (∀ f : α₁ → Int → α₂, p (fun a₁ a => f a₁ (a : Int))) := by
-  constructor
-  · intro h f
-    exact h (fun a₁ a => f a₁ (a : Int))
-  · intro h f
-    have hf := h (fun a₁ b => f a₁ b.toNat)
-    simp only [Int.toNat_natCast] at hf
-    exact hf
-
-@[embedding ↓]
-theorem forall_nat_in_as_int₃ {p : (α₁ → α₂ → Nat → α₃) → Prop} :
-  (∀ f : α₁ → α₂ → Nat → α₃, p f) ↔
-  (∀ f : α₁ → α₂ → Int → α₃, p (fun a₁ a₂ a => f a₁ a₂ (a : Int))) := by
-  constructor
-  · intro h f
-    exact h (fun a₁ a₂ a => f a₁ a₂ (a : Int))
-  · intro h f
-    have hf := h (fun a₁ a₂ b => f a₁ a₂ b.toNat)
-    simp only [Int.toNat_natCast] at hf
-    exact hf
-
-@[embedding ↓]
-theorem forall_nat_in_as_int₄ {p : (α₁ → α₂ → α₃ → Nat → α₄) → Prop} :
-  (∀ f : α₁ → α₂ → α₃ → Nat → α₄, p f) ↔
-  (∀ f : α₁ → α₂ → α₃ → Int → α₄, p (fun a₁ a₂ a₃ a => f a₁ a₂ a₃ (a : Int))) := by
-  constructor
-  · intro h f
-    exact h (fun a₁ a₂ a₃ a => f a₁ a₂ a₃ (a : Int))
-  · intro h f
-    have hf := h (fun a₁ a₂ a₃ b => f a₁ a₂ a₃ b.toNat)
-    simp only [Int.toNat_natCast] at hf
-    exact hf
-
-@[embedding ↓]
-theorem forall_nat_in_as_int₅ {p : (α₁ → α₂ → α₃ → α₄ → Nat → α₅) → Prop} :
-  (∀ f : α₁ → α₂ → α₃ → α₄ → Nat → α₅, p f) ↔
-  (∀ f : α₁ → α₂ → α₃ → α₄ → Int → α₅, p (fun a₁ a₂ a₃ a₄ a => f a₁ a₂ a₃ a₄ (a : Int))) := by
-  constructor
-  · intro h f
-    exact h (fun a₁ a₂ a₃ a₄ a => f a₁ a₂ a₃ a₄ (a : Int))
-  · intro h f
-    have hf := h (fun a₁ a₂ a₃ a₄ b => f a₁ a₂ a₃ a₄ b.toNat)
-    simp only [Int.toNat_natCast] at hf
-    exact hf
+end Smt.Preprocess.Embedding.Nat
 
 public meta section
 
+namespace Smt.Preprocess.Embedding.Nat
+
 open Lean Meta Simp
 
-private def withNewLemmas (xs : Array Expr) (f : SimpM α) : SimpM α := do
-  Simp.withFreshCache do
-    let mut s ← Simp.getSimpTheorems
-    let mut updated := false
-    let ctx ← Simp.getContext
-    for x in xs do
-      if (← isProof x) then
-        s ← s.addTheorem (.fvar x.fvarId!) x (config := ctx.indexConfig)
-        updated := true
-    if updated then
-      Simp.withSimpTheorems s f
-    else
-      f
-
-private def simpUsingDecide : Simproc := fun e => do
-  if e.hasFVar || e.hasMVar || e.isTrue || e.isFalse then
+/-- Rewrite each `Nat` literal `n` into `Nat.fromInt (n : Int)`. Simp indexes numerals as literals,
+so no pattern matches every `Nat` literal: this simproc is tried on every term. Unlike a `no_index`
+simp lemma, it creates no metavariables on each attempt. Those would shift the ids of the free
+variables that the `embedding` step creates, and hence reorder the SMT-LIB declarations of goals
+without `Nat` operations. -/
+simproc ↓ [embedding] natLitEqFromInt (_) := fun e => do
+  let_expr OfNat.ofNat α n inst := e | return .continue
+  unless α.isConstOf ``Nat && n.isRawNatLit && inst.isAppOfArity ``instOfNatNat 1 do
     return .continue
-  try
-    let d ← mkDecide e
-    let r ← withDefault <| whnf d
-    if r.isConstOf ``true then
-      return .done { expr := mkConst ``True, proof? := mkAppN (mkConst ``eq_true_of_decide) #[e, d.appArg!, (← mkEqRefl (mkConst ``true))] }
-    else if r.isConstOf ``false then
-      return .done { expr := mkConst ``False, proof? := mkAppN (mkConst ``eq_false_of_decide) #[e, d.appArg!, (← mkEqRefl (mkConst ``false))] }
-    else
-      return .continue
-  catch _ =>
-    return .continue
+  let i := mkApp3 (.const ``OfNat.ofNat [0]) (.const ``Int []) n (.app (.const ``instOfNat []) n)
+  let proof := .app (.const ``ofNat_eq_fromInt []) n
+  return .done { expr := .app (.const ``Nat.fromInt []) i, proof? := some proof }
 
-@[match_pattern]
-private abbrev mkIntLitZero :=
-  mkApp3 (.const ``OfNat.ofNat [0]) (.const ``Int []) (.lit (.natVal 0)) (.app (.const ``instOfNat []) (.lit (.natVal 0)))
-
-def isIntGeLitZero : Expr → Bool
-  | .forallE _ _ b _ => isIntGeLitZero b
-  | mkApp4 (.const ``LE.le [0]) (.const ``Int []) (.const ``Int.instLEInt []) mkIntLitZero _
-  | mkApp4 (.const ``GE.ge [0]) (.const ``Int []) (.const ``Int.instLEInt []) _ mkIntLitZero =>
-    true
-  | _ => false
-
-def addIntGtZeroLemma : Simproc := fun e => do
-  let .forallE n p q bi := e | return .continue
-  if !isIntGeLitZero p then return .continue
-  let rp ← simp p
-  let r ← Meta.withLocalDeclD n rp.expr fun hp => do
-    let rq ← withNewLemmas #[hp] (simp q)
-    match rq.proof? with
-    | none    => mkImpCongr e rp rq
-    | some hq =>
-      let hq ← mkLambdaFVars #[hp] hq
-      return { expr := .forallE n rp.expr rq.expr bi, proof? := ← mkImpCongrCtx (← rp.getProof) hq }
-  return .done r
-
-def decideIntGtZero : Simproc := fun e => do
-  simpUsingDecide e
-
-simproc ↓ [embedding] add_int_gt_zero (_ → _) :=
-  addIntGtZeroLemma
-
-simproc ↓ [embedding] decide_int_gt_zero (_ ≥ (0 : Int)) :=
-  Smt.Preprocess.Embedding.decideIntGtZero
-
-end
-
-end Smt.Preprocess.Embedding
+end Smt.Preprocess.Embedding.Nat

@@ -11,3 +11,5 @@ public import Smt.Reconstruct.BitVec
 public meta import Smt.Reconstruct.BitVec
 public import Smt.Translate.BitVec
 public meta import Smt.Translate.BitVec
+public import Smt.Preprocess.Normalize.BitVec
+public meta import Smt.Preprocess.Normalize.BitVec

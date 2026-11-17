@@ -22,56 +22,23 @@ open Translator Term
 private def mkNat : Lean.Expr :=
   .const ``Nat []
 
+/-- `Nat` is the SMT-LIB datatype
+`(declare-datatypes ((Nat 0)) (((Nat.zero) (Nat.succ (Nat.succ.n Nat)))))`
+that the query builder declares for the `Nat` inductive type. The `embedding` step rewrites `Nat`
+operations into `Int` ones through the uninterpreted casts `Nat.toInt` and `Nat.fromInt` (see
+`Smt/Preprocess/Embedding/Nat.lean`), so only literals and constructors can reach this translator,
+e.g., when the `embedding` step is disabled. -/
 @[smt_translate] def translateNat : Translator := fun e => do
   if let some n := e.natLitOf? mkNat then
-    return literalT (toString n)
+    modify fun st => { st with depConstants := st.depConstants.insert `Nat.fromInt }
+    return appT (symbolT "Nat.fromInt") (literalT (toString n))
   else if let .const ``Nat.zero _ := e then
-    return literalT "0"
+    modify fun st => { st with depConstants := st.depConstants.insert ``Nat }
+    return symbolT "Nat.zero"
   else if let some n := e.app1? ``Nat.succ then
-    return mkApp2 (symbolT "+") (← applyTranslators! n) (literalT "1")
-  else if let some (m, n) := e.hAddOf? mkNat mkNat then
-    return mkApp2 (symbolT "+") (← applyTranslators! m) (← applyTranslators! n)
-  else if let some (m, n) := e.hSubOf? mkNat mkNat then
-    modify fun st => { st with depConstants := st.depConstants.insert ``Nat.sub }
-    return mkApp2 (symbolT "Nat.sub") (← applyTranslators! m) (← applyTranslators! n)
-  else if let some (m, n) := e.hMulOf? mkNat mkNat then
-    return mkApp2 (symbolT "*") (← applyTranslators! m) (← applyTranslators! n)
-  else if let some (m, n) := e.hDivOf? mkNat mkNat then
-    return mkApp2 (symbolT "div") (← applyTranslators! m) (← applyTranslators! n)
-  else if let some (m, n) := e.hModOf? mkNat mkNat then
-    return mkApp2 (symbolT "mod") (← applyTranslators! m) (← applyTranslators! n)
+    modify fun st => { st with depConstants := st.depConstants.insert ``Nat }
+    return appT (symbolT "Nat.succ") (← applyTranslators! n)
   else
     return none
-
-@[smt_translate] def translateProp : Translator := fun e => do
-  if let some (m, n) := e.ltOf? mkNat then
-    return mkApp2 (symbolT "<") (← applyTranslators! m) (← applyTranslators! n)
-  else if let some (m, n) := e.leOf? mkNat then
-    return mkApp2 (symbolT "<=") (← applyTranslators! m) (← applyTranslators! n)
-  else if let some (m, n) := e.geOf? mkNat then
-    return mkApp2 (symbolT ">=") (← applyTranslators! m) (← applyTranslators! n)
-  else if let some (m, n) := e.gtOf? mkNat then
-    return mkApp2 (symbolT ">") (← applyTranslators! m) (← applyTranslators! n)
-  else
-    return none
-
-/- Translates quantified expressions over natural numbers for with versions that
-   ensure the quantified variables are greater than or equal to 0. For
-   example, given `∀ x : Nat, p(x)`, this method returns the expr
-   `∀ x : Nat, x ≥ 0 → p(x)`. -/
-@[smt_translate] def translateForalls : Translator
-  | e@(forallE n t@(const ``Nat _) b bi) => do
-    if e.isArrow then return none
-    let tmB ← Meta.withLocalDecl n bi t (translateBody b)
-    let tmGeqZero := Term.mkApp2 (symbolT ">=") (symbolT n.toString) (literalT "0")
-    let tmProp := Term.mkApp2 (symbolT "=>") tmGeqZero tmB
-    return forallT n.toString (symbolT "Int") tmProp
-  | _ => return none
-where
-  translateBody (b : Expr) (x : Expr) : TranslationM Term := do
-    modify fun s => { s with localFVars := s.localFVars.insert x.fvarId! }
-    let tmB ← applyTranslators! (b.instantiate #[x])
-    modify fun s => { s with localFVars := s.localFVars.erase x.fvarId! }
-    return tmB
 
 end Smt.Translate.Nat

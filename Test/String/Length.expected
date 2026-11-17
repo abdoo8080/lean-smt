@@ -2,5 +2,7 @@ goal: "a".length = 1
 
 query:
 (set-logic ALL)
-(assert (not (= (str.len "a") 1)))
+(declare-datatypes ((Nat 0)) (((Nat.zero) (Nat.succ (Nat.succ.n Nat)))))
+(declare-fun Nat.fromInt (Int) Nat)
+(assert (not (= (Nat.fromInt (str.len "a")) (Nat.fromInt 1))))
 (check-sat)
